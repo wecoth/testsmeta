@@ -401,9 +401,138 @@ export function setWallLength(wall, nextLength, anchor = 'start', options = {}) 
   });
 }
 
+// ── Stage 6: Wall reuse (Renga-style) ────────────────────────────
+//
+// Когда пользователь рисует новую стену поверх существующей или вплотную
+// к её внешней грани, мы НЕ создаём новую стену, а переиспользуем имеющуюся.
+// Это решает фундаментальную проблему "две параллельные стены на общей
+// границе двух комнат" — теперь общая стена ОДНА, с offset='center'.
+//
+// Возвращает:
+//   { mode: 'duplicate', wall }  — новая стена точно совпадает с существующей
+//   { mode: 'merge', wall, prevState }  — новая прилегает к внешней грани,
+//                                          existing.offset переключается в 'center'
+//   null  — переиспользование невозможно, нужно создать новую стену
+function findReusableWall(start, end, thick) {
+  const newAngle = Math.atan2(end.y - start.y, end.x - start.x);
+  const newLen = Math.hypot(end.x - start.x, end.y - start.y);
+  if (newLen < 1) return null;
+
+  const ANGLE_TOL = 0.05;     // ~3°
+  const THICKNESS_TOL = 5;    // мм
+  const ENDPOINT_TOL = 50;    // мм — допуск совпадения концов
+  // Допуск совпадения положения (для слияния "новая прилегает к внешней грани"):
+  // расстояние между базовыми линиями должно быть примерно равно толщине стены.
+  const FACE_TOL = 30;        // мм
+
+  for (const w of appState.walls) {
+    if (Math.abs(w.thickness - thick) > THICKNESS_TOL) continue;
+
+    const wStart = { x: w.cx1 ?? w.x1, y: w.cy1 ?? w.y1 };
+    const wEnd   = { x: w.cx2 ?? w.x2, y: w.cy2 ?? w.y2 };
+    const wLen = Math.hypot(wEnd.x - wStart.x, wEnd.y - wStart.y);
+    if (wLen < 1) continue;
+
+    const wAngle = Math.atan2(wEnd.y - wStart.y, wEnd.x - wStart.x);
+    // Параллельность (с учётом противоположного направления)
+    let angleDiff = Math.abs(newAngle - wAngle) % Math.PI;
+    if (angleDiff > Math.PI / 2) angleDiff = Math.PI - angleDiff;
+    if (angleDiff > ANGLE_TOL) continue;
+
+    // Сонаправлены ли стены (для проверки совпадения концов)
+    const sameDir = Math.cos(newAngle - wAngle) > 0;
+    const wS = sameDir ? wStart : wEnd;
+    const wE = sameDir ? wEnd   : wStart;
+
+    // Проверка концов через ПРОЕКЦИЮ на ось существующей стены.
+    // Перпендикулярное расстояние может быть большим (= thickness),
+    // если новая стена прилегает к внешней грани, но проекции концов
+    // вдоль оси должны совпадать.
+    const wUx = (wEnd.x - wStart.x) / wLen, wUy = (wEnd.y - wStart.y) / wLen;
+    const wNx = -wUy, wNy = wUx;
+    const projStart = (start.x - wS.x) * wUx + (start.y - wS.y) * wUy;
+    const projEnd   = (end.x   - wE.x) * wUx + (end.y   - wE.y) * wUy;
+    const endpointsMatch = Math.abs(projStart) < ENDPOINT_TOL && Math.abs(projEnd) < ENDPOINT_TOL;
+    if (!endpointsMatch) continue;
+
+    // Перпендикулярное расстояние от новой базы до базы существующей стены.
+    const dx = start.x - wStart.x, dy = start.y - wStart.y;
+    const perp = dx * wNx + dy * wNy; // знаковое расстояние
+
+    // Случай A: точное совпадение базовых линий → дубликат, ничего не создаём
+    if (Math.abs(perp) < FACE_TOL) {
+      return { mode: 'duplicate', wall: w };
+    }
+
+    // Случай B: новая база отстоит от существующей на ~thickness → прилегает
+    // к внешней грани. Это значит пользователь рисует "вторую комнату" рядом
+    // с первой. Превращаем существующую стену в общую (offset='center').
+    //
+    // Геометрический подход: контурные грани стены лежат на ±halfT от её
+    // СМЕЩЁННОЙ оси (x1/y1, x2/y2), а не от базы. Найдём знаковые расстояния
+    // обеих граней от базы по wN, выберем дальнюю как "внешнюю".
+    const halfT = w.thickness / 2;
+    // Знаковое расстояние от базы стены до её смещённой оси (по wN)
+    const axisOffsetFromBase = (w.x1 - wStart.x) * wNx + (w.y1 - wStart.y) * wNy;
+    // Грани контура: ось ± halfT по wN (знаковые)
+    const face1 = axisOffsetFromBase + halfT;
+    const face2 = axisOffsetFromBase - halfT;
+    // Внешняя грань = та, что ДАЛЬШЕ от базы (по абсолютной величине).
+    // Для offset='right'/'left' одна из граней совпадает с базой (=0), другая = ±thickness.
+    // Для offset='center' обе грани в ±halfT, внешней нет в строгом смысле — берём ту,
+    // в сторону которой смотрит новая стена.
+    let outerFaceOffset;
+    if (Math.abs(face1) > Math.abs(face2) + 1) {
+      outerFaceOffset = face1;
+    } else if (Math.abs(face2) > Math.abs(face1) + 1) {
+      outerFaceOffset = face2;
+    } else {
+      // center: выбираем грань в сторону новой базы
+      outerFaceOffset = perp > 0 ? Math.max(face1, face2) : Math.min(face1, face2);
+    }
+
+    // Если новая база лежит примерно на внешней грани — это слияние
+    if (Math.abs(perp - outerFaceOffset) < FACE_TOL) {
+      const prevState = {
+        offset: w.offset,
+        cx1: w.cx1, cy1: w.cy1, cx2: w.cx2, cy2: w.cy2,
+        x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2,
+      };
+      // Превращаем стену в общую: offset='center', база сдвигается к середине
+      // между старой базой и новой базой (== старая база + perp/2 по wN).
+      // Тогда обе грани контура окажутся в halfT от новой базы — стена станет
+      // симметричной относительно границы между двумя комнатами.
+      const shift = perp / 2;
+      w.cx1 += wNx * shift; w.cy1 += wNy * shift;
+      w.cx2 += wNx * shift; w.cy2 += wNy * shift;
+      w.offset = 'center';
+      recalculateContourFromBase(w);
+      return { mode: 'merge', wall: w, prevState };
+    }
+  }
+  return null;
+}
+
 // ── CRUD ─────────────────────────────────────────────────────────
 
 export function addWall(start, end, thick, height, wallOffset) {
+  // Stage 6: попытка переиспользовать существующую стену вместо создания дубликата.
+  // Если новая стена совпадает с существующей или прилегает к её внешней грани —
+  // возвращаем существующую (возможно, с обновлённым offset='center').
+  const reuse = findReusableWall(start, end, thick);
+  if (reuse) {
+    invalidateJointCache();
+    // Для совместимости с Undo: помечаем стену как "переиспользованную в этой команде",
+    // CreateWallCommand при undo сможет восстановить prevState (если был merge).
+    if (reuse.mode === 'merge') {
+      reuse.wall._lastReuseSnapshot = reuse.prevState;
+    }
+    return reuse.wall;
+  }
+  return _addWallRaw(start, end, thick, height, wallOffset);
+}
+
+function _addWallRaw(start, end, thick, height, wallOffset) {
   const angle = Math.atan2(end.y - start.y, end.x - start.x);
   const s  = applyWallOffset(start.x, start.y, angle, wallOffset, thick);
   const e2 = applyWallOffset(end.x,   end.y,   angle, wallOffset, thick);

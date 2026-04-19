@@ -145,6 +145,10 @@ function wallBase(w) {
  * Находит все уникальные вершины графа по осям стен (cx/cy).
  * MERGE = максимальная толщина стен — это гарантирует что концы смежных
  * комнат (отстоящие на thickness) сольются в одну точку автоматически.
+ *
+ * ВАЖНО: wallIds в точке не означает что стена ФИЗИЧЕСКИ к ней подходит.
+ * Это лишь "кандидаты" — реальная фильтрация делается в buildWallGraph
+ * по проекции точки на ось стены.
  */
 export function findAllIntersections(walls, eps = 2) {
   // Динамический MERGE = максимальная толщина среди всех стен + небольшой зазор
@@ -188,24 +192,51 @@ export function findAllIntersections(walls, eps = 2) {
 
 /**
  * Строит граф: вершины и рёбра.
- * Для каждой стены берём все вершины с её wallId,
- * сортируем вдоль оси, строим рёбра между соседними.
+ *
+ * Главная задача: для каждой стены отобрать ТОЛЬКО те вершины, которые
+ * физически лежат на её оси (с допуском на MERGE-смещение от слияния
+ * соседних точек). wallIds из findAllIntersections — это лишь кандидаты,
+ * реальная принадлежность проверяется по проекции на ось стены.
+ *
+ * Дополнительно: если две стены создают параллельные дубликаты ребра
+ * между одной и той же парой вершин (общая граница между комнатами —
+ * две физически параллельные стены), они склеиваются в одно ребро,
+ * иначе findFaces ломается на мультиграфе и нарезает паразитные фейсы.
+ * Все wallId объединяются в массив wallIds.
  */
 export function buildWallGraph(walls, points, eps = 2) {
   const maxThickness = walls.reduce((m, w) => Math.max(m, w.thickness || 0), 0);
   const MERGE = Math.max(maxThickness + 10, 30);
+  // Допуск перпендикулярного отклонения вершины от оси стены.
+  // Должен покрывать сдвиг на thickness (соседняя комната) + небольшой зазор.
+  const PERP_TOL = MERGE;
+  // Допуск выхода за концы стены (тоже до MERGE — концы могли уехать при слиянии)
+  const ALONG_TOL = MERGE;
 
   const vertices = points.map((p, i) => ({ ...p, id: i }));
-  const edges = [];
+  const rawEdges = [];
 
   for (const wall of walls) {
     const b = wallBase(wall);
     const len = Math.hypot(b.x2 - b.x1, b.y2 - b.y1);
     if (len < 1) continue;
     const ux = (b.x2 - b.x1) / len, uy = (b.y2 - b.y1) / len;
+    const nx = -uy, ny = ux; // нормаль к оси
     const bx1 = b.x1, by1 = b.y1;
 
-    const onWall = vertices.filter(v => v.wallIds.includes(wall.id));
+    // Берём только вершины, которые ФИЗИЧЕСКИ лежат вдоль оси этой стены.
+    // wallIds.includes(wall.id) — необходимое условие (стена была кандидатом),
+    // но дополнительно проверяем геометрию, иначе MERGE-слияние с соседней
+    // комнатой даёт ложные wallIds.
+    const onWall = vertices.filter(v => {
+      if (!v.wallIds.includes(wall.id)) return false;
+      const dx = v.x - bx1, dy = v.y - by1;
+      const along = dx * ux + dy * uy;
+      const perp  = Math.abs(dx * nx + dy * ny);
+      return along >= -ALONG_TOL && along <= len + ALONG_TOL && perp <= PERP_TOL;
+    });
+
+    if (onWall.length < 2) continue;
 
     onWall.sort((va, vb) => {
       const da = (va.x - bx1) * ux + (va.y - by1) * uy;
@@ -213,6 +244,7 @@ export function buildWallGraph(walls, points, eps = 2) {
       return da - db;
     });
 
+    // Дедупликация близких вершин вдоль оси (eps по проекции)
     const deduped = [];
     for (const v of onWall) {
       const along = (v.x - bx1) * ux + (v.y - by1) * uy;
@@ -225,9 +257,31 @@ export function buildWallGraph(walls, points, eps = 2) {
     for (let i = 0; i < deduped.length - 1; i++) {
       const v1 = deduped[i], v2 = deduped[i+1];
       if (Math.hypot(v2.x - v1.x, v2.y - v1.y) < 1) continue;
-      edges.push({ id: `e${edges.length}`, v1: v1.id, v2: v2.id, wallId: wall.id });
+      rawEdges.push({ v1: v1.id, v2: v2.id, wallId: wall.id });
     }
   }
+
+  // Склейка параллельных дубликатов: общая граница между комнатами
+  // физически состоит из двух стен, но геометрически это одно ребро графа.
+  // findFaces на мультиграфе работает некорректно — даёт лишние фейсы.
+  const edgeMap = new Map(); // ключ "minId-maxId" → агрегированное ребро
+  for (const e of rawEdges) {
+    const a = Math.min(e.v1, e.v2), b = Math.max(e.v1, e.v2);
+    const key = `${a}-${b}`;
+    if (!edgeMap.has(key)) {
+      edgeMap.set(key, {
+        id: `e${edgeMap.size}`,
+        v1: e.v1, v2: e.v2,
+        wallId: e.wallId,         // первый wallId — для обратной совместимости
+        wallIds: [e.wallId],      // полный список для room.js
+      });
+    } else {
+      const existing = edgeMap.get(key);
+      if (!existing.wallIds.includes(e.wallId)) existing.wallIds.push(e.wallId);
+    }
+  }
+
+  const edges = Array.from(edgeMap.values());
   return { vertices, edges };
 }
 

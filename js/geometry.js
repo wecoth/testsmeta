@@ -211,6 +211,7 @@ export function findAllIntersections(walls, eps = 2) {
  * сортируем вдоль оси cx/cy, строим рёбра между соседними.
  */
 export function buildWallGraph(walls, points, eps = 2) {
+  const MERGE = 12;
   const vertices = points.map((p, i) => ({ ...p, id: i }));
   const edges = [];
 

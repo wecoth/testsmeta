@@ -271,6 +271,14 @@ export function computeRooms(wallHeightFallback = 2700) {
 
   const facePolys = dedupedFaces.map(f => f.poly);
   const faceAreas = dedupedFaces.map(f => Math.abs(f.sArea));
+
+  // Защита от разомкнутого графа: если фейсов нет или нет внешнего —
+  // ничего не строим, экспликация очищается через emit.
+  if (dedupedFaces.length === 0) {
+    EventBus.emit('rooms:computed');
+    return;
+  }
+
   // Помечаем индексы внешних фейсов
   const exteriorIndices = new Set();
   for (let i = 0; i < dedupedFaces.length; i++) {
@@ -283,11 +291,13 @@ export function computeRooms(wallHeightFallback = 2700) {
   const exteriorPoly = facePolys[exteriorIndex];
 
   exteriorWallIds = new Set();
-  for (const edge of edges) {
-    const v1 = vertices[edge.v1], v2 = vertices[edge.v2];
-    const mid = { x: (v1.x + v2.x) / 2, y: (v1.y + v2.y) / 2 };
-    if (isPointOnPolygonBoundary(mid, exteriorPoly, 3.0)) {
-      exteriorWallIds.add(edge.wallId);
+  if (exteriorPoly) {
+    for (const edge of edges) {
+      const v1 = vertices[edge.v1], v2 = vertices[edge.v2];
+      const mid = { x: (v1.x + v2.x) / 2, y: (v1.y + v2.y) / 2 };
+      if (isPointOnPolygonBoundary(mid, exteriorPoly, 3.0)) {
+        exteriorWallIds.add(edge.wallId);
+      }
     }
   }
 
@@ -297,6 +307,19 @@ export function computeRooms(wallHeightFallback = 2700) {
     const rawPoly = facePolys[i];
     const rawArea = faceAreas[i];
     if (rawArea < 50000) continue; // 0.05 м²
+
+    // Фильтр "тонких" фейсов: паразитные полоски между параллельными стенами
+    // имеют огромный периметр и малую площадь. Compactness = area / perimeter².
+    // Для квадрата = 1/16 ≈ 0.0625, для круга ≈ 0.0796, для тонкой полоски → 0.
+    let perimeter = 0;
+    for (let k = 0; k < rawPoly.length; k++) {
+      const a = rawPoly[k], b = rawPoly[(k + 1) % rawPoly.length];
+      perimeter += Math.hypot(b.x - a.x, b.y - a.y);
+    }
+    const compactness = perimeter > 0 ? rawArea / (perimeter * perimeter) : 0;
+    // Минимально допустимое соотношение: ~0.005 (вытянутый прямоугольник 1:50).
+    // Реальные комнаты редко имеют такую вытянутость; полоски между стенами — да.
+    if (compactness < 0.005) continue;
 
     const roughCenter = polygonCentroid(rawPoly);
     
@@ -410,6 +433,7 @@ function projectPointOntoSegmentLocal(pt, seg) {
 }
 
 function isPointOnPolygonBoundary(pt, poly, eps = 1.0) {
+  if (!poly || poly.length < 2) return false;
   for (let i = 0; i < poly.length; i++) {
     const a = poly[i], b = poly[(i+1)%poly.length];
     const seg = { x1: a.x, y1: a.y, x2: b.x, y2: b.y };

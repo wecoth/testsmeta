@@ -42,23 +42,77 @@ function lineLineIntersect2(p1, d1, p2, d2) {
   return { x: p1.x + d1.x * t, y: p1.y + d1.y * t };
 }
 
-function findWallForEdge(ax, ay, bx, by, walls, eps = 15) {
+// Находит стену, ограничивающую данное ребро комнаты СО СТОРОНЫ комнаты.
+// Из всех параллельных стен в окрестности выбирает ту, чья ВНУТРЕННЯЯ грань
+// (с учётом offset) ближе всего к ребру И смотрит внутрь комнаты.
+// Это критично для случая двух смежных комнат: на общей границе физически
+// могут быть две параллельные стены (legacy/edge-cases — после Stage 6 reuse
+// этого быть не должно, но страхуемся). Раньше выбиралась произвольная,
+// что давало неправильный inwardShift и площадь типа 7.80 вместо 9.00.
+function findWallForEdge(ax, ay, bx, by, walls, roomCenter = null, eps = 15) {
   const midX = (ax + bx) / 2, midY = (ay + by) / 2;
   const edgeLen = Math.hypot(bx - ax, by - ay);
   if (edgeLen < 1) return null;
   const edUX = (bx - ax) / edgeLen, edUY = (by - ay) / edgeLen;
-  let best = null, bestDist = eps;
+
+  // Если задан центр комнаты — направление "внутрь" определяется относительно него
+  // Иначе берём левую нормаль ребра (направление по умолчанию)
+  let inwardX, inwardY;
+  if (roomCenter) {
+    const rawNX = -edUY, rawNY = edUX;
+    const sign = (rawNX * (roomCenter.x - midX) + rawNY * (roomCenter.y - midY)) >= 0 ? 1 : -1;
+    inwardX = rawNX * sign; inwardY = rawNY * sign;
+  } else {
+    inwardX = -edUY; inwardY = edUX;
+  }
+
+  let best = null, bestScore = Infinity;
   for (const w of walls) {
     const bw = { x1: w.cx1 ?? w.x1, y1: w.cy1 ?? w.y1, x2: w.cx2 ?? w.x2, y2: w.cy2 ?? w.y2 };
     const wLen = Math.hypot(bw.x2 - bw.x1, bw.y2 - bw.y1);
     if (wLen < 1) continue;
     const wUX = (bw.x2 - bw.x1) / wLen, wUY = (bw.y2 - bw.y1) / wLen;
     if (Math.abs(edUX * wUX + edUY * wUY) < 0.97) continue; // не параллельны
+
     const dx = midX - bw.x1, dy = midY - bw.y1;
     const along = dx * wUX + dy * wUY;
     if (along < -eps || along > wLen + eps) continue;
     const perp = Math.abs(dx * (-wUY) + dy * wUX);
-    if (perp < bestDist) { bestDist = perp; best = w; }
+    if (perp > w.thickness + eps) continue; // слишком далеко даже для соседней грани
+
+    // Оценка: насколько хорошо ВНУТРЕННЯЯ грань этой стены совпадает с ребром.
+    // Внутренняя грань — это та, что обращена внутрь комнаты.
+    const offset = w.offset || 'center';
+    const halfT = w.thickness / 2;
+    // Нормаль стены, направленная "вовне" (произвольно):
+    const wNX = -wUY, wNY = wUX;
+    // Знаковая координата ребра относительно базы стены вдоль её нормали:
+    const edgePerp = (midX - bw.x1) * wNX + (midY - bw.y1) * wNY;
+    // Где находится внутренняя грань стены относительно её базы (по wN):
+    //   right  → внутренняя = база (т.к. cx/cy — внутренняя грань для своей комнаты)
+    //   left   → внутренняя = база + thickness в каком-то направлении
+    //   center → внутренняя = база ± halfT, выбираем ту, что ближе к ребру
+    let innerFacePerp;
+    if (offset === 'right') {
+      innerFacePerp = 0;
+    } else if (offset === 'left') {
+      innerFacePerp = edgePerp >= 0 ? +w.thickness : -w.thickness;
+    } else {
+      innerFacePerp = edgePerp >= 0 ? +halfT : -halfT;
+    }
+    // Расстояние от ребра до внутренней грани стены
+    const innerDist = Math.abs(edgePerp - innerFacePerp);
+
+    // Дополнительный бонус, если стена "со стороны" комнаты от ребра:
+    // её центр должен находиться ВНЕ комнаты (т.е. в направлении -inward)
+    const wallCenterX = (bw.x1 + bw.x2) / 2;
+    const wallCenterY = (bw.y1 + bw.y2) / 2;
+    const wallSide = (wallCenterX - midX) * inwardX + (wallCenterY - midY) * inwardY;
+    // wallSide < 0 = стена снаружи комнаты (правильная), > 0 = внутри (чужая)
+    const sideBonus = (roomCenter && wallSide > halfT) ? 1000 : 0;
+
+    const score = innerDist + sideBonus;
+    if (score < bestScore) { bestScore = score; best = w; }
   }
   return best;
 }
@@ -71,23 +125,45 @@ function buildInnerPolygon(poly, walls, roomCenter) {
   const lines = [];
   for (let i = 0; i < n; i++) {
     const a = poly[i], b = poly[(i + 1) % n];
-    const wall = findWallForEdge(a.x, a.y, b.x, b.y, walls);
-
-    let inwardShift = 0;
-    if (wall) {
-      const offset = wall.offset || 'center';
-      if (offset === 'center') inwardShift = wall.thickness / 2;
-      else if (offset === 'left') inwardShift = wall.thickness;
-      else inwardShift = 0; // 'right' — cx/cy уже на внутренней грани
-    }
+    // Передаём roomCenter — выбор стены учитывает с какой стороны ребра она находится
+    const wall = findWallForEdge(a.x, a.y, b.x, b.y, walls, roomCenter);
 
     const edLen = Math.hypot(b.x - a.x, b.y - a.y) || 1;
     const edUX = (b.x - a.x) / edLen, edUY = (b.y - a.y) / edLen;
     let nx = -edUY, ny = edUX;
-
-    // Направляем нормаль к центру комнаты
     const midX = (a.x + b.x) / 2, midY = (a.y + b.y) / 2;
+    // Направляем нормаль к центру комнаты
     if (nx * (roomCenter.x - midX) + ny * (roomCenter.y - midY) < 0) { nx = -nx; ny = -ny; }
+
+    // Геометрический расчёт inwardShift: насколько внутренняя грань стены
+    // отстоит от ребра в направлении (nx, ny). Считаем напрямую через offset
+    // и геометрию стены, без предположений о том "куда смотрит" 'right'.
+    let inwardShift = 0;
+    if (wall) {
+      const offset = wall.offset || 'center';
+      const halfT = wall.thickness / 2;
+      const wLen = Math.hypot(wall.cx2 - wall.cx1, wall.cy2 - wall.cy1) || 1;
+      const wUx = (wall.cx2 - wall.cx1) / wLen, wUy = (wall.cy2 - wall.cy1) / wLen;
+      const wNx = -wUy, wNy = wUx;
+      // Знаковое расстояние от базы стены до ребра в направлении нормали стены
+      const edgePerp = (midX - wall.cx1) * wNx + (midY - wall.cy1) * wNy;
+
+      // Положение внутренней грани стены относительно базы (вдоль wN):
+      let innerFacePerp;
+      if (offset === 'right') {
+        // База = внутренняя грань стены для её "родной" комнаты
+        innerFacePerp = 0;
+      } else if (offset === 'left') {
+        // База = внешняя грань, внутренняя на расстоянии thickness в сторону комнаты
+        innerFacePerp = edgePerp >= 0 ? +wall.thickness : -wall.thickness;
+      } else {
+        // center: внутренняя грань на halfT в сторону комнаты
+        innerFacePerp = edgePerp >= 0 ? +halfT : -halfT;
+      }
+      // Расстояние от ребра до внутренней грани (всегда положительное —
+      // ребро может быть с любой стороны от базы)
+      inwardShift = Math.abs(edgePerp - innerFacePerp);
+    }
 
     lines.push({
       px: a.x + nx * inwardShift,
@@ -142,11 +218,68 @@ export function computeRooms(wallHeightFallback = 2700) {
 
   const faces = findFaces(vertices, edges);
   console.log('faces:', faces.length);
-  
-  const facePolys = faces.map(face => face.map(v => ({ x: v.x, y: v.y })));
 
-  const faceAreas = facePolys.map(poly => polygonArea(poly));
-  const exteriorIndex = faceAreas.indexOf(Math.max(...faceAreas));
+  // findFaces возвращает каждую грань ДВАЖДЫ (обходы forward + backward).
+  // Различаем их через ориентированную (signed) площадь: внутренние грани
+  // (комнаты) имеют один знак, внешние — другой. По модулю площадь одинаковая.
+  // Дедуплицируем по centroid + знаку площади.
+  function signedArea(poly) {
+    let a = 0;
+    for (let i = 0; i < poly.length; i++) {
+      const p1 = poly[i], p2 = poly[(i + 1) % poly.length];
+      a += p1.x * p2.y - p2.x * p1.y;
+    }
+    return a / 2;
+  }
+  const dedupedFaces = [];
+  const seenKeys = new Set();
+  for (const face of faces) {
+    const poly = face.map(v => ({ x: v.x, y: v.y }));
+    const sArea = signedArea(poly);
+    if (Math.abs(sArea) < 1) continue;
+    const c = polygonCentroid(poly);
+    // Ключ включает ЗНАК площади — обратные обходы имеют противоположный знак
+    const sign = sArea > 0 ? 'p' : 'n';
+    const key = `${Math.round(c.x/10)}_${Math.round(c.y/10)}_${sign}`;
+    if (seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    dedupedFaces.push({ poly, sArea });
+  }
+  console.log('faces (deduped):', dedupedFaces.length);
+
+  // Внутренние грани (комнаты) и внешние различаются ЗНАКОМ ориентированной
+  // площади. Какой именно знак "комнатный" — зависит от того, как findFaces
+  // обходит граф. Эвристика: комнат обычно несколько, внешний — один.
+  // Считаем количество фейсов каждого знака; меньшинство = внешние.
+  let posCount = 0, negCount = 0;
+  for (const f of dedupedFaces) {
+    if (f.sArea > 0) posCount++; else negCount++;
+  }
+  // Если знаков поровну (один фейс комната + один внешний — для одной комнаты),
+  // внешний = тот, у кого площадь больше. Иначе меньшинство.
+  let exteriorSign;
+  if (posCount === 0) exteriorSign = 'n';
+  else if (negCount === 0) exteriorSign = 'p';
+  else if (posCount === negCount) {
+    // У одной комнаты ровно 2 фейса (1+ и 1-). Внешний — тот с большей |area|.
+    // Но для замкнутой одной комнаты они равны! В этом случае внешним считаем
+    // фейс с отрицательной signed area (стандартная конвенция: CCW = внутренний).
+    exteriorSign = 'n';
+  } else {
+    exteriorSign = posCount < negCount ? 'p' : 'n';
+  }
+
+  const facePolys = dedupedFaces.map(f => f.poly);
+  const faceAreas = dedupedFaces.map(f => Math.abs(f.sArea));
+  // Помечаем индексы внешних фейсов
+  const exteriorIndices = new Set();
+  for (let i = 0; i < dedupedFaces.length; i++) {
+    if ((dedupedFaces[i].sArea > 0 ? 'p' : 'n') === exteriorSign) {
+      exteriorIndices.add(i);
+    }
+  }
+  // Для совместимости с дальнейшим кодом: exteriorIndex = первый внешний (нужен для exteriorPoly)
+  const exteriorIndex = [...exteriorIndices][0] ?? faceAreas.indexOf(Math.max(...faceAreas));
   const exteriorPoly = facePolys[exteriorIndex];
 
   exteriorWallIds = new Set();
@@ -159,7 +292,7 @@ export function computeRooms(wallHeightFallback = 2700) {
   }
 
   for (let i = 0; i < facePolys.length; i++) {
-    if (i === exteriorIndex) continue; // исключаем внешнюю границу
+    if (exteriorIndices.has(i)) continue; // исключаем все внешние границы
     
     const rawPoly = facePolys[i];
     const rawArea = faceAreas[i];

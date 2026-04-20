@@ -434,10 +434,19 @@ export function updateCoordinatesLabel(world, objectSnap, trackingPoint) {
       // Режим ввода смещения — показываем вводимое значение
       tooltipText = `↔ ${activeTool.offsetInput || '0'} мм`;
       showTooltip = true;
-    } else if (trackingPoint && !activeTool?.isDrawing) {
-      // Обычный режим — показываем текущее расстояние
-      const dist = Math.round(Math.hypot(world.x - trackingPoint.x, world.y - trackingPoint.y));
-      tooltipText = `📏 ${dist} мм`;
+        } else if (trackingPoint && !activeTool?.isDrawing) {
+      // Обычный режим — показываем расстояние с учётом привязки к осям
+      let dist;
+      const dir = activeTool?.trackingDirection;
+      if (dir) {
+        // Проекция вектора (world - trackingPoint) на направление dir
+        const dx = world.x - trackingPoint.x;
+        const dy = world.y - trackingPoint.y;
+        dist = Math.abs(dx * dir.x + dy * dir.y);
+      } else {
+        dist = Math.hypot(world.x - trackingPoint.x, world.y - trackingPoint.y);
+      }
+      tooltipText = `📏 ${Math.round(dist)} мм`;
       showTooltip = true;
     }
     

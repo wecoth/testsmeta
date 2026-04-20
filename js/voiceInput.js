@@ -5,7 +5,7 @@ let sessionCallback = null;
 let currentDigits = '';
 let statusIndicator = null;
 
-// ---------- МОЩНЫЙ ПАРСЕР (оставлен без изменений) ----------
+// ---------- МОЩНЫЙ ПАРСЕР (без изменений) ----------
 const STOP_COMMAND_RE = /\b(готово|завершить|заверши|подтвердить|подтверждаю|ввод|стоп|окей|ок)\b/u;
 
 const digitWords = {
@@ -284,25 +284,25 @@ function parseAnyLength(text) {
     if (!normalized) return null;
     const { unitMultiplier, cleanedText } = extractUnitMultiplier(normalized);
 
-    // 1) Последовательность цифр: "3 2 1", "три два один"
+    // 1) Последовательность цифр
     const digitSequence = parseDigitSequence(cleanedText.split(/\s+/).filter(Boolean));
     if (digitSequence !== null) {
         return Math.round(digitSequence * unitMultiplier);
     }
 
-    // 2) Прямые числа: 321, 50 000, 5.5, 5,5
+    // 2) Прямые числа
     const direct = parseDirectNumbers(cleanedText);
     if (direct !== null) {
         return Math.round(direct * unitMultiplier);
     }
 
-    // 3) Словами: "пятьдесят тысяч", "триста двадцать один", "полтора"
+    // 3) Словами
     const byWords = parseWordNumber(cleanedText);
     if (byWords !== null) {
         return Math.round(byWords * unitMultiplier);
     }
 
-    // 4) Fallback: все цифры подряд из оригинала
+    // 4) Fallback: все цифры подряд
     const digits = original.replace(/\D/g, '');
     if (digits) {
         const num = parseInt(digits, 10);
@@ -313,22 +313,20 @@ function parseAnyLength(text) {
     return null;
 }
 
-// ---------- ИНДИКАТОР В СТАТУСБАРЕ ----------
+// ---------- ИНДИКАТОР (МИНИМАЛЬНЫЙ, FIXED) ----------
 function showIndicator(text) {
     if (!statusIndicator) {
-        const st = document.querySelector('.statusbar');
-        if (st) {
-            statusIndicator = document.createElement('span');
-            statusIndicator.id = 'voiceIndicator';
-            statusIndicator.style.cssText = 'margin-left:12px;color:#4a6fe3;font-weight:500;';
-            st.appendChild(statusIndicator);
-        }
+        statusIndicator = document.createElement('div');
+        statusIndicator.id = 'voiceIndicator';
+        document.body.appendChild(statusIndicator);
     }
-    if (statusIndicator) statusIndicator.textContent = text || '🎤';
+    statusIndicator.textContent = text || '🎤';
 }
 
 function hideIndicator() {
-    if (statusIndicator) statusIndicator.textContent = '';
+    if (statusIndicator) {
+        statusIndicator.textContent = '';
+    }
 }
 
 // ---------- ОСНОВНОЙ МОДУЛЬ (БЫСТРЫЙ) ----------
@@ -353,7 +351,7 @@ export const VoiceInput = {
             console.log(`🎤 ${transcript}`);
 
             if (STOP_COMMAND_RE.test(transcript)) {
-                // По команде "готово" можно сразу завершить, но у нас управление по отпусканию пробела
+                // можно проигнорировать или оставить для досрочного завершения
                 return;
             }
 

@@ -264,23 +264,25 @@ export class SelectTool extends BaseTool {
   }
 
   onKeyDown(e) {
-    if (e.key === 'Delete' || e.key === 'Backspace') {
-      if (this.ui.selectedItems.length) {
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    if (this.ui.selectedItems.length) {
+      import('../commands/DeleteItemsCommand.js').then(({ DeleteItemsCommand }) => {
         executeCommand(new DeleteItemsCommand(this.ui.selectedItems));
         this.ui.clearSelection();
         this.ui.doRedraw();
-        e.preventDefault();
-        return true;
-      }
-    }
-    if (e.key === 'Escape') {
-      this.ui.clearSelection();
-      this.reset();
-      this.ui.doRedraw();
+      });
+      e.preventDefault();
       return true;
     }
-    return false;
   }
+  if (e.key === 'Escape') {
+    this.ui.clearSelection();
+    this.reset();
+    this.ui.doRedraw();
+    return true;
+  }
+  return false;
+}
 
   // Вспомогательные методы
   hitTestObject(wx, wy) {

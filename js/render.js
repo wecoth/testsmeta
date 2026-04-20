@@ -386,9 +386,9 @@ function drawWalls(selectedItems) {
     _ctx.save();
     _ctx.strokeStyle = style.stroke; _ctx.lineWidth = isSel ? 1.5 : 1;
     _ctx.lineCap = 'butt'; _ctx.lineJoin = 'miter'; _ctx.miterLimit = 10;
-    _ctx.beginPath();
+        _ctx.beginPath();
 
-        // Получаем контурные точки для проверки покрытия торцов
+    // Получаем контурные точки для проверки покрытия торцов
     const sp = getWallContourPoint(w, 'start');
     const ep = getWallContourPoint(w, 'end');
     const startCovered = appState.walls.some(other => other.id !== w.id && isPointInsideWallSurface(sp, other, 15));
@@ -412,7 +412,10 @@ function drawWalls(selectedItems) {
       drawClippedFace(ptD, ptC, myJoints);
     }
 
-    // Торцевые заглушки
+    // Stage 4: торцевые заглушки не рисуем если:
+    //   a) конец стыкуется с другой стеной (sj/ej), ИЛИ
+    //   b) конец касается коллинеарной стены, ИЛИ
+    //   c) конец перекрыт другой стеной (startCovered/endCovered)
     const jmapStart = getWallJointItemsForEndpoint(jmap, w, 'start').filter(it => it.wall.id !== w.id);
     const jmapEnd   = getWallJointItemsForEndpoint(jmap, w, 'end').filter(it => it.wall.id !== w.id);
     const collinearAtStart = jmapStart.some(it => areWallsCollinear(w, it.wall));
@@ -420,6 +423,7 @@ function drawWalls(selectedItems) {
 
     if (!ej && !collinearAtEnd && !endCovered)   { _ctx.moveTo(g.b.x, g.b.y); _ctx.lineTo(g.c.x, g.c.y); }
     if (!sj && !collinearAtStart && !startCovered) { _ctx.moveTo(g.d.x, g.d.y); _ctx.lineTo(g.a.x, g.a.y); }
+
     _ctx.stroke();
 
     _ctx.restore();

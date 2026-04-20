@@ -43,6 +43,11 @@ export function initPlanner(domRefs) {
     doRedraw();
   });
 
+  const redrawOnChange = () => doRedraw();
+  EventBus.on('walls:changed', redrawOnChange);
+  EventBus.on('openings:changed', redrawOnChange);
+  EventBus.on('dividers:changed', redrawOnChange);
+  
   initRenderer(canvas, canvas.getContext('2d'), () => scale);
 
   resizeCanvas();

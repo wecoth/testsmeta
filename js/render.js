@@ -382,59 +382,55 @@ function drawWalls(selectedItems) {
   }
 
   // Pass 3: stroke outlines
-  for (const { w, g, isSel, style, sj, ej, myJoints, ptA, ptB, ptC, ptD } of wallData) {
-    _ctx.save();
-    _ctx.strokeStyle = style.stroke; _ctx.lineWidth = isSel ? 1.5 : 1;
-    _ctx.lineCap = 'butt'; _ctx.lineJoin = 'miter'; _ctx.miterLimit = 10;
-    _ctx.beginPath();
+for (const { w, g, isSel, style, sj, ej, myJoints, ptA, ptB, ptC, ptD } of wallData) {
+  _ctx.save();
+  _ctx.strokeStyle = style.stroke;
+  _ctx.lineWidth = isSel ? 1.5 : 1;
+  _ctx.lineCap = 'butt';
+  _ctx.lineJoin = 'miter';
+  _ctx.miterLimit = 10;
+  _ctx.beginPath();
 
-    // Получаем контурные точки для проверки покрытия торцов
-        
-    const sp = getWallContourPoint(w, 'start');
-    const ep = getWallContourPoint(w, 'end');
-    const startCovered = appState.walls.some(other => other.id !== w.id && isPointInsideWallSurface(sp, other, 15));
-    const endCovered   = appState.walls.some(other => other.id !== w.id && isPointInsideWallSurface(ep, other, 15));
+  // Получаем контурные точки для проверки покрытия торцов
+  const sp = getWallContourPoint(w, 'start');
+  const ep = getWallContourPoint(w, 'end');
+  const startCovered = appState.walls.some(other => other.id !== w.id && isPointInsideWallSurface(sp, other, 15));
+  const endCovered   = appState.walls.some(other => other.id !== w.id && isPointInsideWallSurface(ep, other, 15));
 
-    // Расширенный список прямоугольников для вырезания
-    const clipRects = [...myJoints];
+  // Расширенный список прямоугольников для вырезания (myJoints + пересечения с другими стенами)
+  let clipRects = [...myJoints];
 
-    // Добавляем прямоугольники пересечений с другими стенами для грани ab
-    for (const other of appState.walls) {
-      if (other.id === w.id) continue;
-      // Получаем экранный bounding box другой стены
-      const og = sg(other);
-      const otherRect = {
-        left:   Math.min(og.a.x, og.b.x, og.c.x, og.d.x),
-        right:  Math.max(og.a.x, og.b.x, og.c.x, og.d.x),
-        top:    Math.min(og.a.y, og.b.y, og.c.y, og.d.y),
-        bottom: Math.max(og.a.y, og.b.y, og.c.y, og.d.y),
-      };
-      // Добавляем, если грань ab пересекается с этим прямоугольником
-      if (segmentsIntersectRect(g.a, g.b, otherRect)) {
-        clipRects.push(otherRect);
-      }
-      // Аналогично для грани dc — можно добавить в тот же массив,
-      // drawClippedFace вырежет все переданные прямоугольники.
-      if (segmentsIntersectRect(g.d, g.c, otherRect)) {
-        clipRects.push(otherRect);
-      }
-    }
+  for (const other of appState.walls) {
+    if (other.id === w.id) continue;
 
-    // Рисуем грани с вырезами
-    drawClippedFace(ptA, ptB, clipRects);
-    drawClippedFace(ptD, ptC, clipRects);
+    const og = sg(other);                    // ← sg — это твоя функция получения экранной геометрии стены
+    const otherRect = {
+      left:   Math.min(og.a.x, og.b.x, og.c.x, og.d.x) - 2,
+      right:  Math.max(og.a.x, og.b.x, og.c.x, og.d.x) + 2,
+      top:    Math.min(og.a.y, og.b.y, og.c.y, og.d.y) - 2,
+      bottom: Math.max(og.a.y, og.b.y, og.c.y, og.d.y) + 2,
+    };
 
-    // Торцы
-    const jmapStart = getWallJointItemsForEndpoint(jmap, w, 'start').filter(it => it.wall.id !== w.id);
-    const jmapEnd   = getWallJointItemsForEndpoint(jmap, w, 'end').filter(it => it.wall.id !== w.id);
-    const collinearAtStart = jmapStart.some(it => areWallsCollinear(w, it.wall));
-    const collinearAtEnd   = jmapEnd.some(it => areWallsCollinear(w, it.wall));
+    // Добавляем rect, если грань ab или dc пересекается с другой стеной
+    if (segmentsIntersectRect(g.a, g.b, otherRect)) clipRects.push(otherRect);
+    if (segmentsIntersectRect(g.d, g.c, otherRect)) clipRects.push(otherRect);
+  }
 
-    if (!ej && !collinearAtEnd && !endCovered)   { _ctx.moveTo(g.b.x, g.b.y); _ctx.lineTo(g.c.x, g.c.y); }
-    if (!sj && !collinearAtStart && !startCovered) { _ctx.moveTo(g.d.x, g.d.y); _ctx.lineTo(g.a.x, g.a.y); }
+  // Рисуем грани — теперь с вырезом только в местах стыков
+  drawClippedFace(ptA, ptB, clipRects);
+  drawClippedFace(ptD, ptC, clipRects);
 
-    _ctx.stroke();
-    _ctx.restore();
+  // Торцевые заглушки
+  const jmapStart = getWallJointItemsForEndpoint(jmap, w, 'start').filter(it => it.wall.id !== w.id);
+  const jmapEnd   = getWallJointItemsForEndpoint(jmap, w, 'end').filter(it => it.wall.id !== w.id);
+  const collinearAtStart = jmapStart.some(it => areWallsCollinear(w, it.wall));
+  const collinearAtEnd   = jmapEnd.some(it => areWallsCollinear(w, it.wall));
+
+  if (!ej && !collinearAtEnd && !endCovered)   { _ctx.moveTo(g.b.x, g.b.y); _ctx.lineTo(g.c.x, g.c.y); }
+  if (!sj && !collinearAtStart && !startCovered) { _ctx.moveTo(g.d.x, g.d.y); _ctx.lineTo(g.a.x, g.a.y); }
+
+  _ctx.stroke();
+  _ctx.restore();
   }
 }
 

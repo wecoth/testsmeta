@@ -120,7 +120,7 @@ export function isWallEndpointCoveredByAnotherWall(wall, endpoint) {
   const point = endpoint === 'start'
     ? { x: wall.cx1 ?? wall.x1, y: wall.cy1 ?? wall.y1 }
     : { x: wall.cx2 ?? wall.x2, y: wall.cy2 ?? wall.y2 };
-  return appState.walls.some(other => other.id !== wall.id && isPointInsideWallSurface(point, other));
+  return appState.walls.some(other => other.id !== wall.id && isPointInsideWallSurface(point, other, 15)); // было 0.75
 }
 
 // ── Joint map ────────────────────────────────────────────────────

@@ -10,6 +10,8 @@ const _state = {
   roomNameOverrides: {},
   idWall: 1,
   idOpen: 1,
+  dividers: [],    // { id, x1, y1, x2, y2 }
+  idDivider: 1,
 
   // ── Smeta ──
   logoData: null,

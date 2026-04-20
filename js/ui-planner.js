@@ -253,7 +253,31 @@ function syncDoorButtons() { /* ... как раньше ... */ }
 export function setTool(t) {
   if (activeTool) activeTool.deactivate();
   tool = t;
-  activeTool = createTool(tool, this);
+  
+  // Создаём объект ui, который инструменты будут использовать для доступа к методам планировщика
+  const uiContext = {
+    canvas,
+    dom,
+    tool,
+    selectedItems,
+    shiftDown,
+    ctrlDown,
+    wallOffset,
+    defaultDoorHinge,
+    defaultDoorSwing,
+    voiceKeyPressed,
+    mouseScreen,
+    doRedraw: () => doRedraw(),
+    clearSelection: () => clearSelection(),
+    setSelection: (items) => setSelection(items),
+    selectObject: (type, id) => selectObject(type, id),
+    toggleSelection: (type, id) => toggleSelection(type, id),
+    updateCoordinatesLabel: (world, snap, track) => updateCoordinatesLabel(world, snap, track),
+    clearTracking: () => {}, // будет переопределено инструментами при необходимости
+    debouncedComputeRooms: () => {}, // заглушка, если нужно
+  };
+  
+  activeTool = createTool(tool, uiContext);
   if (activeTool) activeTool.activate();
   
   document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));

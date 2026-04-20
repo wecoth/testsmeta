@@ -14,6 +14,10 @@ export class WallTool extends BaseTool {
     super(ui);
     this.name = 'wall';
     this.voiceKeyPressed = false;
+
+    // Поля для ввода смещения от угла
+    this.offsetInput = '';       // накопленные цифры смещения
+    this.offsetMode = false;     // true, когда вводим смещение от угла
     
     // Локальное состояние рисования
     this.isDrawing = false;
@@ -110,10 +114,24 @@ export class WallTool extends BaseTool {
       wallOffset: this.ui.wallOffset,
       activeTrackingPoint: this.activeTrackingPoint,
       trackingLines: this.activeTrackingPoint ? getTrackingLines(this.activeTrackingPoint) : [],
+      offsetMode: this.offsetMode,
+      offsetInput: this.offsetInput,
     };
   }
 
-  onMouseDown(pos, world, e) {
+    onMouseDown(pos, world, e) {
+    // Если активна точка отслеживания и ещё не рисуем, но введено смещение — фиксируем старт по клику
+    if (!this.isDrawing && this.activeTrackingPoint && this.offsetMode) {
+      const offset = parseFloat(this.offsetInput);
+      if (!isNaN(offset) && offset >= 0) {
+        this.applyOffsetStart(offset);
+        this.offsetInput = '';
+        this.offsetMode = false;
+        this.ui.doRedraw();
+        return true;
+      }
+    }
+    
     if (!this.isDrawing) {
       const snapped = snap(world.x, world.y, { screenPoint: pos });
       this.isDrawing = true;
@@ -154,13 +172,52 @@ export class WallTool extends BaseTool {
   }
 
   onKeyDown(e) {
+    // ─── Режим ввода смещения от угла (до начала рисования) ───
+    const canInputOffset = !this.isDrawing && this.activeTrackingPoint;
+    
+    if (canInputOffset && /^[0-9]$/.test(e.key)) {
+      this.offsetMode = true;
+      this.offsetInput += e.key;
+      e.preventDefault();
+      this.ui.doRedraw();
+      return true;
+    }
+    
+    if (canInputOffset && e.key === 'Backspace' && this.offsetMode) {
+      this.offsetInput = this.offsetInput.slice(0, -1);
+      if (!this.offsetInput) this.offsetMode = false;
+      e.preventDefault();
+      this.ui.doRedraw();
+      return true;
+    }
+    
+    if (canInputOffset && e.key === 'Enter' && this.offsetMode) {
+      const offset = parseFloat(this.offsetInput);
+      if (!isNaN(offset) && offset >= 0) {
+        this.applyOffsetStart(offset);
+      }
+      this.offsetInput = '';
+      this.offsetMode = false;
+      e.preventDefault();
+      this.ui.doRedraw();
+      return true;
+    }
+    
+    if (canInputOffset && e.key === 'Escape') {
+      this.offsetInput = '';
+      this.offsetMode = false;
+      e.preventDefault();
+      this.ui.doRedraw();
+      return true;
+    }
+
+    // ─── Обычный режим рисования (длина стены) ───
     if (!this.isDrawing) return false;
 
     // Голосовой ввод
     if (e.code === 'Space' && !this.voiceKeyPressed) {
       e.preventDefault();
       this.voiceKeyPressed = true;
-      // Запуск голосового ввода (через VoiceInput)
       import('../voiceInput.js').then(({ VoiceInput }) => {
         VoiceInput.startListening((lengthMm) => {
           if (!this.isDrawing) return;
@@ -367,4 +424,42 @@ export class WallTool extends BaseTool {
     this.ui.doRedraw();
     return true;
   }
+
+  /**
+   * Фиксирует начальную точку стены с заданным смещением от активной точки отслеживания.
+   * @param {number} offsetMm - смещение в миллиметрах
+   */
+  applyOffsetStart(offsetMm) {
+    if (!this.activeTrackingPoint) return;
+    
+    // Определяем направление от точки отслеживания
+    let dir = { x: 1, y: 0 }; // по умолчанию вправо
+    
+    // Если есть текущее положение мыши, используем его для направления
+    if (this.ui.mouseScreen) {
+      const world = toWorld(this.ui.mouseScreen.x, this.ui.mouseScreen.y);
+      const dx = world.x - this.activeTrackingPoint.x;
+      const dy = world.y - this.activeTrackingPoint.y;
+      const len = Math.hypot(dx, dy);
+      if (len > 1) dir = { x: dx / len, y: dy / len };
+    } else if (this.activeTrackingPoint.wallDir) {
+      // Или направление стены, к которой принадлежит угол
+      dir = this.activeTrackingPoint.wallDir;
+    }
+    
+    // Вычисляем стартовую точку
+    const start = {
+      x: this.activeTrackingPoint.x + dir.x * offsetMm,
+      y: this.activeTrackingPoint.y + dir.y * offsetMm,
+    };
+    
+    // Начинаем рисование стены от этой точки
+    this.isDrawing = true;
+    this.chainMode = false;
+    this.drawStart = { ...start };
+    this.drawEnd = { ...start };
+    this.lengthInput = '';
+    this.lengthMode = false;
+  }
+  
 }

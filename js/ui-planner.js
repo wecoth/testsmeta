@@ -9,6 +9,7 @@ import { updateExpl, getComputedRooms, renameRoom, setWallHeight } from './room.
 import { setViewport, setModifiers, toScreen, toWorld } from './snapping.js';
 import { redraw, initRenderer } from './render.js';
 import { createTool } from './tools/index.js';
+import { VoiceInput } from './voiceInput.js';
 
 // ── Module state ──────────────────────────────────────────────────
 let canvas, canvasWrap;
@@ -150,6 +151,8 @@ export function initPlanner(domRefs) {
     if (!rooms.length) { alert('Нарисуйте план и пересчитайте помещения'); return; }
     window._smetaModule?.importRoomsFromPlanner(rooms);
   });
+
+  VoiceInput.init();
 
   setTool('select');
   syncDoorButtons();

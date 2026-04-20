@@ -485,4 +485,6 @@ export class WallTool extends BaseTool {
     this.drawEnd = { ...start };
     this.lengthInput = '';
     this.lengthMode = false;
-  }
+    }
+  
+}  // ← ВОТ ЭТУ СТРОКУ НУЖНО ДОБАВИТЬ

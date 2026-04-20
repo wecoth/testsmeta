@@ -47,7 +47,6 @@ export class SelectTool extends BaseTool {
     this.selectBoxCurrent = null;
     this.selectClickCandidate = null;
     this.hoverItem = null;
-    this.ui.clearTracking();
   }
 
   getCursor() {

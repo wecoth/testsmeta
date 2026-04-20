@@ -141,6 +141,7 @@ export function hitTestWallResizeHandle(sp, tool, selectedItems) {
 // ── MAIN REDRAW ───────────────────────────────────────────────────
 
 export function redraw(ps) {
+  if (!_ctx || !_canvas) return;
   _ctx.clearRect(0, 0, _canvas.width, _canvas.height);
   drawGrid();
   drawRoomFills(ps.selectedItems);

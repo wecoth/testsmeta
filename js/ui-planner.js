@@ -443,3 +443,6 @@ function updateSnapBadge() {
 }
 
 export function getViewport() { return { scale, panX, panY }; }
+
+// Экспорт для совместимости с main.js и другими модулями
+export const forceRedraw = doRedraw;

@@ -70,10 +70,10 @@ export class WallTool extends BaseTool {
 
   updateTrackingState(snap) {
     const trackable = snap && (
-      snap.type === 'endpoint' || snap.type === 'corner' ||
-      snap.type === 'intersection' || snap.type === 'midpoint'
-      snap.type === 'wallFace'
-    );
+  snap.type === 'endpoint' || snap.type === 'corner' ||
+  snap.type === 'intersection' || snap.type === 'midpoint' ||
+  snap.type === 'wallFace'
+);
     if (!trackable) {
       clearTimeout(this._snapHoverTimer);
       this._snapHoverTimer = null;
@@ -295,15 +295,15 @@ this.activeTrackingPoint = { x: snap.x, y: snap.y, type: snap.type, wallDir, nor
   // ─── Вспомогательные методы WallTool ─────────────────────────────
 
   updateWallObjectSnap(world, screenPoint) {
-    this.currentObjectSnap = findObjectSnapCandidate(world, screenPoint, {
-  includeEndpoint: true,
-  includeCorner: true,
-  includeMidpoint: true,
-  includeIntersection: true,
-  includeWallPoint: false,  // запрещаем клик внутри стены
-  includePerpendicular: this.isDrawing && !!this.drawStart,
-  startPoint: this.drawStart,
-});
+      this.currentObjectSnap = findObjectSnapCandidate(world, screenPoint, {
+    includeEndpoint: true,
+    includeCorner: true,
+    includeMidpoint: true,
+    includeIntersection: true,
+    includeWallPoint: true,   // ← должно быть true
+    includePerpendicular: this.isDrawing && !!this.drawStart,
+    startPoint: this.drawStart,
+  });
   }
 
   updateWallGuide(world, screenPoint) {
@@ -332,7 +332,6 @@ this.activeTrackingPoint = { x: snap.x, y: snap.y, type: snap.type, wallDir, nor
       screenPoint: screenPt,
       includePerpendicular: !!this.drawStart,
       startPoint: this.drawStart,
-      skipWallPoint: true,
     });
     let rawEnd = { ...snappedBase };
     const hardSnap = snappedBase.snapType === 'endpoint' || snappedBase.snapType === 'corner' || snappedBase.snapType === 'intersection';

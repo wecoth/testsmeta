@@ -31,6 +31,7 @@ export class WallTool extends BaseTool {
     
     // Отслеживание точки для рулетки
     this.activeTrackingPoint = null;
+    this.trackingDirection = null; 
     this._snapHoverTimer = null;
     this._snapHoverKey = null;
   }
@@ -64,6 +65,7 @@ export class WallTool extends BaseTool {
     this._snapHoverTimer = null;
     this._snapHoverKey = null;
     this.activeTrackingPoint = null;
+    this.trackingDirection = null;
   }
 
   updateTrackingState(snap) {
@@ -116,6 +118,7 @@ export class WallTool extends BaseTool {
       trackingLines: this.activeTrackingPoint ? getTrackingLines(this.activeTrackingPoint) : [],
       offsetMode: this.offsetMode,
       offsetInput: this.offsetInput,
+      trackingDirection: this.trackingDirection,
     };
   }
 
@@ -153,6 +156,13 @@ export class WallTool extends BaseTool {
     
     this.updateWallObjectSnap(world, pos);
     this.updateTrackingState(this.currentObjectSnap);
+        // Если есть активная точка, но рисование ещё не начато – обновляем направление смещения
+    if (this.activeTrackingPoint && !this.isDrawing) {
+      const dir = this.getDirectionFromTrackingPoint(this.activeTrackingPoint, world);
+      this.trackingDirection = dir;
+    } else {
+      this.trackingDirection = null;
+    }
 
     if (this.isDrawing && this.drawStart) {
       this.updateWallGuide(world, pos);
@@ -460,31 +470,32 @@ export class WallTool extends BaseTool {
    * Фиксирует начальную точку стены с заданным смещением от активной точки отслеживания.
    * @param {number} offsetMm - смещение в миллиметрах
    */
-  applyOffsetStart(offsetMm) {
+    applyOffsetStart(offsetMm) {
     if (!this.activeTrackingPoint) return;
     
-    // Определяем направление от точки отслеживания (с примагничиванием к осям)
-    let dir;
-    if (this.ui.mouseScreen) {
-      const world = toWorld(this.ui.mouseScreen.x, this.ui.mouseScreen.y);
-      dir = this.getDirectionFromTrackingPoint(this.activeTrackingPoint, world);
-    } else {
-      dir = this.getDirectionFromTrackingPoint(this.activeTrackingPoint, null);
+    // Используем зафиксированное направление (или определяем заново, если нет)
+    let dir = this.trackingDirection;
+    if (!dir) {
+      if (this.ui.mouseScreen) {
+        const world = toWorld(this.ui.mouseScreen.x, this.ui.mouseScreen.y);
+        dir = this.getDirectionFromTrackingPoint(this.activeTrackingPoint, world);
+      } else {
+        dir = { x: 1, y: 0 };
+      }
     }
     
-    // Вычисляем стартовую точку
     const start = {
       x: this.activeTrackingPoint.x + dir.x * offsetMm,
       y: this.activeTrackingPoint.y + dir.y * offsetMm,
     };
     
-    // Начинаем рисование стены от этой точки
     this.isDrawing = true;
     this.chainMode = false;
     this.drawStart = { ...start };
     this.drawEnd = { ...start };
     this.lengthInput = '';
     this.lengthMode = false;
-    }
+    this.trackingDirection = null; // сбрасываем после использования
+  }
   
 }  // ← ВОТ ЭТУ СТРОКУ НУЖНО ДОБАВИТЬ

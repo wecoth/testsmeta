@@ -10,6 +10,7 @@ import {
 import { toScreen, toWorld, getGuideAxes, getGuideLineScreenEndpoints, setViewport as _setViewportFn } from './snapping.js';
 import { exteriorWallIds } from './room.js';
 import { polygonCentroid } from './geometry.js';
+import { isPointInsideWallSurface } from './wall.js';
 
 let _canvas, _ctx, _hatchPat = null;
 let _getScale = () => 0.12;
@@ -386,8 +387,18 @@ function drawWalls(selectedItems) {
     _ctx.strokeStyle = style.stroke; _ctx.lineWidth = isSel ? 1.5 : 1;
     _ctx.lineCap = 'butt'; _ctx.lineJoin = 'miter'; _ctx.miterLimit = 10;
     _ctx.beginPath();
-    drawClippedFace(ptA, ptB, myJoints); // грань ab
-    drawClippedFace(ptD, ptC, myJoints); // грань dc
+
+    // Проверяем, перекрыта ли грань другой стеной
+const midAB = { x: (g.a.x + g.b.x) / 2, y: (g.a.y + g.b.y) / 2 };
+const midDC = { x: (g.d.x + g.c.x) / 2, y: (g.d.y + g.c.y) / 2 };
+const worldAB = toWorld(midAB.x, midAB.y);
+const worldDC = toWorld(midDC.x, midDC.y);
+
+const abCovered = appState.walls.some(other => other.id !== w.id && isPointInsideWallSurface(worldAB, other, 5));
+const dcCovered = appState.walls.some(other => other.id !== w.id && isPointInsideWallSurface(worldDC, other, 5));
+    
+    (ptA, ptB, myJoints); // грань ab
+    (ptD, ptC, myJoints); // грань dc
 
     // Stage 4: торцевые заглушки не рисуем если:
     //   a) конец стыкуется с другой стеной (sj/ej), ИЛИ

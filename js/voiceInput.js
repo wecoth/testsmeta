@@ -3,66 +3,369 @@ import { EventBus } from './eventBus.js';
 
 let recognition = null;
 let isListening = false;
-let currentCallback = null;
+let sessionCallback = null;
 let overlayElement = null;
-let holdKey = 'Space'; // Можно будет вынести в настройки
+let currentDigits = '';
+let digitTimeout = null;
 
-// Словарь для парсинга русских числительных
-const numberWords = {
-    'ноль': 0, 'один': 1, 'одна': 1, 'два': 2, 'две': 2, 'три': 3, 'четыре': 4,
-    'пять': 5, 'шесть': 6, 'семь': 7, 'восемь': 8, 'девять': 9, 'десять': 10,
-    'одиннадцать': 11, 'двенадцать': 12, 'тринадцать': 13, 'четырнадцать': 14,
-    'пятнадцать': 15, 'шестнадцать': 16, 'семнадцать': 17, 'восемнадцать': 18,
-    'девятнадцать': 19, 'двадцать': 20, 'тридцать': 30, 'сорок': 40,
-    'пятьдесят': 50, 'шестьдесят': 60, 'семьдесят': 70, 'восемьдесят': 80,
-    'девяносто': 90, 'сто': 100, 'двести': 200, 'триста': 300, 'четыреста': 400,
-    'пятьсот': 500, 'шестьсот': 600, 'семьсот': 700, 'восемьсот': 800, 'девятьсот': 900,
-    'тысяча': 1000, 'тысячи': 1000, 'тысяч': 1000
+const STOP_COMMAND_RE = /\b(готово|завершить|заверши|подтвердить|подтверждаю|ввод|стоп|окей|ок)\b/u;
+
+// Отдельные цифры (включая разговорные варианты и частые оговорки распознавания)
+const digitWords = {
+    'ноль': '0', 'нуль': '0',
+    'один': '1', 'одна': '1', 'одну': '1',
+    'два': '2', 'две': '2',
+    'три': '3',
+    'четыре': '4',
+    'пять': '5',
+    'шесть': '6',
+    'семь': '7',
+    'восемь': '8',
+    'девять': '9'
 };
 
-function parseSpokenLength(text) {
-    let str = text.toLowerCase().trim()
-        .replace(/метров|метра|метр|м/gi, ' ')
-        .replace(/сантиметров|сантиметра|сантиметр|см/gi, ' ')
-        .replace(/миллиметров|миллиметр|мм/gi, '')
-        .replace(/с половиной/gi, '.5')
-        .replace(/целых|и|запятая|точка/gi, '.')
-        .replace(/\s+/g, ' ');
+const unitWords = {
+    'мм': 1,
+    'миллиметр': 1,
+    'миллиметра': 1,
+    'миллиметров': 1,
+    'см': 10,
+    'сантиметр': 10,
+    'сантиметра': 10,
+    'сантиметров': 10,
+    'м': 1000,
+    'метр': 1000,
+    'метра': 1000,
+    'метров': 1000
+};
 
-    // Прямое числовое значение (например "4800", "4.8", "3.25")
-    let num = parseFloat(str);
-    if (!isNaN(num)) {
-        // Если число маленькое, вероятно это метры (например 4.8 -> 4800 мм)
-        if (num < 100) num *= 1000;
-        return Math.round(num);
-    }
+const smallNumberWords = {
+    'ноль': 0, 'нуль': 0,
+    'один': 1, 'одна': 1, 'одно': 1, 'одну': 1,
+    'два': 2, 'две': 2,
+    'три': 3,
+    'четыре': 4,
+    'пять': 5,
+    'шесть': 6,
+    'семь': 7,
+    'восемь': 8,
+    'девять': 9,
+    'десять': 10,
+    'одиннадцать': 11,
+    'двенадцать': 12,
+    'тринадцать': 13,
+    'четырнадцать': 14,
+    'пятнадцать': 15,
+    'шестнадцать': 16,
+    'семнадцать': 17,
+    'восемнадцать': 18,
+    'девятнадцать': 19
+};
 
-    // Парсинг слов
-    let result = 0;
-    let current = 0;
-    const words = str.split(' ');
+const tensWords = {
+    'двадцать': 20,
+    'тридцать': 30,
+    'сорок': 40,
+    'пятьдесят': 50,
+    'шестьдесят': 60,
+    'семьдесят': 70,
+    'восемьдесят': 80,
+    'девяносто': 90
+};
 
-    for (let word of words) {
-        if (numberWords[word] !== undefined) {
-            if (word === 'тысяча' || word === 'тысячи' || word === 'тысяч') {
-                result += (current || 1) * 1000;
-                current = 0;
-            } else {
-                current += numberWords[word];
-            }
-        } else if (/^\d+$/.test(word)) {
-            current = parseInt(word);
+const hundredsWords = {
+    'сто': 100,
+    'двести': 200,
+    'триста': 300,
+    'четыреста': 400,
+    'пятьсот': 500,
+    'шестьсот': 600,
+    'семьсот': 700,
+    'восемьсот': 800,
+    'девятьсот': 900
+};
+
+const scaleWords = {
+    'тысяча': 1000,
+    'тысячи': 1000,
+    'тысяч': 1000,
+    'миллион': 1000000,
+    'миллиона': 1000000,
+    'миллионов': 1000000
+};
+
+const decimalSeparators = new Set(['запятая', 'точка', 'целых', 'целая', 'целое', 'целые']);
+
+const fillerWords = new Set([
+    'и', 'а', 'ну', 'пожалуйста', 'примерно', 'ровно', 'около',
+    'длина', 'ширина', 'высота', 'размер', 'значение', 'поставь', 'поставить',
+    'введи', 'ввести', 'установи', 'установить', 'сделай', 'нужно', 'надо'
+]);
+
+function normalizeSpeech(text) {
+    return text
+        .toLowerCase()
+        .replace(/ё/g, 'е')
+        .replace(/[–—-]/g, ' ')
+        .replace(/[^0-9a-zа-я.,\s]/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function extractUnitMultiplier(text) {
+    const words = text.split(/\s+/).filter(Boolean);
+    let unitMultiplier = 1;
+
+    // Берем последнюю найденную единицу как наиболее близкую к размеру
+    for (const w of words) {
+        if (unitWords[w] !== undefined) {
+            unitMultiplier = unitWords[w];
         }
     }
-    result += current;
 
-    // Если результат 0, но в строке были цифры
-    if (result === 0 && str.match(/\d/)) {
-        result = parseFloat(str.replace(/[^\d.]/g, '')) || 0;
+    const cleanedWords = words.filter((w) => unitWords[w] === undefined);
+    return { unitMultiplier, cleanedText: cleanedWords.join(' ') };
+}
+
+function tokenToDigitChunk(token) {
+    if (digitWords[token]) return digitWords[token];
+    if (/^\d+$/.test(token)) return token;
+    return null;
+}
+
+function parseDigitSequence(tokens) {
+    const useful = tokens.filter((t) => !fillerWords.has(t));
+    if (useful.length === 0) return null;
+
+    const chunks = [];
+    for (const token of useful) {
+        const chunk = tokenToDigitChunk(token);
+        if (!chunk) return null;
+        chunks.push(chunk);
     }
 
-    // Разумные пределы для длины стены (100 - 20000 мм)
-    return (result >= 100 && result <= 20000) ? Math.round(result) : null;
+    if (chunks.length === 0) return null;
+    const number = parseInt(chunks.join(''), 10);
+    return Number.isNaN(number) ? null : number;
+}
+
+function parseNumericToken(raw) {
+    let s = raw.replace(/\s+/g, '').trim();
+    if (!s) return null;
+
+    if (!/[.,]/.test(s)) {
+        const n = Number(s);
+        return Number.isFinite(n) ? n : null;
+    }
+
+    const dotCount = (s.match(/\./g) || []).length;
+    const commaCount = (s.match(/,/g) || []).length;
+
+    if (dotCount > 0 && commaCount > 0) {
+        const lastDot = s.lastIndexOf('.');
+        const lastComma = s.lastIndexOf(',');
+        const decimalSep = lastDot > lastComma ? '.' : ',';
+        const thousandsSep = decimalSep === '.' ? ',' : '.';
+        s = s.replace(new RegExp(`\\${thousandsSep}`, 'g'), '');
+        if (decimalSep === ',') s = s.replace(',', '.');
+        const n = Number(s);
+        return Number.isFinite(n) ? n : null;
+    }
+
+    const sep = dotCount > 0 ? '.' : ',';
+    const count = dotCount + commaCount;
+
+    if (count > 1) {
+        const parts = s.split(sep);
+        const groupsOfThree = parts.slice(1).every((p) => p.length === 3);
+        if (groupsOfThree) {
+            const n = Number(parts.join(''));
+            return Number.isFinite(n) ? n : null;
+        }
+        // Неочевидный случай: считаем последнюю часть дробной
+        const left = parts.slice(0, -1).join('');
+        const right = parts[parts.length - 1];
+        const n = Number(`${left}.${right}`);
+        return Number.isFinite(n) ? n : null;
+    }
+
+    const idx = s.indexOf(sep);
+    const left = s.slice(0, idx);
+    const right = s.slice(idx + 1);
+
+    // 50,000 -> 50000; 1.250 -> 1250
+    if (right.length === 3 && left.length >= 1) {
+        const n = Number(left + right);
+        return Number.isFinite(n) ? n : null;
+    }
+
+    // 5,5 -> 5.5
+    const normalized = `${left}.${right}`;
+    const n = Number(normalized);
+    return Number.isFinite(n) ? n : null;
+}
+
+function parseDirectNumbers(text) {
+    const matches = text.match(/\d[\d\s.,]*/g);
+    if (!matches) return null;
+
+    for (const m of matches) {
+        const parsed = parseNumericToken(m);
+        if (parsed !== null) return parsed;
+    }
+    return null;
+}
+
+function parseIntegerWords(tokens) {
+    let total = 0;
+    let current = 0;
+    let seenNumeric = false;
+
+    for (const t of tokens) {
+        if (!t || fillerWords.has(t)) continue;
+
+        if (smallNumberWords[t] !== undefined) {
+            current += smallNumberWords[t];
+            seenNumeric = true;
+            continue;
+        }
+
+        if (tensWords[t] !== undefined) {
+            current += tensWords[t];
+            seenNumeric = true;
+            continue;
+        }
+
+        if (hundredsWords[t] !== undefined) {
+            current += hundredsWords[t];
+            seenNumeric = true;
+            continue;
+        }
+
+        if (scaleWords[t] !== undefined) {
+            if (current === 0) current = 1;
+            total += current * scaleWords[t];
+            current = 0;
+            seenNumeric = true;
+            continue;
+        }
+
+        if (/^\d+$/.test(t)) {
+            current += parseInt(t, 10);
+            seenNumeric = true;
+            continue;
+        }
+
+        // Любое неизвестное слово ломает этот конкретный фрагмент
+        return null;
+    }
+
+    if (!seenNumeric) return null;
+    return total + current;
+}
+
+function parseFractionTokens(tokens) {
+    const compact = tokens.filter((t) => !fillerWords.has(t));
+    if (compact.length === 0) return null;
+
+    // Вариант: "ноль пять" -> 0.05
+    const asDigits = [];
+    let allDigitLike = true;
+    for (const t of compact) {
+        const d = tokenToDigitChunk(t);
+        if (d === null) {
+            allDigitLike = false;
+            break;
+        }
+        asDigits.push(d);
+    }
+
+    if (allDigitLike) {
+        const joined = asDigits.join('');
+        if (/^\d+$/.test(joined)) {
+            return Number(`0.${joined}`);
+        }
+    }
+
+    // Вариант: "двадцать пять" -> 0.25
+    const asInt = parseIntegerWords(compact);
+    if (asInt !== null) {
+        const digitsCount = String(Math.trunc(Math.abs(asInt))).length;
+        return asInt / Math.pow(10, digitsCount);
+    }
+
+    return null;
+}
+
+function parseWordNumber(text) {
+    const tokens = text.split(/\s+/).filter(Boolean);
+    if (tokens.length === 0) return null;
+
+    if (tokens.includes('полтора') || tokens.includes('полторы')) return 1.5;
+    if (tokens.length === 1 && (tokens[0] === 'пол' || tokens[0] === 'половина')) return 0.5;
+
+    // "X с половиной"
+    const halfIdx = tokens.indexOf('половиной');
+    if (halfIdx > 0) {
+        const leftTokens = tokens.slice(0, halfIdx).filter((t) => t !== 'с');
+        const left = parseIntegerWords(leftTokens);
+        if (left !== null) return left + 0.5;
+    }
+
+    // "X целых Y" / "X точка Y" / "X запятая Y"
+    const sepIdx = tokens.findIndex((t) => decimalSeparators.has(t));
+    if (sepIdx > 0) {
+        const intPart = parseIntegerWords(tokens.slice(0, sepIdx));
+        const fracPart = parseFractionTokens(tokens.slice(sepIdx + 1));
+        if (intPart !== null && fracPart !== null) return intPart + fracPart;
+    }
+
+    return parseIntegerWords(tokens);
+}
+
+function parseAnyLength(text) {
+    const original = String(text || '');
+    const normalized = normalizeSpeech(original);
+    if (!normalized) return null;
+
+    const { unitMultiplier, cleanedText } = extractUnitMultiplier(normalized);
+
+    // 1) Последовательность цифр: "3 2 1", "три два один", "50 000"
+    const digitSequence = parseDigitSequence(cleanedText.split(/\s+/).filter(Boolean));
+    if (digitSequence !== null) {
+        const mm = Math.round(digitSequence * unitMultiplier);
+        console.log(`🎤 Последовательность: ${digitSequence} -> ${mm} мм`);
+        return mm;
+    }
+
+    // 2) Прямые числа: 321, 50 000, 5.5, 5,5
+    const direct = parseDirectNumbers(cleanedText);
+    if (direct !== null) {
+        const mm = Math.round(direct * unitMultiplier);
+        console.log(`🎤 Число: ${direct} -> ${mm} мм`);
+        return mm;
+    }
+
+    // 3) Словами: "пятьдесят тысяч", "триста двадцать один", "полтора"
+    const byWords = parseWordNumber(cleanedText);
+    if (byWords !== null) {
+        const mm = Math.round(byWords * unitMultiplier);
+        console.log(`🎤 Словами: ${byWords} -> ${mm} мм`);
+        return mm;
+    }
+
+    // 4) Fallback: вытянуть все цифры подряд из оригинала
+    const digits = original.replace(/\D/g, '');
+    if (digits) {
+        const num = parseInt(digits, 10);
+        if (!Number.isNaN(num)) {
+            const mm = Math.round(num * unitMultiplier);
+            console.log(`🎤 Fallback цифры: ${num} -> ${mm} мм`);
+            return mm;
+        }
+    }
+
+    return null;
 }
 
 function showOverlay() {
@@ -72,73 +375,128 @@ function showOverlay() {
         overlayElement.innerHTML = `
             <div class="voice-modal">
                 <div class="mic-icon">🎤</div>
-                <div class="voice-text">Слушаю...</div>
-                <div class="voice-hint">Скажите длину стены<br>(например: «четыре метра восемьдесят»)</div>
+                <div class="voice-text" id="voice-digits">—</div>
+                <div class="voice-hint">Цифры, число или словами<br>Отпустите пробел или скажите «готово»</div>
             </div>
         `;
         document.body.appendChild(overlayElement);
     }
+    document.getElementById('voice-digits').textContent = currentDigits || '—';
     overlayElement.classList.add('active');
+}
+
+function updateDigitsDisplay() {
+    const disp = document.getElementById('voice-digits');
+    if (disp) disp.textContent = currentDigits || '—';
 }
 
 function hideOverlay() {
     if (overlayElement) overlayElement.classList.remove('active');
 }
 
+function finalizeSession() {
+    if (!sessionCallback) return;
+    const finalNumber = currentDigits.length > 0 ? parseInt(currentDigits, 10) : null;
+    sessionCallback(finalNumber, true);
+    sessionCallback = null;
+    currentDigits = '';
+    hideOverlay();
+    if (digitTimeout) clearTimeout(digitTimeout);
+}
+
 export const VoiceInput = {
     init() {
         if (!('SpeechRecognition' in window) && !('webkitSpeechRecognition' in window)) {
-            console.warn('❌ SpeechRecognition не поддерживается');
+            console.warn('ℹ️ SpeechRecognition не поддерживается.');
             return;
         }
 
         recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
         recognition.lang = 'ru-RU';
-        recognition.interimResults = false;
+        recognition.interimResults = true;
         recognition.maxAlternatives = 1;
+        recognition.continuous = true;
 
         recognition.onresult = (event) => {
-            const text = event.results[0][0].transcript;
-            console.log('🎤 Распознано:', text);
+            if (!sessionCallback) return;
+            const last = event.results[event.results.length - 1];
+            const transcript = last[0].transcript.trim().toLowerCase();
+            const isFinal = last.isFinal;
 
-            const mm = parseSpokenLength(text);
-            if (mm && currentCallback) {
-                currentCallback(mm);
-            } else {
-                console.warn('⚠️ Не удалось распарсить длину из:', text);
+            console.log(`🎤 (${isFinal ? 'финал' : 'промеж'}): "${transcript}"`);
+
+            if (STOP_COMMAND_RE.test(transcript)) {
+                finalizeSession();
+                recognition.stop();
+                return;
+            }
+
+            const parsed = parseAnyLength(transcript);
+            if (parsed !== null) {
+                currentDigits = parsed.toString();
+                updateDigitsDisplay();
+                sessionCallback(parsed, false);
+
+                if (digitTimeout) clearTimeout(digitTimeout);
+                digitTimeout = setTimeout(() => {
+                    if (isListening && sessionCallback) {
+                        finalizeSession();
+                        recognition.stop();
+                    }
+                }, 2000);
+                return;
+            }
+
+            // Доп. режим: накопление отдельных цифр по мере диктовки
+            const words = normalizeSpeech(transcript).split(/\s+/).filter(Boolean);
+            let added = false;
+            for (const w of words) {
+                if (digitWords[w]) {
+                    currentDigits += digitWords[w];
+                    added = true;
+                }
+            }
+
+            if (added) {
+                const num = parseInt(currentDigits, 10);
+                if (!Number.isNaN(num)) sessionCallback(num, false);
+                updateDigitsDisplay();
+
+                if (digitTimeout) clearTimeout(digitTimeout);
+                digitTimeout = setTimeout(() => {
+                    if (isListening && sessionCallback) {
+                        finalizeSession();
+                        recognition.stop();
+                    }
+                }, 3000);
             }
         };
 
         recognition.onerror = (e) => {
-            console.error('Voice error:', e);
+            console.error(e);
             isListening = false;
             hideOverlay();
         };
 
         recognition.onend = () => {
             isListening = false;
+            if (sessionCallback) finalizeSession();
             hideOverlay();
         };
 
-        console.log('✅ VoiceInput готов (зажмите Space для голосового ввода длины)');
+        console.log('✅ VoiceInput готов (расширенный парсер)');
     },
 
-    startListening(callback) {
+    startListening(cb) {
         if (!recognition || isListening) return;
-        currentCallback = callback;
+        sessionCallback = cb;
+        currentDigits = '';
         isListening = true;
         showOverlay();
         recognition.start();
     },
 
     stopListening() {
-        if (recognition && isListening) {
-            recognition.stop();
-        }
-        // Оверлей скроется в onend
+        if (recognition && isListening) recognition.stop();
     },
-
-    isListening() {
-        return isListening;
-    }
 };

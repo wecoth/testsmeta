@@ -310,20 +310,22 @@ export function computeRooms(wallHeightFallback = 2700) {
     }
     const boundaryWalls = walls.filter(w => boundaryWallIds.has(w.id));
 
-    // Stage 7: рассчитываем ДВЕ величины раздельно:
-    //   • innerPolygon — для отрисовки заливки (по внутренним граням стен,
-    //                    чтобы заливка не залазила на тело стены)
-    //   • areaByContour — площадь "Полная" по cx/cy базовому контуру
-    //                    (как видит пользователь — то что он нарисовал)
-    // В Renga это называется "Полная площадь пола". Чистая (с вычетом тела
-    // стен) = polygonArea(innerPolygon), но для UX берём полную.
+    // Stage 7 fix: площадь всегда считается по ВНУТРЕННИМ ГРАНЯМ стен.
+    // Пользователь рисует по внутренним углам (ввёл 3000 — значит между
+    // внутренними углами ровно 3000), стены "растут" наружу от контура.
+    // Поэтому innerPolygon (построенный из прямых внутренних граней) даёт
+    // ровно тот контур, который пользователь имел в виду.
+    //
+    // Работает одинаково для:
+    //   • одиночной комнаты (внутренняя грань = cx/cy базовой линии)
+    //   • смежной комнаты (внутренняя грань общей стены смещена на halfT
+    //     от оси в сторону нашей комнаты — компенсирует смещение cx/cy)
+    // Результат: 3×3 = 9.00 м² всегда, вне зависимости от толщины стен
+    // и количества соседей.
     const innerPolygon = buildInnerPolygon(rawPoly, boundaryWalls, roughCenter);
-    const areaByContour = polygonArea(rawPoly);  // ← площадь по cx/cy
-    const areaInner     = polygonArea(innerPolygon); // ← чистая (для метрик)
-    if (areaByContour < 10000) continue; // < 0.01 м² — артефакт
-    // Используем полную площадь как основную, но под названиями:
-    const area = areaByContour;
-    const poly = innerPolygon; // для отрисовки
+    const area = polygonArea(innerPolygon);
+    if (area < 10000) continue; // < 0.01 м² — артефакт
+    const poly = innerPolygon; // тот же полигон для отрисовки заливки
 
     const center = polygonCentroid(poly);
 

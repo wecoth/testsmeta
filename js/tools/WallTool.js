@@ -425,26 +425,56 @@ export class WallTool extends BaseTool {
     return true;
   }
 
+    /**
+   * Определяет направление от точки отслеживания на основе положения мыши.
+   * Приоритет отдаётся осям X и Y (примагничивание), если курсор отошёл
+   * на заметное расстояние (>5 мм в мировых координатах).
+   * @param {object} trackingPoint - { x, y, wallDir }
+   * @param {object} world - текущие мировые координаты мыши
+   * @returns {object} { x, y } — единичный вектор направления
+   */
+  getDirectionFromTrackingPoint(trackingPoint, world) {
+    let dir = { x: 1, y: 0 }; // по умолчанию вправо
+    if (world) {
+      const dx = world.x - trackingPoint.x;
+      const dy = world.y - trackingPoint.y;
+      const len = Math.hypot(dx, dy);
+      // Определяем направление, только если курсор отошёл на заметное расстояние (>5 мм)
+      if (len > 5) {
+        // Приоритет осям X и Y (примагничивание)
+        if (Math.abs(dx) > Math.abs(dy)) {
+          dir = { x: dx > 0 ? 1 : -1, y: 0 };
+        } else {
+          dir = { x: 0, y: dy > 0 ? 1 : -1 };
+        }
+      } else if (trackingPoint.wallDir) {
+        // Если курсор рядом, ориентируемся на направление стены
+        dir = trackingPoint.wallDir;
+      }
+    } else if (trackingPoint.wallDir) {
+      dir = trackingPoint.wallDir;
+    }
+    return dir;
+  }
+  
   /**
+   * Фиксирует начальную точку стены с заданным смещением от активной точки отслеживания.
+   * @param {number} offsetMm - смещение в миллиметрах
+   */
+    /**
    * Фиксирует начальную точку стены с заданным смещением от активной точки отслеживания.
    * @param {number} offsetMm - смещение в миллиметрах
    */
   applyOffsetStart(offsetMm) {
     if (!this.activeTrackingPoint) return;
     
-    // Определяем направление от точки отслеживания
-    let dir = { x: 1, y: 0 }; // по умолчанию вправо
-    
-    // Если есть текущее положение мыши, используем его для направления
+    // Определяем направление от точки отслеживания (с примагничиванием к осям)
+    let dir;
     if (this.ui.mouseScreen) {
       const world = toWorld(this.ui.mouseScreen.x, this.ui.mouseScreen.y);
-      const dx = world.x - this.activeTrackingPoint.x;
-      const dy = world.y - this.activeTrackingPoint.y;
-      const len = Math.hypot(dx, dy);
-      if (len > 1) dir = { x: dx / len, y: dy / len };
-    } else if (this.activeTrackingPoint.wallDir) {
-      // Или направление стены, к которой принадлежит угол
-      dir = this.activeTrackingPoint.wallDir;
+      dir = this.getDirectionFromTrackingPoint(this.activeTrackingPoint, world);
+    } else {
+      dir = this.getDirectionFromTrackingPoint(this.activeTrackingPoint, null);
     }
     
     // Вычисляем стартовую точку
@@ -461,5 +491,3 @@ export class WallTool extends BaseTool {
     this.lengthInput = '';
     this.lengthMode = false;
   }
-  
-}

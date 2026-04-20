@@ -158,19 +158,39 @@ export function computeRooms(wallHeightFallback = 2700) {
   appState.rooms = [];
   
   const walls = appState.walls;
+  const dividers = appState.dividers || [];
+  
+  // Если нет ни стен, ни разделителей — выходим
+  if (walls.length === 0 && dividers.length === 0) {
+    EventBus.emit('rooms:computed');
+    return;
+  }
+
+  // Преобразуем разделители в объекты, совместимые со стенами
+  const dividerWalls = dividers.map(d => ({
+    id: `div_${d.id}`,
+    x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2,
+    cx1: d.x1, cy1: d.y1, cx2: d.x2, cy2: d.y2,
+    thickness: 0.1,
+    height: wallHeightFallback,
+    offset: 0,
+    isDivider: true,
+  }));
+
+  const allWalls = [...walls, ...dividerWalls];
   if (walls.length < 3) {
     // Если стен недостаточно, всё равно испускаем событие, чтобы экспликация очистилась
     EventBus.emit('rooms:computed');
     return;
   }
 
-  const points = findAllIntersections(walls);
+  const points = findAllIntersections(allWalls);
   if (points.length < 3) {
     EventBus.emit('rooms:computed');
     return;
   }
 
-  const { vertices, edges } = buildWallGraph(walls, points);
+  const { vertices, edges } = buildWallGraph(allWalls, points);
   if (edges.length < 3) {
     EventBus.emit('rooms:computed');
     return;
@@ -308,7 +328,7 @@ export function computeRooms(wallHeightFallback = 2700) {
         boundaryWallIds.add(edge.wallId);
       }
     }
-    const boundaryWalls = walls.filter(w => boundaryWallIds.has(w.id));
+    const boundaryWalls = allWalls.filter(w => boundaryWallIds.has(w.id) && !w.isDivider);
 
     // Stage 7 fix: площадь всегда считается по ВНУТРЕННИМ ГРАНЯМ стен.
     // Пользователь рисует по внутренним углам (ввёл 3000 — значит между
@@ -684,6 +704,14 @@ let debounceTimer = null;
 const DEBOUNCE_MS = 80;
 
 EventBus.on('walls:changed', () => {
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => {
+    computeRooms(_wallHeightFallback);
+    debounceTimer = null;
+  }, DEBOUNCE_MS);
+});
+
+EventBus.on('dividers:changed', () => {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     computeRooms(_wallHeightFallback);

@@ -291,14 +291,14 @@ export class WallTool extends BaseTool {
 
   updateWallObjectSnap(world, screenPoint) {
     this.currentObjectSnap = findObjectSnapCandidate(world, screenPoint, {
-      includeEndpoint: true,
-      includeCorner: true,
-      includeMidpoint: true,
-      includeIntersection: true,
-      includeWallPoint: true,
-      includePerpendicular: this.isDrawing && !!this.drawStart,
-      startPoint: this.drawStart,
-    });
+  includeEndpoint: true,
+  includeCorner: true,
+  includeMidpoint: true,
+  includeIntersection: true,
+  includeWallPoint: false,  // запрет клика по произвольной точке стены
+  includePerpendicular: this.isDrawing && !!this.drawStart,
+  startPoint: this.drawStart,
+});
   }
 
   updateWallGuide(world, screenPoint) {

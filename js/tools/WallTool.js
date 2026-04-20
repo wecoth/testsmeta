@@ -13,6 +13,7 @@ export class WallTool extends BaseTool {
   constructor(ui) {
     super(ui);
     this.name = 'wall';
+    this.voiceKeyPressed = false;
     
     // Локальное состояние рисования
     this.isDrawing = false;
@@ -156,9 +157,9 @@ export class WallTool extends BaseTool {
     if (!this.isDrawing) return false;
 
     // Голосовой ввод
-    if (e.code === 'Space' && !this.ui.voiceKeyPressed) {
+    if (e.code === 'Space' && !this.voiceKeyPressed) {
       e.preventDefault();
-      this.ui.voiceKeyPressed = true;
+      this.voiceKeyPressed = true;
       // Запуск голосового ввода (через VoiceInput)
       import('../voiceInput.js').then(({ VoiceInput }) => {
         VoiceInput.startListening((lengthMm) => {
@@ -208,8 +209,8 @@ export class WallTool extends BaseTool {
   }
 
   onKeyUp(e) {
-    if (e.code === 'Space' && this.ui.voiceKeyPressed) {
-      this.ui.voiceKeyPressed = false;
+    if (e.code === 'Space' && this.voiceKeyPressed) {
+      this.voiceKeyPressed = false;
       import('../voiceInput.js').then(({ VoiceInput }) => {
         VoiceInput.stopListening();
       });

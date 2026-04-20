@@ -1,16 +1,13 @@
 // js/voiceInput.js
-import { EventBus } from './eventBus.js';
-
 let recognition = null;
 let isListening = false;
 let sessionCallback = null;
-let overlayElement = null;
 let currentDigits = '';
-let digitTimeout = null;
+let statusIndicator = null;
 
+// ---------- МОЩНЫЙ ПАРСЕР (оставлен без изменений) ----------
 const STOP_COMMAND_RE = /\b(готово|завершить|заверши|подтвердить|подтверждаю|ввод|стоп|окей|ок)\b/u;
 
-// Отдельные цифры (включая разговорные варианты и частые оговорки распознавания)
 const digitWords = {
     'ноль': '0', 'нуль': '0',
     'один': '1', 'одна': '1', 'одну': '1',
@@ -115,14 +112,9 @@ function normalizeSpeech(text) {
 function extractUnitMultiplier(text) {
     const words = text.split(/\s+/).filter(Boolean);
     let unitMultiplier = 1;
-
-    // Берем последнюю найденную единицу как наиболее близкую к размеру
     for (const w of words) {
-        if (unitWords[w] !== undefined) {
-            unitMultiplier = unitWords[w];
-        }
+        if (unitWords[w] !== undefined) unitMultiplier = unitWords[w];
     }
-
     const cleanedWords = words.filter((w) => unitWords[w] === undefined);
     return { unitMultiplier, cleanedText: cleanedWords.join(' ') };
 }
@@ -136,14 +128,12 @@ function tokenToDigitChunk(token) {
 function parseDigitSequence(tokens) {
     const useful = tokens.filter((t) => !fillerWords.has(t));
     if (useful.length === 0) return null;
-
     const chunks = [];
     for (const token of useful) {
         const chunk = tokenToDigitChunk(token);
         if (!chunk) return null;
         chunks.push(chunk);
     }
-
     if (chunks.length === 0) return null;
     const number = parseInt(chunks.join(''), 10);
     return Number.isNaN(number) ? null : number;
@@ -152,15 +142,12 @@ function parseDigitSequence(tokens) {
 function parseNumericToken(raw) {
     let s = raw.replace(/\s+/g, '').trim();
     if (!s) return null;
-
     if (!/[.,]/.test(s)) {
         const n = Number(s);
         return Number.isFinite(n) ? n : null;
     }
-
     const dotCount = (s.match(/\./g) || []).length;
     const commaCount = (s.match(/,/g) || []).length;
-
     if (dotCount > 0 && commaCount > 0) {
         const lastDot = s.lastIndexOf('.');
         const lastComma = s.lastIndexOf(',');
@@ -171,10 +158,8 @@ function parseNumericToken(raw) {
         const n = Number(s);
         return Number.isFinite(n) ? n : null;
     }
-
     const sep = dotCount > 0 ? '.' : ',';
     const count = dotCount + commaCount;
-
     if (count > 1) {
         const parts = s.split(sep);
         const groupsOfThree = parts.slice(1).every((p) => p.length === 3);
@@ -182,24 +167,18 @@ function parseNumericToken(raw) {
             const n = Number(parts.join(''));
             return Number.isFinite(n) ? n : null;
         }
-        // Неочевидный случай: считаем последнюю часть дробной
         const left = parts.slice(0, -1).join('');
         const right = parts[parts.length - 1];
         const n = Number(`${left}.${right}`);
         return Number.isFinite(n) ? n : null;
     }
-
     const idx = s.indexOf(sep);
     const left = s.slice(0, idx);
     const right = s.slice(idx + 1);
-
-    // 50,000 -> 50000; 1.250 -> 1250
     if (right.length === 3 && left.length >= 1) {
         const n = Number(left + right);
         return Number.isFinite(n) ? n : null;
     }
-
-    // 5,5 -> 5.5
     const normalized = `${left}.${right}`;
     const n = Number(normalized);
     return Number.isFinite(n) ? n : null;
@@ -208,7 +187,6 @@ function parseNumericToken(raw) {
 function parseDirectNumbers(text) {
     const matches = text.match(/\d[\d\s.,]*/g);
     if (!matches) return null;
-
     for (const m of matches) {
         const parsed = parseNumericToken(m);
         if (parsed !== null) return parsed;
@@ -220,28 +198,23 @@ function parseIntegerWords(tokens) {
     let total = 0;
     let current = 0;
     let seenNumeric = false;
-
     for (const t of tokens) {
         if (!t || fillerWords.has(t)) continue;
-
         if (smallNumberWords[t] !== undefined) {
             current += smallNumberWords[t];
             seenNumeric = true;
             continue;
         }
-
         if (tensWords[t] !== undefined) {
             current += tensWords[t];
             seenNumeric = true;
             continue;
         }
-
         if (hundredsWords[t] !== undefined) {
             current += hundredsWords[t];
             seenNumeric = true;
             continue;
         }
-
         if (scaleWords[t] !== undefined) {
             if (current === 0) current = 1;
             total += current * scaleWords[t];
@@ -249,17 +222,13 @@ function parseIntegerWords(tokens) {
             seenNumeric = true;
             continue;
         }
-
         if (/^\d+$/.test(t)) {
             current += parseInt(t, 10);
             seenNumeric = true;
             continue;
         }
-
-        // Любое неизвестное слово ломает этот конкретный фрагмент
         return null;
     }
-
     if (!seenNumeric) return null;
     return total + current;
 }
@@ -267,8 +236,6 @@ function parseIntegerWords(tokens) {
 function parseFractionTokens(tokens) {
     const compact = tokens.filter((t) => !fillerWords.has(t));
     if (compact.length === 0) return null;
-
-    // Вариант: "ноль пять" -> 0.05
     const asDigits = [];
     let allDigitLike = true;
     for (const t of compact) {
@@ -279,47 +246,35 @@ function parseFractionTokens(tokens) {
         }
         asDigits.push(d);
     }
-
     if (allDigitLike) {
         const joined = asDigits.join('');
-        if (/^\d+$/.test(joined)) {
-            return Number(`0.${joined}`);
-        }
+        if (/^\d+$/.test(joined)) return Number(`0.${joined}`);
     }
-
-    // Вариант: "двадцать пять" -> 0.25
     const asInt = parseIntegerWords(compact);
     if (asInt !== null) {
         const digitsCount = String(Math.trunc(Math.abs(asInt))).length;
         return asInt / Math.pow(10, digitsCount);
     }
-
     return null;
 }
 
 function parseWordNumber(text) {
     const tokens = text.split(/\s+/).filter(Boolean);
     if (tokens.length === 0) return null;
-
     if (tokens.includes('полтора') || tokens.includes('полторы')) return 1.5;
     if (tokens.length === 1 && (tokens[0] === 'пол' || tokens[0] === 'половина')) return 0.5;
-
-    // "X с половиной"
     const halfIdx = tokens.indexOf('половиной');
     if (halfIdx > 0) {
         const leftTokens = tokens.slice(0, halfIdx).filter((t) => t !== 'с');
         const left = parseIntegerWords(leftTokens);
         if (left !== null) return left + 0.5;
     }
-
-    // "X целых Y" / "X точка Y" / "X запятая Y"
     const sepIdx = tokens.findIndex((t) => decimalSeparators.has(t));
     if (sepIdx > 0) {
         const intPart = parseIntegerWords(tokens.slice(0, sepIdx));
         const fracPart = parseFractionTokens(tokens.slice(sepIdx + 1));
         if (intPart !== null && fracPart !== null) return intPart + fracPart;
     }
-
     return parseIntegerWords(tokens);
 }
 
@@ -327,83 +282,56 @@ function parseAnyLength(text) {
     const original = String(text || '');
     const normalized = normalizeSpeech(original);
     if (!normalized) return null;
-
     const { unitMultiplier, cleanedText } = extractUnitMultiplier(normalized);
 
-    // 1) Последовательность цифр: "3 2 1", "три два один", "50 000"
+    // 1) Последовательность цифр: "3 2 1", "три два один"
     const digitSequence = parseDigitSequence(cleanedText.split(/\s+/).filter(Boolean));
     if (digitSequence !== null) {
-        const mm = Math.round(digitSequence * unitMultiplier);
-        console.log(`🎤 Последовательность: ${digitSequence} -> ${mm} мм`);
-        return mm;
+        return Math.round(digitSequence * unitMultiplier);
     }
 
     // 2) Прямые числа: 321, 50 000, 5.5, 5,5
     const direct = parseDirectNumbers(cleanedText);
     if (direct !== null) {
-        const mm = Math.round(direct * unitMultiplier);
-        console.log(`🎤 Число: ${direct} -> ${mm} мм`);
-        return mm;
+        return Math.round(direct * unitMultiplier);
     }
 
     // 3) Словами: "пятьдесят тысяч", "триста двадцать один", "полтора"
     const byWords = parseWordNumber(cleanedText);
     if (byWords !== null) {
-        const mm = Math.round(byWords * unitMultiplier);
-        console.log(`🎤 Словами: ${byWords} -> ${mm} мм`);
-        return mm;
+        return Math.round(byWords * unitMultiplier);
     }
 
-    // 4) Fallback: вытянуть все цифры подряд из оригинала
+    // 4) Fallback: все цифры подряд из оригинала
     const digits = original.replace(/\D/g, '');
     if (digits) {
         const num = parseInt(digits, 10);
         if (!Number.isNaN(num)) {
-            const mm = Math.round(num * unitMultiplier);
-            console.log(`🎤 Fallback цифры: ${num} -> ${mm} мм`);
-            return mm;
+            return Math.round(num * unitMultiplier);
         }
     }
-
     return null;
 }
 
-function showOverlay() {
-    if (!overlayElement) {
-        overlayElement = document.createElement('div');
-        overlayElement.id = 'voice-overlay';
-        overlayElement.innerHTML = `
-            <div class="voice-modal">
-                <div class="mic-icon">🎤</div>
-                <div class="voice-text" id="voice-digits">—</div>
-                <div class="voice-hint">Цифры, число или словами<br>Отпустите пробел или скажите «готово»</div>
-            </div>
-        `;
-        document.body.appendChild(overlayElement);
+// ---------- ИНДИКАТОР В СТАТУСБАРЕ ----------
+function showIndicator(text) {
+    if (!statusIndicator) {
+        const st = document.querySelector('.statusbar');
+        if (st) {
+            statusIndicator = document.createElement('span');
+            statusIndicator.id = 'voiceIndicator';
+            statusIndicator.style.cssText = 'margin-left:12px;color:#4a6fe3;font-weight:500;';
+            st.appendChild(statusIndicator);
+        }
     }
-    document.getElementById('voice-digits').textContent = currentDigits || '—';
-    overlayElement.classList.add('active');
+    if (statusIndicator) statusIndicator.textContent = text || '🎤';
 }
 
-function updateDigitsDisplay() {
-    const disp = document.getElementById('voice-digits');
-    if (disp) disp.textContent = currentDigits || '—';
+function hideIndicator() {
+    if (statusIndicator) statusIndicator.textContent = '';
 }
 
-function hideOverlay() {
-    if (overlayElement) overlayElement.classList.remove('active');
-}
-
-function finalizeSession() {
-    if (!sessionCallback) return;
-    const finalNumber = currentDigits.length > 0 ? parseInt(currentDigits, 10) : null;
-    sessionCallback(finalNumber, true);
-    sessionCallback = null;
-    currentDigits = '';
-    hideOverlay();
-    if (digitTimeout) clearTimeout(digitTimeout);
-}
-
+// ---------- ОСНОВНОЙ МОДУЛЬ (БЫСТРЫЙ) ----------
 export const VoiceInput = {
     init() {
         if (!('SpeechRecognition' in window) && !('webkitSpeechRecognition' in window)) {
@@ -421,33 +349,23 @@ export const VoiceInput = {
             if (!sessionCallback) return;
             const last = event.results[event.results.length - 1];
             const transcript = last[0].transcript.trim().toLowerCase();
-            const isFinal = last.isFinal;
 
-            console.log(`🎤 (${isFinal ? 'финал' : 'промеж'}): "${transcript}"`);
+            console.log(`🎤 ${transcript}`);
 
             if (STOP_COMMAND_RE.test(transcript)) {
-                finalizeSession();
-                recognition.stop();
+                // По команде "готово" можно сразу завершить, но у нас управление по отпусканию пробела
                 return;
             }
 
             const parsed = parseAnyLength(transcript);
             if (parsed !== null) {
                 currentDigits = parsed.toString();
-                updateDigitsDisplay();
+                showIndicator(`${currentDigits} мм`);
                 sessionCallback(parsed, false);
-
-                if (digitTimeout) clearTimeout(digitTimeout);
-                digitTimeout = setTimeout(() => {
-                    if (isListening && sessionCallback) {
-                        finalizeSession();
-                        recognition.stop();
-                    }
-                }, 2000);
                 return;
             }
 
-            // Доп. режим: накопление отдельных цифр по мере диктовки
+            // Накопление по отдельным цифрам
             const words = normalizeSpeech(transcript).split(/\s+/).filter(Boolean);
             let added = false;
             for (const w of words) {
@@ -456,47 +374,56 @@ export const VoiceInput = {
                     added = true;
                 }
             }
-
             if (added) {
                 const num = parseInt(currentDigits, 10);
-                if (!Number.isNaN(num)) sessionCallback(num, false);
-                updateDigitsDisplay();
-
-                if (digitTimeout) clearTimeout(digitTimeout);
-                digitTimeout = setTimeout(() => {
-                    if (isListening && sessionCallback) {
-                        finalizeSession();
-                        recognition.stop();
-                    }
-                }, 3000);
+                if (!Number.isNaN(num)) {
+                    showIndicator(`${currentDigits} мм`);
+                    sessionCallback(num, false);
+                }
             }
         };
 
         recognition.onerror = (e) => {
-            console.error(e);
+            console.error('Voice error:', e);
             isListening = false;
-            hideOverlay();
+            hideIndicator();
         };
 
         recognition.onend = () => {
             isListening = false;
-            if (sessionCallback) finalizeSession();
-            hideOverlay();
+            hideIndicator();
         };
 
-        console.log('✅ VoiceInput готов (расширенный парсер)');
+        console.log('✅ VoiceInput (быстрый режим) готов');
     },
 
-    startListening(cb) {
+    startListening(callback) {
         if (!recognition || isListening) return;
-        sessionCallback = cb;
+        sessionCallback = callback;
         currentDigits = '';
         isListening = true;
-        showOverlay();
+        showIndicator('🎤');
         recognition.start();
     },
 
     stopListening() {
-        if (recognition && isListening) recognition.stop();
+        if (!recognition || !isListening) return;
+        const finalNumber = currentDigits.length > 0 ? parseInt(currentDigits, 10) : null;
+        if (sessionCallback) {
+            sessionCallback(finalNumber, true);
+            sessionCallback = null;
+        }
+        recognition.stop();
+        currentDigits = '';
+        hideIndicator();
     },
+
+    abort() {
+        if (recognition && isListening) {
+            recognition.stop();
+            sessionCallback = null;
+            currentDigits = '';
+            hideIndicator();
+        }
+    }
 };

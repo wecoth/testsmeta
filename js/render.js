@@ -386,7 +386,7 @@ function drawWalls(selectedItems) {
     _ctx.save();
     _ctx.strokeStyle = style.stroke; _ctx.lineWidth = isSel ? 1.5 : 1;
     _ctx.lineCap = 'butt'; _ctx.lineJoin = 'miter'; _ctx.miterLimit = 10;
-        _ctx.beginPath();
+    _ctx.beginPath();
 
     // Получаем контурные точки для проверки покрытия торцов
     const sp = getWallContourPoint(w, 'start');
@@ -425,7 +425,6 @@ function drawWalls(selectedItems) {
     if (!sj && !collinearAtStart && !startCovered) { _ctx.moveTo(g.d.x, g.d.y); _ctx.lineTo(g.a.x, g.a.y); }
 
     _ctx.stroke();
-
     _ctx.restore();
   }
 }

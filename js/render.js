@@ -389,33 +389,42 @@ function drawWalls(selectedItems) {
     _ctx.beginPath();
 
     // Получаем контурные точки для проверки покрытия торцов
+        
     const sp = getWallContourPoint(w, 'start');
     const ep = getWallContourPoint(w, 'end');
     const startCovered = appState.walls.some(other => other.id !== w.id && isPointInsideWallSurface(sp, other, 15));
     const endCovered   = appState.walls.some(other => other.id !== w.id && isPointInsideWallSurface(ep, other, 15));
 
-    // Проверяем, перекрыта ли грань другой стеной
-    const midAB = { x: (g.a.x + g.b.x) / 2, y: (g.a.y + g.b.y) / 2 };
-    const midDC = { x: (g.d.x + g.c.x) / 2, y: (g.d.y + g.c.y) / 2 };
-    const worldAB = toWorld(midAB.x, midAB.y);
-    const worldDC = toWorld(midDC.x, midDC.y);
+    // Расширенный список прямоугольников для вырезания
+    const clipRects = [...myJoints];
 
-    const abCovered = appState.walls.some(other => other.id !== w.id && isPointInsideWallSurface(worldAB, other, 15));
-    const dcCovered = appState.walls.some(other => other.id !== w.id && isPointInsideWallSurface(worldDC, other, 15));
-
-    // Рисуем грань ab только если она не перекрыта
-    if (!abCovered) {
-      drawClippedFace(ptA, ptB, myJoints);
+    // Добавляем прямоугольники пересечений с другими стенами для грани ab
+    for (const other of appState.walls) {
+      if (other.id === w.id) continue;
+      // Получаем экранный bounding box другой стены
+      const og = sg(other);
+      const otherRect = {
+        left:   Math.min(og.a.x, og.b.x, og.c.x, og.d.x),
+        right:  Math.max(og.a.x, og.b.x, og.c.x, og.d.x),
+        top:    Math.min(og.a.y, og.b.y, og.c.y, og.d.y),
+        bottom: Math.max(og.a.y, og.b.y, og.c.y, og.d.y),
+      };
+      // Добавляем, если грань ab пересекается с этим прямоугольником
+      if (segmentsIntersectRect(g.a, g.b, otherRect)) {
+        clipRects.push(otherRect);
+      }
+      // Аналогично для грани dc — можно добавить в тот же массив,
+      // drawClippedFace вырежет все переданные прямоугольники.
+      if (segmentsIntersectRect(g.d, g.c, otherRect)) {
+        clipRects.push(otherRect);
+      }
     }
-    // Рисуем грань dc только если она не перекрыта
-    if (!dcCovered) {
-      drawClippedFace(ptD, ptC, myJoints);
-    }
 
-    // Stage 4: торцевые заглушки не рисуем если:
-    //   a) конец стыкуется с другой стеной (sj/ej), ИЛИ
-    //   b) конец касается коллинеарной стены, ИЛИ
-    //   c) конец перекрыт другой стеной (startCovered/endCovered)
+    // Рисуем грани с вырезами
+    drawClippedFace(ptA, ptB, clipRects);
+    drawClippedFace(ptD, ptC, clipRects);
+
+    // Торцы
     const jmapStart = getWallJointItemsForEndpoint(jmap, w, 'start').filter(it => it.wall.id !== w.id);
     const jmapEnd   = getWallJointItemsForEndpoint(jmap, w, 'end').filter(it => it.wall.id !== w.id);
     const collinearAtStart = jmapStart.some(it => areWallsCollinear(w, it.wall));
@@ -438,6 +447,15 @@ function lineLineIntersect(a, b, c, d) {
   if (Math.abs(denom) < 0.0001) return null;
   const t = ((c.x - a.x) * s.y - (c.y - a.y) * s.x) / denom;
   return { x: a.x + r.x * t, y: a.y + r.y * t };
+}
+
+function segmentsIntersectRect(p1, p2, rect) {
+  // Проверяем, пересекает ли отрезок p1-p2 прямоугольник rect
+  const minX = Math.min(p1.x, p2.x), maxX = Math.max(p1.x, p2.x);
+  const minY = Math.min(p1.y, p2.y), maxY = Math.max(p1.y, p2.y);
+  if (maxX < rect.left || minX > rect.right || maxY < rect.top || minY > rect.bottom) return false;
+  // Дополнительно можно проверить пересечение с диагоналями, но bounding box достаточно
+  return true;
 }
 
 // Вычисляет clip-точки для диагональных стыков в world-координатах.

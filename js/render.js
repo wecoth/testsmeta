@@ -381,7 +381,7 @@ function drawWalls(selectedItems) {
     fillWall(() => { _ctx.beginPath(); _ctx.rect(rl, rt, rr-rl, rb-rt); }, style.fill);
   }
 
-    // Pass 3: stroke outlines
+      // Pass 3: stroke outlines
   for (const { w, g, isSel, style, sj, ej, myJoints, ptA, ptB, ptC, ptD } of wallData) {
     _ctx.save();
     _ctx.strokeStyle = style.stroke;
@@ -397,10 +397,10 @@ function drawWalls(selectedItems) {
     const startCovered = appState.walls.some(other => other.id !== w.id && isPointInsideWallSurface(sp, other, 15));
     const endCovered   = appState.walls.some(other => other.id !== w.id && isPointInsideWallSurface(ep, other, 15));
 
-    // clipRects = только корректные myJoints (jointRect уже умеют закрывать Т-стыки)
+    // Только корректные jointRects — они уже покрывают Т-стыки
     const clipRects = [...myJoints];
 
-    // Рисуем грани — теперь с надёжным вырезом
+    // Рисуем грани
     drawClippedFace(ptA, ptB, clipRects);
     drawClippedFace(ptD, ptC, clipRects);
 
@@ -488,7 +488,7 @@ function drawClippedFace(sa, ea, joints) {
   const skip = [];
   for (const jr of joints) {
     const tl = toScreen(jr.left, jr.top), br = toScreen(jr.right, jr.bottom);
-    // ─── УВЕЛИЧИЛИ ЗАПАС ───
+    // ─── УВЕЛИЧЕННЫЙ ЗАПАС (главное изменение) ───
     const rl = Math.min(tl.x, br.x) - 8;
     const rt = Math.min(tl.y, br.y) - 8;
     const rr = Math.max(tl.x, br.x) + 8;
@@ -504,7 +504,7 @@ function drawClippedFace(sa, ea, joints) {
     tEnter = Math.max(tEnter, Math.min(params[0], params[1]), Math.min(params[2], params[3]));
     tExit  = Math.min(tExit,  Math.max(params[0], params[1]), Math.max(params[2], params[3]));
 
-    if (tEnter < tExit - 0.005) skip.push([tEnter, tExit]); // чуть мягче условие
+    if (tEnter < tExit - 0.005) skip.push([tEnter, tExit]);
   }
 
   if (!skip.length) {

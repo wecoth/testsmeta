@@ -71,8 +71,7 @@ export class WallTool extends BaseTool {
   updateTrackingState(snap) {
     const trackable = snap && (
   snap.type === 'endpoint' || snap.type === 'corner' ||
-  snap.type === 'intersection' || snap.type === 'midpoint' ||
-  snap.type === 'wallFace'
+  snap.type === 'intersection' || snap.type === 'midpoint'
 );
     if (!trackable) {
       clearTimeout(this._snapHoverTimer);

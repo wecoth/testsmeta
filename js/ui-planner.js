@@ -222,7 +222,7 @@ export function toggleSelection(type, id) {
   }
 }
 
-function updateEditPanel() {
+ffunction updateEditPanel() {
   if (!dom.editContent) return;
   if (!selectedItems.length) { dom.editContent.innerHTML = ''; return; }
   if (selectedItems.length > 1) {
@@ -233,7 +233,111 @@ function updateEditPanel() {
       <div class="edit-row"><label>Проёмы</label><b>${oc}</b></div>`;
     return;
   }
-  // ... (оставить существующую логику updateEditPanel из старого ui-planner)
+  
+  const it = selectedItems[0];
+  if (it.type === 'wall') {
+    const w = appState.walls.find(v => v.id === it.id);
+    if (!w) return;
+    const len = Math.round(Math.hypot(w.x2 - w.x1, w.y2 - w.y1));
+    const offsetLabels = { left: 'Слева', center: 'Центр', right: 'Справа' };
+    const offsetOptions = ['left', 'center', 'right'].map(v => 
+      `<button class="choice-btn compact${w.offset === v ? ' active' : ''}" type="button" data-wall-offset="${v}">${offsetLabels[v]}</button>`
+    ).join('');
+    
+    dom.editContent.innerHTML = `
+      <div class="param-group">
+        <div class="param-label">Длина <span class="param-unit">мм</span></div>
+        <div class="param-input-wrap"><input class="param-input" type="number" min="1" step="1" value="${len}" data-wall-length-input><span class="param-input-unit">мм</span></div>
+      </div>
+      <div class="param-group">
+        <div class="param-label">Смещение</div>
+        <div class="choice-grid">${offsetOptions}</div>
+      </div>
+      <div class="param-group">
+        <div class="param-label">Толщина <span class="param-unit">мм</span></div>
+        <div class="param-input-wrap"><input class="param-input" type="number" min="50" max="1000" step="10" value="${w.thickness}" data-wall-thick-input><span class="param-input-unit">мм</span></div>
+      </div>
+      <div class="param-group">
+        <div class="param-label">Высота <span class="param-unit">мм</span></div>
+        <div class="param-input-wrap"><input class="param-input" type="number" min="1000" max="6000" step="100" value="${w.height}" data-wall-height-input><span class="param-input-unit">мм</span></div>
+      </div>
+    `;
+    
+    // Обработчики кнопок смещения
+    dom.editContent.querySelectorAll('[data-wall-offset]').forEach(btn => {
+      btn.addEventListener('click', e => {
+        const newOffset = btn.dataset.wallOffset;
+        const before = BaseCommand.snapWall(w);
+        w.offset = newOffset;
+        // Пересчёт контура стены на основе нового offset
+        import('./wall.js').then(({ recalculateContourFromBase }) => {
+          recalculateContourFromBase(w);
+          const after = BaseCommand.snapWall(w);
+          executeCommand(new UpdateWallCommand(w.id, before, after, 'Изменение смещения'));
+          doRedraw();
+        });
+      });
+    });
+    
+    // Обработчик изменения длины
+    const lengthInput = dom.editContent.querySelector('[data-wall-length-input]');
+    if (lengthInput) {
+      lengthInput.addEventListener('change', e => {
+        const val = Math.max(20, parseFloat(e.target.value) || 0);
+        const before = BaseCommand.snapWall(w);
+        import('./wall.js').then(({ setWallLength }) => {
+          setWallLength(w, val, 'start');
+          const after = BaseCommand.snapWall(w);
+          executeCommand(new UpdateWallCommand(w.id, before, after, 'Изменение длины'));
+          doRedraw();
+        });
+      });
+    }
+    
+    // Толщина
+    const thickInput = dom.editContent.querySelector('[data-wall-thick-input]');
+    if (thickInput) {
+      thickInput.addEventListener('change', e => {
+        const v = Math.max(50, Number(e.target.value) || 200);
+        const before = BaseCommand.snapWall(w);
+        w.thickness = v;
+        import('./wall.js').then(({ recalculateContourFromBase }) => {
+          recalculateContourFromBase(w);
+          const after = BaseCommand.snapWall(w);
+          executeCommand(new UpdateWallCommand(w.id, before, after, 'Изменение толщины'));
+          doRedraw();
+        });
+      });
+    }
+    
+    // Высота
+    const heightInput = dom.editContent.querySelector('[data-wall-height-input]');
+    if (heightInput) {
+      heightInput.addEventListener('change', e => {
+        const v = Math.max(1000, Number(e.target.value) || 2700);
+        const before = BaseCommand.snapWall(w);
+        w.height = v;
+        const after = BaseCommand.snapWall(w);
+        executeCommand(new UpdateWallCommand(w.id, before, after, 'Изменение высоты'));
+        doRedraw();
+      });
+    }
+  } else if (it.type === 'opening') {
+    const op = appState.openings.find(o => o.id === it.id);
+    if (!op) return;
+    const tl = op.type === 'window' ? 'Окно' : 'Дверь';
+    let html = `<div class="edit-row"><label>Тип</label><b>${tl}</b></div>
+      <div class="edit-row"><label>Ширина</label><b>${op.width} мм</b></div>
+      <div class="edit-row"><label>Высота</label><b>${op.height} мм</b></div>`;
+    if (op.type === 'door') {
+      html += `<div class="param-group" style="margin-top:6px"><div class="param-label">Петля</div>
+        <div class="choice-grid"><button class="choice-btn compact" type="button" data-edit-door-hinge="start">Слева</button><button class="choice-btn compact" type="button" data-edit-door-hinge="end">Справа</button></div></div>
+        <div class="param-group"><div class="param-label">Открывание</div>
+        <div class="choice-grid"><button class="choice-btn compact" type="button" data-edit-door-swing="-1">На себя</button><button class="choice-btn compact" type="button" data-edit-door-swing="1">От себя</button></div></div>`;
+    }
+    dom.editContent.innerHTML = html;
+  }
+  syncDoorButtons();
 }
 
 function updateHistoryBtns() {

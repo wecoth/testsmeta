@@ -36,8 +36,9 @@ export function initPlanner(domRefs) {
 
   setWallHeight(parseFloat(dom.inpWallHeight?.value) || 2700);
   EventBus.on('rooms:computed', () => {
-    updateExpl(dom.explBody, dom.roomCount);
-  });
+  updateExpl(dom.explBody, dom.roomCount);
+  doRedraw();   // ← ДОБАВИТЬ
+});
   EventBus.on('history:changed', updateHistoryBtns);
   EventBus.on('dividers:changed', () => {
     // просто перерисовка, комнаты пересчитаются по подписке в room.js

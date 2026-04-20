@@ -72,6 +72,7 @@ export class WallTool extends BaseTool {
     const trackable = snap && (
       snap.type === 'endpoint' || snap.type === 'corner' ||
       snap.type === 'intersection' || snap.type === 'midpoint'
+      snap.type === 'wallFace'
     );
     if (!trackable) {
       clearTimeout(this._snapHoverTimer);
@@ -85,16 +86,20 @@ export class WallTool extends BaseTool {
     this._snapHoverKey = key;
     this._snapHoverTimer = setTimeout(() => {
       let wallDir = null;
-      if (snap.wallId) {
-        const wall = appState.walls.find(w => w.id === snap.wallId);
-        if (wall) {
-          const dx = (wall.cx2 ?? wall.x2) - (wall.cx1 ?? wall.x1);
-          const dy = (wall.cy2 ?? wall.y2) - (wall.cy1 ?? wall.y1);
-          const len = Math.hypot(dx, dy);
-          if (len > 1) wallDir = { x: dx / len, y: dy / len };
-        }
-      }
-      this.activeTrackingPoint = { x: snap.x, y: snap.y, type: snap.type, wallDir };
+let normalDir = null;
+if (snap.wallId) {
+  const wall = appState.walls.find(w => w.id === snap.wallId);
+  if (wall) {
+    const dx = (wall.cx2 ?? wall.x2) - (wall.cx1 ?? wall.x1);
+    const dy = (wall.cy2 ?? wall.y2) - (wall.cy1 ?? wall.y1);
+    const len = Math.hypot(dx, dy);
+    if (len > 1) {
+      wallDir = { x: dx / len, y: dy / len };
+      normalDir = { x: -wallDir.y, y: wallDir.x }; // перпендикуляр
+    }
+  }
+}
+this.activeTrackingPoint = { x: snap.x, y: snap.y, type: snap.type, wallDir, normalDir };
       this.ui.doRedraw();
     }, 400);
   }

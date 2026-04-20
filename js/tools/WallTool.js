@@ -295,7 +295,7 @@ export class WallTool extends BaseTool {
   includeCorner: true,
   includeMidpoint: true,
   includeIntersection: true,
-  includeWallPoint: false,  // запрет клика по произвольной точке стены
+  includeWallPoint: false,  // запрещаем клик внутри стены
   includePerpendicular: this.isDrawing && !!this.drawStart,
   startPoint: this.drawStart,
 });
@@ -327,6 +327,7 @@ export class WallTool extends BaseTool {
       screenPoint: screenPt,
       includePerpendicular: !!this.drawStart,
       startPoint: this.drawStart,
+      skipWallPoint: true,
     });
     let rawEnd = { ...snappedBase };
     const hardSnap = snappedBase.snapType === 'endpoint' || snappedBase.snapType === 'corner' || snappedBase.snapType === 'intersection';

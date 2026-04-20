@@ -412,14 +412,45 @@ export function clearTracking() {
 }
 
 export function updateCoordinatesLabel(world, objectSnap, trackingPoint) {
-  if (!dom.lblCoords) return;
-  let text = `X: ${Math.round(world.x)} мм  Y: ${Math.round(world.y)} мм`;
-  if (objectSnap) text += `  ·  ${objectSnap.label}`;
-  if (trackingPoint) {
-    const dist = Math.hypot(world.x - trackingPoint.x, world.y - trackingPoint.y);
-    text += `  ·  📏 ${Math.round(dist)} мм`;
+  // Обновление статусбара
+  if (dom.lblCoords) {
+    let text = `X: ${Math.round(world.x)} мм  Y: ${Math.round(world.y)} мм`;
+    if (objectSnap) text += `  ·  ${objectSnap.label}`;
+    if (trackingPoint) {
+      const dist = Math.hypot(world.x - trackingPoint.x, world.y - trackingPoint.y);
+      text += `  ·  📏 ${Math.round(dist)} мм`;
+    }
+    dom.lblCoords.textContent = text;
   }
-  dom.lblCoords.textContent = text;
+
+  // Обновление всплывающего окошка у курсора (для ввода смещения или расстояния)
+  if (dom.rulerTooltip) {
+    // Проверяем, не вводит ли активный инструмент смещение
+    let tooltipText = '';
+    let showTooltip = false;
+    
+    if (activeTool && activeTool.offsetMode) {
+      // Режим ввода смещения — показываем вводимое значение
+      tooltipText = `↔ ${activeTool.offsetInput || '0'} мм`;
+      showTooltip = true;
+    } else if (trackingPoint && !activeTool?.isDrawing) {
+      // Обычный режим — показываем текущее расстояние
+      const dist = Math.round(Math.hypot(world.x - trackingPoint.x, world.y - trackingPoint.y));
+      tooltipText = `📏 ${dist} мм`;
+      showTooltip = true;
+    }
+    
+    if (showTooltip) {
+      dom.rulerTooltip.textContent = tooltipText;
+      dom.rulerTooltip.style.display = 'block';
+      // Позиционируем рядом с курсором
+      const screen = toScreen(world.x, world.y);
+      dom.rulerTooltip.style.left = (screen.x + 20) + 'px';
+      dom.rulerTooltip.style.top  = (screen.y - 30) + 'px';
+    } else {
+      dom.rulerTooltip.style.display = 'none';
+    }
+  }
 }
 
 // ── Обработчики событий ───────────────────────────────────────────

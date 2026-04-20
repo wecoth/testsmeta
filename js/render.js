@@ -10,7 +10,6 @@ import {
 import { toScreen, toWorld, getGuideAxes, getGuideLineScreenEndpoints, setViewport as _setViewportFn } from './snapping.js';
 import { exteriorWallIds } from './room.js';
 import { polygonCentroid } from './geometry.js';
-import { isPointInsideWallSurface } from './wall.js';
 
 let _canvas, _ctx, _hatchPat = null;
 let _getScale = () => 0.12;
@@ -381,39 +380,27 @@ function drawWalls(selectedItems) {
     fillWall(() => { _ctx.beginPath(); _ctx.rect(rl, rt, rr-rl, rb-rt); }, style.fill);
   }
 
-      // Pass 3: stroke outlines
+  // Pass 3: stroke outlines
   for (const { w, g, isSel, style, sj, ej, myJoints, ptA, ptB, ptC, ptD } of wallData) {
     _ctx.save();
-    _ctx.strokeStyle = style.stroke;
-    _ctx.lineWidth = isSel ? 1.5 : 1;
-    _ctx.lineCap = 'butt';
-    _ctx.lineJoin = 'miter';
-    _ctx.miterLimit = 10;
+    _ctx.strokeStyle = style.stroke; _ctx.lineWidth = isSel ? 1.5 : 1;
+    _ctx.lineCap = 'butt'; _ctx.lineJoin = 'miter'; _ctx.miterLimit = 10;
     _ctx.beginPath();
+    drawClippedFace(ptA, ptB, myJoints); // грань ab
+    drawClippedFace(ptD, ptC, myJoints); // грань dc
 
-    // Получаем контурные точки для проверки покрытия торцов
-    const sp = getWallContourPoint(w, 'start');
-    const ep = getWallContourPoint(w, 'end');
-    const startCovered = appState.walls.some(other => other.id !== w.id && isPointInsideWallSurface(sp, other, 15));
-    const endCovered   = appState.walls.some(other => other.id !== w.id && isPointInsideWallSurface(ep, other, 15));
-
-    // Только корректные jointRects — они уже покрывают Т-стыки
-    const clipRects = [...myJoints];
-
-    // Рисуем грани
-    drawClippedFace(ptA, ptB, clipRects);
-    drawClippedFace(ptD, ptC, clipRects);
-
-    // Торцевые заглушки
+    // Stage 4: торцевые заглушки не рисуем если:
+    //   a) конец стыкуется с другой стеной (sj/ej), ИЛИ
+    //   b) конец касается коллинеарной стены — шов был бы виден поперёк непрерывной стены
     const jmapStart = getWallJointItemsForEndpoint(jmap, w, 'start').filter(it => it.wall.id !== w.id);
     const jmapEnd   = getWallJointItemsForEndpoint(jmap, w, 'end').filter(it => it.wall.id !== w.id);
     const collinearAtStart = jmapStart.some(it => areWallsCollinear(w, it.wall));
     const collinearAtEnd   = jmapEnd.some(it => areWallsCollinear(w, it.wall));
 
-    if (!ej && !collinearAtEnd && !endCovered)   { _ctx.moveTo(g.b.x, g.b.y); _ctx.lineTo(g.c.x, g.c.y); }
-    if (!sj && !collinearAtStart && !startCovered) { _ctx.moveTo(g.d.x, g.d.y); _ctx.lineTo(g.a.x, g.a.y); }
-
+    if (!ej && !collinearAtEnd)   { _ctx.moveTo(g.b.x, g.b.y); _ctx.lineTo(g.c.x, g.c.y); }
+    if (!sj && !collinearAtStart) { _ctx.moveTo(g.d.x, g.d.y); _ctx.lineTo(g.a.x, g.a.y); }
     _ctx.stroke();
+
     _ctx.restore();
   }
 }
@@ -427,15 +414,6 @@ function lineLineIntersect(a, b, c, d) {
   if (Math.abs(denom) < 0.0001) return null;
   const t = ((c.x - a.x) * s.y - (c.y - a.y) * s.x) / denom;
   return { x: a.x + r.x * t, y: a.y + r.y * t };
-}
-
-function segmentsIntersectRect(p1, p2, rect) {
-  // Проверяем, пересекает ли отрезок p1-p2 прямоугольник rect
-  const minX = Math.min(p1.x, p2.x), maxX = Math.max(p1.x, p2.x);
-  const minY = Math.min(p1.y, p2.y), maxY = Math.max(p1.y, p2.y);
-  if (maxX < rect.left || minX > rect.right || maxY < rect.top || minY > rect.bottom) return false;
-  // Дополнительно можно проверить пересечение с диагоналями, но bounding box достаточно
-  return true;
 }
 
 // Вычисляет clip-точки для диагональных стыков в world-координатах.
@@ -487,22 +465,9 @@ function drawClippedFace(sa, ea, joints) {
 
   const skip = [];
   for (const jr of joints) {
-    // ─── РАСШИРЯЕМ RECT В МИРОВЫХ КООРДИНАТАХ (главное изменение) ───
-    const jrExpanded = {
-      left:   jr.left   - 20,
-      right:  jr.right  + 20,
-      top:    jr.top    - 20,
-      bottom: jr.bottom + 20,
-    };
-
-    const tl = toScreen(jrExpanded.left, jrExpanded.top);
-    const br = toScreen(jrExpanded.right, jrExpanded.bottom);
-
-    const rl = Math.min(tl.x, br.x) - 8;
-    const rt = Math.min(tl.y, br.y) - 8;
-    const rr = Math.max(tl.x, br.x) + 8;
-    const rb = Math.max(tl.y, br.y) + 8;
-
+    const tl = toScreen(jr.left, jr.top), br = toScreen(jr.right, jr.bottom);
+    const rl = Math.min(tl.x, br.x) - 1, rt = Math.min(tl.y, br.y) - 1;
+    const rr = Math.max(tl.x, br.x) + 1, rb = Math.max(tl.y, br.y) + 1;
     let tEnter = 0, tExit = 1;
     const params = [
       dx !== 0 ? (rl - sa.x) / dx : (sa.x >= rl ? 0 : 1),
@@ -512,8 +477,7 @@ function drawClippedFace(sa, ea, joints) {
     ];
     tEnter = Math.max(tEnter, Math.min(params[0], params[1]), Math.min(params[2], params[3]));
     tExit  = Math.min(tExit,  Math.max(params[0], params[1]), Math.max(params[2], params[3]));
-
-    if (tEnter < tExit - 0.001) skip.push([tEnter, tExit]);
+    if (tEnter < tExit - 0.01) skip.push([tEnter, tExit]);
   }
 
   if (!skip.length) {
@@ -524,13 +488,13 @@ function drawClippedFace(sa, ea, joints) {
   skip.sort((a, b) => a[0] - b[0]);
   let cur = 0;
   for (const [t1, t2] of skip) {
-    if (cur < t1 - 0.001) {
+    if (cur < t1 - 0.01) {
       _ctx.moveTo(sa.x + dx * cur, sa.y + dy * cur);
       _ctx.lineTo(sa.x + dx * t1,  sa.y + dy * t1);
     }
     cur = Math.max(cur, t2);
   }
-  if (cur < 1 - 0.001) {
+  if (cur < 1 - 0.01) {
     _ctx.moveTo(sa.x + dx * cur, sa.y + dy * cur);
     _ctx.lineTo(ea.x, ea.y);
   }

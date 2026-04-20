@@ -701,7 +701,7 @@ export function getComputedRooms() {
 // РЕАКТИВНОСТЬ
 // ══════════════════════════════════════════════════════════════════
 let debounceTimer = null;
-const DEBOUNCE_MS = 80;
+const DEBOUNCE_MS = 20;
 
 EventBus.on('walls:changed', () => {
   if (debounceTimer) clearTimeout(debounceTimer);

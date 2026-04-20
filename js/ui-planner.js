@@ -174,6 +174,7 @@ function syncViewport() {
 }
 
 export function doRedraw() {
+  if (!canvas || !canvas.getContext) return;
   syncViewport();
   const toolState = activeTool ? activeTool.getRenderState() : {};
   const plannerState = {

@@ -72,7 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const canvas     = document.getElementById('planCanvas');
   const canvasWrap = document.getElementById('canvasWrap');
   if (canvas && canvasWrap) {
-    initPlanner({
+    ({
       canvas, canvasWrap,
       toolGrid:        document.getElementById('toolGrid'),
       offsetBtns:      document.getElementById('offsetBtns'),
@@ -100,6 +100,7 @@ document.addEventListener('DOMContentLoaded', () => {
       lengthLabel:     document.getElementById('lengthLabel'),
       inpWallThick:    document.getElementById('inpWallThick'),
       inpWallHeight:   document.getElementById('inpWallHeight'),
+      rulerTooltip:    document.getElementById('rulerTooltip'),
     });
   }
 

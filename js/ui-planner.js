@@ -10,6 +10,7 @@ import { setViewport, setModifiers, toScreen, toWorld } from './snapping.js';
 import { redraw, initRenderer } from './render.js';
 import { createTool } from './tools/index.js';
 import { VoiceInput } from './voiceInput.js';
+import { UpdateWallCommand } from './commands/UpdateWallCommand.js';
 
 // ── Module state ──────────────────────────────────────────────────
 let canvas, canvasWrap;

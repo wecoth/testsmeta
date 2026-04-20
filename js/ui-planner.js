@@ -18,6 +18,7 @@ import {
   redraw, initRenderer, getOpeningScreenBounds,
   hitTestWallResizeHandle, boundsIntersect,
 } from './render.js';
+import { VoiceInput } from './voiceInput.js';
 
 // ── Stage 5: Command Pattern ──────────────────────────────────────
 import { executeCommand, undo, redo, canUndo, canRedo, clearHistory } from './commands/CommandHistory.js';
@@ -49,6 +50,8 @@ let currentGuideLine = null, currentObjectSnap = null;
 let dragState = null; // { startWorld, lastWorld, wallSnapshots, openingSnapshots }
 // Буфер копирования
 let clipboard = null; // { walls, openings }
+// Голосовой ввод
+let voiceKeyPressed = false;
 // Stage 3: отслеживание точки привязки (tracking lines)
 let _snapHoverTimer    = null;
 let _snapHoverKey      = null;
@@ -199,13 +202,16 @@ export function initPlanner(domRefs) {
     executeCommand(new RenameRoomCommand(key, newName));
     doRedraw();
   });
-
+  
   // Import rooms from planner into smeta
   dom.btnImportRooms?.addEventListener('click', () => {
     const rooms = getComputedRooms();
     if (!rooms.length) { alert('Нарисуйте план и пересчитайте помещения'); return; }
     window._smetaModule?.importRoomsFromPlanner(rooms);
   });
+
+  // Инициализация голосового ввода
+  VoiceInput.init();
 
   setTool('select');
   syncDoorButtons();
@@ -898,7 +904,29 @@ function onKeyDown(e) {
   if (!editable && (e.key === 'Delete' || e.key === 'Backspace') && selectedItems.length) {
     dom.btnDeleteSelected?.click(); e.preventDefault();
   }
+    if (!editable && (e.key === 'Delete' || e.key === 'Backspace') && selectedItems.length) {
+    dom.btnDeleteSelected?.click(); e.preventDefault();
+  }
+  
   if (!editable && isDrawing && tool === 'wall') {
+    // ─────────────────────────────────────────────────────────────
+    // ВОТ СЮДА ВСТАВЛЯЕМ НОВЫЙ КОД (перед проверкой цифр)
+    // Голосовой ввод по зажатому Space (только при рисовании стены)
+    if (e.code === 'Space' && !voiceKeyPressed) {
+      e.preventDefault();
+      voiceKeyPressed = true;
+      
+      VoiceInput.startListening((lengthMm) => {
+        if (!isDrawing || tool !== 'wall') return;
+        lengthInput = lengthMm.toString();
+        lengthMode = true;
+        forceRedraw();
+      });
+      
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────
+
     if (/^[0-9]$/.test(e.key)) { lengthMode = true; lengthInput += e.key; e.preventDefault(); doRedraw(); }
     else if (e.key === 'Backspace' && lengthMode) {
       lengthInput = lengthInput.slice(0, -1); if (!lengthInput) lengthMode = false; e.preventDefault(); doRedraw();
@@ -910,6 +938,7 @@ function onKeyDown(e) {
       lengthInput = ''; lengthMode = false; e.preventDefault(); doRedraw();
     }
   }
+  
   if (!editable && !e.ctrlKey && !e.metaKey) {
     if (e.key === 'v' || e.key === 'V') setTool('select');
     if (e.key === 'w' || e.key === 'W') setTool('wall');
@@ -921,6 +950,12 @@ function onKeyDown(e) {
 function onKeyUp(e) {
   if (e.key === 'Shift') { shiftDown = false; setModifiers(false, ctrlDown); updateSnapBadge(); }
   if (e.key === 'Control') { ctrlDown = false; setModifiers(shiftDown, false); updateSnapBadge(); }
+  // ─── СБРОС ГОЛОСОВОЙ КЛАВИШИ ─────────────────────────────────
+  if (e.code === 'Space' && voiceKeyPressed) {
+    voiceKeyPressed = false;
+    VoiceInput.stopListening();
+    e.preventDefault();
+  }
 }
 
 export function forceRedraw() { doRedraw(); }

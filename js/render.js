@@ -146,6 +146,7 @@ export function redraw(ps) {
   drawRoomFills(ps.selectedItems);
   drawWalls(ps.selectedItems);
   drawWallJoints(ps.selectedItems);
+  drawDividers(ps.selectedItems);
   drawOpenings(ps.selectedItems, ps.defaultDoorHinge, ps.defaultDoorSwing);
   drawWallDimensions();
   drawOpeningLeaders(exteriorWallIds);
@@ -290,6 +291,28 @@ function drawRoomFills(selectedItems) {
     }
     _ctx.restore();
   }
+}
+
+function drawDividers(selectedItems) {
+  if (!appState.dividers || !appState.dividers.length) return;
+  
+  _ctx.save();
+  _ctx.strokeStyle = '#f97316'; // оранжевый
+  _ctx.lineWidth = 2.5;
+  _ctx.setLineDash([12, 8]);
+  _ctx.lineCap = 'round';
+  
+  for (const d of appState.dividers) {
+    const p1 = toScreen(d.x1, d.y1);
+    const p2 = toScreen(d.x2, d.y2);
+    _ctx.beginPath();
+    _ctx.moveTo(p1.x, p1.y);
+    _ctx.lineTo(p2.x, p2.y);
+    _ctx.stroke();
+  }
+  
+  _ctx.setLineDash([]);
+  _ctx.restore();
 }
 
 function drawWalls(selectedItems) {

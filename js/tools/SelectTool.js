@@ -263,14 +263,13 @@ export class SelectTool extends BaseTool {
     return false;
   }
 
-  onKeyDown(e) {
+onKeyDown(e) {
   if (e.key === 'Delete' || e.key === 'Backspace') {
-    if (this.ui.selectedItems.length) {
-      import('../commands/DeleteItemsCommand.js').then(({ DeleteItemsCommand }) => {
-        executeCommand(new DeleteItemsCommand(this.ui.selectedItems));
-        this.ui.clearSelection();
-        this.ui.doRedraw();
-      });
+    const items = this.ui.selectedItems;
+    if (items && items.length) {
+      executeCommand(new DeleteItemsCommand(items));
+      this.ui.clearSelection();
+      this.ui.doRedraw();
       e.preventDefault();
       return true;
     }

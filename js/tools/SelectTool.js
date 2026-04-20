@@ -97,7 +97,9 @@ export class SelectTool extends BaseTool {
       }
       this.selectClickCandidate = hit;
     } else {
-      if (!this.ui.shiftDown) this.ui.clearSelection();
+      if (!this.ui.shiftDown) 
+      this.ui.clearSelection();
+      this.reset();   
       this.selectClickCandidate = null;
       this.selectBoxStart = { x: pos.x, y: pos.y };
       this.selectBoxCurrent = { x: pos.x, y: pos.y };

@@ -487,8 +487,17 @@ function drawClippedFace(sa, ea, joints) {
 
   const skip = [];
   for (const jr of joints) {
-    const tl = toScreen(jr.left, jr.top), br = toScreen(jr.right, jr.bottom);
-    // ─── УВЕЛИЧЕННЫЙ ЗАПАС (главное изменение) ───
+    // ─── РАСШИРЯЕМ RECT В МИРОВЫХ КООРДИНАТАХ (главное изменение) ───
+    const jrExpanded = {
+      left:   jr.left   - 20,
+      right:  jr.right  + 20,
+      top:    jr.top    - 20,
+      bottom: jr.bottom + 20,
+    };
+
+    const tl = toScreen(jrExpanded.left, jrExpanded.top);
+    const br = toScreen(jrExpanded.right, jrExpanded.bottom);
+
     const rl = Math.min(tl.x, br.x) - 8;
     const rt = Math.min(tl.y, br.y) - 8;
     const rr = Math.max(tl.x, br.x) + 8;
@@ -504,7 +513,7 @@ function drawClippedFace(sa, ea, joints) {
     tEnter = Math.max(tEnter, Math.min(params[0], params[1]), Math.min(params[2], params[3]));
     tExit  = Math.min(tExit,  Math.max(params[0], params[1]), Math.max(params[2], params[3]));
 
-    if (tEnter < tExit - 0.005) skip.push([tEnter, tExit]);
+    if (tEnter < tExit - 0.001) skip.push([tEnter, tExit]);
   }
 
   if (!skip.length) {
@@ -515,13 +524,13 @@ function drawClippedFace(sa, ea, joints) {
   skip.sort((a, b) => a[0] - b[0]);
   let cur = 0;
   for (const [t1, t2] of skip) {
-    if (cur < t1 - 0.005) {
+    if (cur < t1 - 0.001) {
       _ctx.moveTo(sa.x + dx * cur, sa.y + dy * cur);
       _ctx.lineTo(sa.x + dx * t1,  sa.y + dy * t1);
     }
     cur = Math.max(cur, t2);
   }
-  if (cur < 1 - 0.005) {
+  if (cur < 1 - 0.001) {
     _ctx.moveTo(sa.x + dx * cur, sa.y + dy * cur);
     _ctx.lineTo(ea.x, ea.y);
   }

@@ -388,28 +388,38 @@ function drawWalls(selectedItems) {
     _ctx.lineCap = 'butt'; _ctx.lineJoin = 'miter'; _ctx.miterLimit = 10;
     _ctx.beginPath();
 
+        // Получаем контурные точки для проверки покрытия торцов
+    const sp = getWallContourPoint(w, 'start');
+    const ep = getWallContourPoint(w, 'end');
+    const startCovered = appState.walls.some(other => other.id !== w.id && isPointInsideWallSurface(sp, other, 15));
+    const endCovered   = appState.walls.some(other => other.id !== w.id && isPointInsideWallSurface(ep, other, 15));
+
     // Проверяем, перекрыта ли грань другой стеной
-const midAB = { x: (g.a.x + g.b.x) / 2, y: (g.a.y + g.b.y) / 2 };
-const midDC = { x: (g.d.x + g.c.x) / 2, y: (g.d.y + g.c.y) / 2 };
-const worldAB = toWorld(midAB.x, midAB.y);
-const worldDC = toWorld(midDC.x, midDC.y);
+    const midAB = { x: (g.a.x + g.b.x) / 2, y: (g.a.y + g.b.y) / 2 };
+    const midDC = { x: (g.d.x + g.c.x) / 2, y: (g.d.y + g.c.y) / 2 };
+    const worldAB = toWorld(midAB.x, midAB.y);
+    const worldDC = toWorld(midDC.x, midDC.y);
 
-const abCovered = appState.walls.some(other => other.id !== w.id && isPointInsideWallSurface(worldAB, other, 5));
-const dcCovered = appState.walls.some(other => other.id !== w.id && isPointInsideWallSurface(worldDC, other, 5));
-    
-    (ptA, ptB, myJoints); // грань ab
-    (ptD, ptC, myJoints); // грань dc
+    const abCovered = appState.walls.some(other => other.id !== w.id && isPointInsideWallSurface(worldAB, other, 15));
+    const dcCovered = appState.walls.some(other => other.id !== w.id && isPointInsideWallSurface(worldDC, other, 15));
 
-    // Stage 4: торцевые заглушки не рисуем если:
-    //   a) конец стыкуется с другой стеной (sj/ej), ИЛИ
-    //   b) конец касается коллинеарной стены — шов был бы виден поперёк непрерывной стены
+    // Рисуем грань ab только если она не перекрыта
+    if (!abCovered) {
+      drawClippedFace(ptA, ptB, myJoints);
+    }
+    // Рисуем грань dc только если она не перекрыта
+    if (!dcCovered) {
+      drawClippedFace(ptD, ptC, myJoints);
+    }
+
+    // Торцевые заглушки
     const jmapStart = getWallJointItemsForEndpoint(jmap, w, 'start').filter(it => it.wall.id !== w.id);
     const jmapEnd   = getWallJointItemsForEndpoint(jmap, w, 'end').filter(it => it.wall.id !== w.id);
     const collinearAtStart = jmapStart.some(it => areWallsCollinear(w, it.wall));
     const collinearAtEnd   = jmapEnd.some(it => areWallsCollinear(w, it.wall));
 
-    if (!ej && !collinearAtEnd)   { _ctx.moveTo(g.b.x, g.b.y); _ctx.lineTo(g.c.x, g.c.y); }
-    if (!sj && !collinearAtStart) { _ctx.moveTo(g.d.x, g.d.y); _ctx.lineTo(g.a.x, g.a.y); }
+    if (!ej && !collinearAtEnd && !endCovered)   { _ctx.moveTo(g.b.x, g.b.y); _ctx.lineTo(g.c.x, g.c.y); }
+    if (!sj && !collinearAtStart && !startCovered) { _ctx.moveTo(g.d.x, g.d.y); _ctx.lineTo(g.a.x, g.a.y); }
     _ctx.stroke();
 
     _ctx.restore();

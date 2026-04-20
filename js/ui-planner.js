@@ -222,7 +222,7 @@ export function toggleSelection(type, id) {
   }
 }
 
-ffunction updateEditPanel() {
+function updateEditPanel() {
   if (!dom.editContent) return;
   if (!selectedItems.length) { dom.editContent.innerHTML = ''; return; }
   if (selectedItems.length > 1) {
@@ -357,30 +357,30 @@ function syncDoorButtons() { /* ... как раньше ... */ }
 export function setTool(t) {
   if (activeTool) activeTool.deactivate();
   tool = t;
-  
-  // Создаём объект ui, который инструменты будут использовать для доступа к методам планировщика
+
+  // Создаём объект ui с актуальными геттерами для изменяемых свойств
   const uiContext = {
     canvas,
     dom,
-    tool,
-    selectedItems,
-    shiftDown,
-    ctrlDown,
-    wallOffset,
-    defaultDoorHinge,
-    defaultDoorSwing,
-    voiceKeyPressed,
-    mouseScreen,
+    get tool() { return tool; },
+    get selectedItems() { return selectedItems; },
+    get shiftDown() { return shiftDown; },
+    get ctrlDown() { return ctrlDown; },
+    get wallOffset() { return wallOffset; },
+    get defaultDoorHinge() { return defaultDoorHinge; },
+    get defaultDoorSwing() { return defaultDoorSwing; },
+    get voiceKeyPressed() { return voiceKeyPressed; },
+    get mouseScreen() { return mouseScreen; },
     doRedraw: () => doRedraw(),
     clearSelection: () => clearSelection(),
     setSelection: (items) => setSelection(items),
     selectObject: (type, id) => selectObject(type, id),
     toggleSelection: (type, id) => toggleSelection(type, id),
     updateCoordinatesLabel: (world, snap, track) => updateCoordinatesLabel(world, snap, track),
-    clearTracking: () => {}, // будет переопределено инструментами при необходимости
-    debouncedComputeRooms: () => {}, // заглушка, если нужно
+    clearTracking: () => {},
+    debouncedComputeRooms: () => { EventBus.emit('walls:changed'); },
   };
-  
+
   activeTool = createTool(tool, uiContext);
   if (activeTool) activeTool.activate();
   

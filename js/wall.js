@@ -120,7 +120,20 @@ export function isWallEndpointCoveredByAnotherWall(wall, endpoint) {
   const point = endpoint === 'start'
     ? { x: wall.cx1 ?? wall.x1, y: wall.cy1 ?? wall.y1 }
     : { x: wall.cx2 ?? wall.x2, y: wall.cy2 ?? wall.y2 };
-  return appState.walls.some(other => other.id !== wall.id && isPointInsideWallSurface(point, other, 15)); // было 0.75
+
+  const TOL = 15; // мм — допуск на проекцию вдоль стены
+  return appState.walls.some(other => {
+    if (other.id === wall.id) return false;
+    const s = { x: other.cx1 ?? other.x1, y: other.cy1 ?? other.y1 };
+    const e = { x: other.cx2 ?? other.x2, y: other.cy2 ?? other.y2 };
+    const len = Math.hypot(e.x - s.x, e.y - s.y);
+    if (len < 1) return false;
+    const ux = (e.x - s.x) / len, uy = (e.y - s.y) / len;
+    const dx = point.x - s.x, dy = point.y - s.y;
+    const along = dx * ux + dy * uy;
+    const perp = Math.abs(dx * (-uy) + dy * ux);
+    return along >= -TOL && along <= len + TOL && perp <= other.thickness / 2 + TOL;
+  });
 }
 
 // ── Joint map ────────────────────────────────────────────────────

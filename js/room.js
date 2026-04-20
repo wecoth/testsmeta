@@ -52,7 +52,7 @@ function lineLineIntersect2(p1, d1, p2, d2) {
 // Ребро rawPoly идёт примерно по cx/cy одной из стен. Стена считается
 // найденной, если ребро параллельно её оси и попадает в её "окрестность"
 // (длиной + thickness/2 + small eps).
-function findWallForEdge(ax, ay, bx, by, walls, eps = 15) {
+function findWallForEdge(ax, ay, bx, by, walls, eps = 50) {
   const midX = (ax + bx) / 2, midY = (ay + by) / 2;
   const edgeLen = Math.hypot(bx - ax, by - ay);
   if (edgeLen < 1) return null;
@@ -65,7 +65,7 @@ function findWallForEdge(ax, ay, bx, by, walls, eps = 15) {
     if (wLen < 1) continue;
     const wUX = (bx2 - bx1) / wLen, wUY = (by2 - by1) / wLen;
     // Параллельность (с любым направлением)
-    if (Math.abs(edUX * wUX + edUY * wUY) < 0.97) continue;
+    if (Math.abs(edUX * wUX + edUY * wUY) < 0.95) continue;
     const halfT = (w.thickness || 0) / 2;
     // Проекция середины ребра на ось стены
     const dx = midX - bx1, dy = midY - by1;

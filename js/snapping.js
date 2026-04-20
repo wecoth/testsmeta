@@ -122,16 +122,16 @@ export function snap(x, y, options = {}) {
   const screenPoint = options.screenPoint || toScreen(x, y);
 
   const objectSnap = !options.skipObject
-    ? findObjectSnapCandidate({ x, y }, screenPoint, {
-        includeEndpoint:     !forceNoEndpoint,
-        includeCorner:       true,
-        includeMidpoint:     !forceNoEndpoint,
-        includeIntersection: !forceNoEndpoint,
-        includeWallPoint:    true,
-        includePerpendicular: !!options.includePerpendicular,
-        startPoint: options.startPoint || null,
-      })
-    : null;
+  ? findObjectSnapCandidate({ x, y }, screenPoint, {
+      includeEndpoint:     !forceNoEndpoint,
+      includeCorner:       true,
+      includeMidpoint:     !forceNoEndpoint,
+      includeIntersection: !forceNoEndpoint,
+      includeWallPoint:    !options.skipWallPoint,   // ← учитываем опцию
+      includePerpendicular: !!options.includePerpendicular,
+      startPoint: options.startPoint || null,
+    })
+  : null;
 
   if (objectSnap) {
     return {

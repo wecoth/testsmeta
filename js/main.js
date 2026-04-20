@@ -27,7 +27,7 @@ window._smetaModule = {
 
 // Expose appState and viewport for captureCanvas
 window._appState = appState;
-Object.defineProperty(window, '_plannerViewport', { get: () => getViewport() });
+window._plannerViewport = getViewport;
 window._renderModule = { renderToImage };
 
 // main.js initializes modules and wires up tabs

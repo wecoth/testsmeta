@@ -11,7 +11,7 @@
 //   EventBus.on('walls:changed', () => { ... });
 //   EventBus.emit('walls:changed', payload);
 //   EventBus.off('walls:changed', handler);
-
+import { EventBus } from './eventBus.js';
 export const EventBus = {
   /** @type {Map<string, Function[]>} */
   listeners: new Map(),

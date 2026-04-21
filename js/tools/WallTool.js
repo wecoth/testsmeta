@@ -311,34 +311,41 @@ this.activeTrackingPoint = { x: snap.x, y: snap.y, type: snap.type, wallDir, nor
   }
 
   updateWallGuide(world, screenPoint) {
-  if (!this.isDrawing || !this.drawStart) {
-    this.currentGuideLine = null;
-    return;
-  }
-  
-  // Если уже есть явная направляющая (от объекта) — проверяем, не пора ли её сбросить
-  if (this.currentGuideLine && this.currentGuideLine.id !== 'wall:start-axis') {
-    if (shouldKeepGuideLine(screenPoint, this.currentGuideLine, 36, 48)) {
+    if (!this.isDrawing || !this.drawStart) {
+      this.currentGuideLine = null;
       return;
-    } else {
+    }
+    if (this.currentGuideLine && shouldKeepGuideLine(screenPoint, this.currentGuideLine, 36, 48)) {
+      return;
+    }
+
+    const candidate = findGuideCandidate(screenPoint);
+    if (candidate) {
+      this.currentGuideLine = candidate;
+      return;
+    }
+
+    const dx = world.x - this.drawStart.x;
+    const dy = world.y - this.drawStart.y;
+    const travel = Math.hypot(dx, dy);
+    const axisDir = Math.abs(dx) >= Math.abs(dy) ? { x: 1, y: 0 } : { x: 0, y: 1 };
+    const axisGuide = { id: 'wall:start-axis', anchor: this.drawStart, dir: axisDir };
+
+    if (!this.currentGuideLine && travel > 10) {
+      this.currentGuideLine = axisGuide;
+      return;
+    }
+
+    if (this.currentGuideLine?.id === 'wall:start-axis') {
+      this.currentGuideLine = axisGuide;
+    }
+
+    if (this.currentGuideLine && !shouldKeepGuideLine(screenPoint, this.currentGuideLine, 54, 70)) {
       this.currentGuideLine = null;
     }
   }
 
-  // Пытаемся найти объектную направляющую (углы, линии стен)
-  const candidate = findGuideCandidate(screenPoint);
-  if (candidate) {
-    this.currentGuideLine = candidate;
-    return;
-  }
-
-  // ⚠️ ОТКЛЮЧАЕМ автоматическую осевую направляющую от стартовой точки.
-  // Она была главной причиной болтанки по диагонали.
-  // Если нужна привязка к осям — используйте Shift или инструмент "Линия".
-  this.currentGuideLine = null;
-}
-
-   getWallPreviewEnd(world) {
+  getWallPreviewEnd(world) {
     const screenPt = this.ui.mouseScreen ? { ...this.ui.mouseScreen } : toScreen(world.x, world.y);
     const snappedBase = snap(world.x, world.y, {
       screenPoint: screenPt,
@@ -350,8 +357,7 @@ this.activeTrackingPoint = { x: snap.x, y: snap.y, type: snap.type, wallDir, nor
     let finalSnapType = snappedBase.snapType || null;
     const hardSnap = snappedBase.snapType === 'endpoint' || snappedBase.snapType === 'corner' || snappedBase.snapType === 'intersection';
 
-    // Ортогональная привязка углов только при зажатом Shift
-    if (!hardSnap && this.ui.shiftDown && this.drawStart) {
+    if (!hardSnap && !this.ui.shiftDown && this.drawStart) {
       const dx = rawEnd.x - this.drawStart.x;
       const dy = rawEnd.y - this.drawStart.y;
       const len = Math.hypot(dx, dy);
@@ -374,17 +380,18 @@ this.activeTrackingPoint = { x: snap.x, y: snap.y, type: snap.type, wallDir, nor
       }
     }
 
-    // Применение объектной направляющей с ограничением по расстоянию
     if (this.currentGuideLine && !hardSnap) {
-      if (this.currentGuideLine.id !== 'wall:start-axis') {
-        const axisGuide = getNearestGuideLineAxis(screenPt, this.currentGuideLine);
-        const distToAxis = distancePointToGuideLineScreen(screenPt, axisGuide);
-        const MAX_GUIDE_SNAP_DIST = 24; // пикселей
-        if (distToAxis <= MAX_GUIDE_SNAP_DIST) {
-          rawEnd = { ...rawEnd, ...projectPointToGuideLineWorld(rawEnd, axisGuide) };
-        }
-      }
-    }
+  const axisGuide = getNearestGuideLineAxis(screenPt, this.currentGuideLine);
+  // Проверяем экранное расстояние до оси направляющей
+  const distToAxis = distancePointToGuideLineScreen(screenPt, axisGuide);
+  const MAX_GUIDE_SNAP_DIST = 24; // пикселей — притягивать, только если близко
+  if (distToAxis <= MAX_GUIDE_SNAP_DIST) {
+    rawEnd = { ...rawEnd, ...projectPointToGuideLineWorld(rawEnd, axisGuide) };
+  } else {
+    // Если далеко — игнорируем направляющую в этом кадре
+    this.currentGuideLine = null;
+  }
+}
 
     // Stage 3: tracking lines
     if (this.activeTrackingPoint && !snappedBase.snapType && !this.currentGuideLine) {
@@ -396,7 +403,6 @@ this.activeTrackingPoint = { x: snap.x, y: snap.y, type: snap.type, wallDir, nor
       }
     }
 
-    // Ввод точной длины с клавиатуры
     if (this.lengthMode && this.lengthInput && this.drawStart) {
       const targetLen = parseFloat(this.lengthInput);
       if (!isNaN(targetLen) && targetLen > 0) {

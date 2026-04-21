@@ -86,7 +86,7 @@ export class SelectTool extends BaseTool {
       return true;
     }
 
-    const hit = this.(world.x, world.y);
+    const hit = this.hitTestObject(world.x, world.y);
     if (hit) {
       const isSelected = this.ui.selectedItems.some(i => i.type === hit.type && i.id === hit.id);
       if (isSelected && this.ui.selectedItems.length > 0) {
@@ -107,9 +107,10 @@ export class SelectTool extends BaseTool {
       }
       this.selectClickCandidate = hit;
     } else {
-      if (!this.ui.shiftDown) 
+      if (!this.ui.shiftDown) {
       this.ui.clearSelection();
-      this.reset();   
+      this.reset();
+      }  
       this.selectClickCandidate = null;
       this.selectBoxStart = { x: pos.x, y: pos.y };
       this.selectBoxCurrent = { x: pos.x, y: pos.y };
@@ -161,7 +162,7 @@ export class SelectTool extends BaseTool {
     }
 
     if (!this.selectBoxStart && !this.wallResizeState) {
-      const hit = this.(world.x, world.y);
+      const hit = this.hitTestObject(world.x, world.y);
       if (hit?.type !== this.hoverItem?.type || hit?.id !== this.hoverItem?.id) {
         this.hoverItem = hit;
         this.ui.doRedraw();
@@ -296,14 +297,6 @@ onKeyDown(e) {
 }
 
   // Вспомогательные методы
-  hitTestObject(wx, wy) {
-    const op = findClosestOpening(wx, wy);
-    if (op) return { type: 'opening', id: op.id };
-    const wall = findClosestWallSel(wx, wy);
-    if (wall) return { type: 'wall', id: wall.id };
-    return null;
-  }
-
   hitTestObject(wx, wy) {
     // Проверка мерных линий (по расстоянию до отрезка)
     if (appState.measures) {

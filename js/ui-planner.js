@@ -426,21 +426,18 @@ export function updateCoordinatesLabel(world, objectSnap, trackingPoint) {
   }
 
   // Обновление всплывающего окошка у курсора (для ввода смещения или расстояния)
-  if (dom.rulerTooltip) {
-    // Проверяем, не вводит ли активный инструмент смещение
+    if (dom.rulerTooltip) {
     let tooltipText = '';
     let showTooltip = false;
     
     if (activeTool && activeTool.offsetMode) {
-      // Режим ввода смещения — показываем вводимое значение
       tooltipText = `↔ ${activeTool.offsetInput || '0'} мм`;
       showTooltip = true;
-        } else if (trackingPoint && !activeTool?.isDrawing) {
-      // Обычный режим — показываем расстояние с учётом привязки к осям
+    } else if (trackingPoint && activeTool?.isDrawing && activeTool?.name !== 'measure') {
+      // Для рулетки тултип не показываем — размер отображается прямо на линии
       let dist;
       const dir = activeTool?.trackingDirection;
       if (dir) {
-        // Проекция вектора (world - trackingPoint) на направление dir
         const dx = world.x - trackingPoint.x;
         const dy = world.y - trackingPoint.y;
         dist = Math.abs(dx * dir.x + dy * dir.y);
@@ -454,7 +451,6 @@ export function updateCoordinatesLabel(world, objectSnap, trackingPoint) {
     if (showTooltip) {
       dom.rulerTooltip.textContent = tooltipText;
       dom.rulerTooltip.style.display = 'block';
-      // Позиционируем рядом с курсором
       const screen = toScreen(world.x, world.y);
       dom.rulerTooltip.style.left = (screen.x + 20) + 'px';
       dom.rulerTooltip.style.top  = (screen.y - 30) + 'px';
@@ -462,7 +458,6 @@ export function updateCoordinatesLabel(world, objectSnap, trackingPoint) {
       dom.rulerTooltip.style.display = 'none';
     }
   }
-}
 
 // ── Обработчики событий ───────────────────────────────────────────
 

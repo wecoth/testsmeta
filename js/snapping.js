@@ -266,8 +266,8 @@ export function getNearestGuideAxis(screenPoint, guide) {
 }
 
 export function findGuideCandidate(screenPoint) {
-  const pointTolerance = 18;
-  const lineTolerance = 12;
+  const pointTolerance = 24;
+  const lineTolerance = 20;
   const worldPoint = toWorld(screenPoint.x, screenPoint.y);
   let best = null, bestDist = pointTolerance;
 
@@ -373,7 +373,7 @@ export function findGuideCandidate(screenPoint) {
   return best;
 }
 
-export function shouldKeepGuideLine(screenPoint, guide, guideReleasePx = 48, anchorReleasePx = 64) {
+export function shouldKeepGuideLine(screenPoint, guide, guideReleasePx = 36, anchorReleasePx = 48) {
   if (!guide) return false;
   const nearest = getNearestGuideAxis(screenPoint, guide);
   const guideDistance = nearest ? nearest.distance : Infinity;

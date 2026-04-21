@@ -88,6 +88,7 @@ export const DRAW_COLORS = {
   handleFill:          '#f8fafc',
   handleStroke:        '#4b5563',
   handleActive:        '#111827',
+  measureLine: '#10b981',
 };
 
 export const ROOM_COLORS  = ['rgba(223,227,231,0.86)'];

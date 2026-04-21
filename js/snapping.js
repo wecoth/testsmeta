@@ -27,6 +27,7 @@ export function getSnapLabel(type) {
     intersection: 'Пересечение', perpendicular: 'Перпендикуляр',
     wallFace: 'Край стены', wallAxis: 'Ось стены',
     tracking: 'Линия отслеживания' }[type] || '';
+    measureLine: 'Линия рулетки',
 }
 
 // ── Main object snap ─────────────────────────────────────────────
@@ -93,6 +94,30 @@ export function findObjectSnapCandidate(worldPoint, screenPoint, options = {}) {
     }
   }
 
+  // ── Привязка к мерным линиям (рулетка) ─────────────────────────────
+  if (appState.measures && appState.measures.length) {
+    for (const m of appState.measures) {
+      // Конечные точки
+      if (options.includeEndpoint) {
+        register('endpoint', { x: m.x1, y: m.y1 }, { measureId: m.id });
+        register('endpoint', { x: m.x2, y: m.y2 }, { measureId: m.id });
+      }
+      // Середина отрезка
+      if (options.includeMidpoint) {
+        const mid = { x: (m.x1 + m.x2) / 2, y: (m.y1 + m.y2) / 2 };
+        register('midpoint', mid, { measureId: m.id });
+      }
+      // Привязка к любой точке линии (как wallFace)
+      if (options.includeWallPoint) {
+        const seg = { x1: m.x1, y1: m.y1, x2: m.x2, y2: m.y2 };
+        const proj = projectPointOntoSegment(worldPoint, seg);
+        if (proj.t >= 0 && proj.t <= 1) {
+          register('measureLine', proj, { measureId: m.id });
+        }
+      }
+    }
+  }
+  
   const candidates = [...bestByKey.values()];
   candidates.sort((a, b) =>
     Math.abs(a.distance - b.distance) > 0.5

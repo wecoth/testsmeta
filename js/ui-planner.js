@@ -49,6 +49,7 @@ export function initPlanner(domRefs) {
   EventBus.on('walls:changed', redrawOnChange);
   EventBus.on('openings:changed', redrawOnChange);
   EventBus.on('dividers:changed', redrawOnChange);
+  EventBus.on('measures:changed', () => doRedraw());
   
   initRenderer(canvas, canvas.getContext('2d'), () => scale);
 

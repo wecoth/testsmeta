@@ -338,7 +338,7 @@ this.activeTrackingPoint = { x: snap.x, y: snap.y, type: snap.type, wallDir, nor
   this.currentGuideLine = null;
 }
 
-  getWallPreviewEnd(world) {
+   getWallPreviewEnd(world) {
     const screenPt = this.ui.mouseScreen ? { ...this.ui.mouseScreen } : toScreen(world.x, world.y);
     const snappedBase = snap(world.x, world.y, {
       screenPoint: screenPt,
@@ -350,50 +350,41 @@ this.activeTrackingPoint = { x: snap.x, y: snap.y, type: snap.type, wallDir, nor
     let finalSnapType = snappedBase.snapType || null;
     const hardSnap = snappedBase.snapType === 'endpoint' || snappedBase.snapType === 'corner' || snappedBase.snapType === 'intersection';
 
-    if (!hardSnap && this.ui.shiftDown && this.drawStart) {  // <-- было !this.ui.shiftDown, стало this.ui.shiftDown
-  const dx = rawEnd.x - this.drawStart.x;
-  const dy = rawEnd.y - this.drawStart.y;
-  const len = Math.hypot(dx, dy);
-  if (len > 1) {
-    let angle = Math.atan2(dy, dx);
-    for (const sa of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
-      const diff = Math.abs(angle - sa);
-      if (diff < 0.15 || Math.abs(diff - 2 * Math.PI) < 0.15) {
-        angle = sa;
-        rawEnd = {
-          x: this.drawStart.x + Math.cos(angle) * len,
-          y: this.drawStart.y + Math.sin(angle) * len,
-        };
-        if (snappedBase.snapType === 'wallFace' || snappedBase.snapType === 'wallAxis') {
-          rawEnd.snapType = null;
+    // Ортогональная привязка углов только при зажатом Shift
+    if (!hardSnap && this.ui.shiftDown && this.drawStart) {
+      const dx = rawEnd.x - this.drawStart.x;
+      const dy = rawEnd.y - this.drawStart.y;
+      const len = Math.hypot(dx, dy);
+      if (len > 1) {
+        let angle = Math.atan2(dy, dx);
+        for (const sa of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+          const diff = Math.abs(angle - sa);
+          if (diff < 0.15 || Math.abs(diff - 2 * Math.PI) < 0.15) {
+            angle = sa;
+            rawEnd = {
+              x: this.drawStart.x + Math.cos(angle) * len,
+              y: this.drawStart.y + Math.sin(angle) * len,
+            };
+            if (snappedBase.snapType === 'wallFace' || snappedBase.snapType === 'wallAxis') {
+              rawEnd.snapType = null;
+            }
+            break;
+          }
         }
-        break;
       }
     }
-  }
-}
 
-   if (this.currentGuideLine && !hardSnap) {
-  // Применяем направляющую только если это НЕ автоматическая ось от старта
-  // (на всякий случай, но с новым updateWallGuide такой уже не будет)
-  if (this.currentGuideLine.id !== 'wall:start-axis') {
-    const axisGuide = getNearestGuideLineAxis(screenPt, this.currentGuideLine);
-    const distToAxis = distancePointToGuideLineScreen(screenPt, axisGuide);
-    const MAX_GUIDE_SNAP_DIST = 24; // пикселей
-    if (distToAxis <= MAX_GUIDE_SNAP_DIST) {
-      rawEnd = { ...rawEnd, ...projectPointToGuideLineWorld(rawEnd, axisGuide) };
+    // Применение объектной направляющей с ограничением по расстоянию
+    if (this.currentGuideLine && !hardSnap) {
+      if (this.currentGuideLine.id !== 'wall:start-axis') {
+        const axisGuide = getNearestGuideLineAxis(screenPt, this.currentGuideLine);
+        const distToAxis = distancePointToGuideLineScreen(screenPt, axisGuide);
+        const MAX_GUIDE_SNAP_DIST = 24; // пикселей
+        if (distToAxis <= MAX_GUIDE_SNAP_DIST) {
+          rawEnd = { ...rawEnd, ...projectPointToGuideLineWorld(rawEnd, axisGuide) };
+        }
+      }
     }
-  }
-}
-    
-  const MAX_GUIDE_SNAP_DIST = 24; // пикселей — притягивать, только если близко
-  if (distToAxis <= MAX_GUIDE_SNAP_DIST) {
-    rawEnd = { ...rawEnd, ...projectPointToGuideLineWorld(rawEnd, axisGuide) };
-  } else {
-    // Если далеко — игнорируем направляющую в этом кадре
-    this.currentGuideLine = null;
-  }
-}
 
     // Stage 3: tracking lines
     if (this.activeTrackingPoint && !snappedBase.snapType && !this.currentGuideLine) {
@@ -405,6 +396,7 @@ this.activeTrackingPoint = { x: snap.x, y: snap.y, type: snap.type, wallDir, nor
       }
     }
 
+    // Ввод точной длины с клавиатуры
     if (this.lengthMode && this.lengthInput && this.drawStart) {
       const targetLen = parseFloat(this.lengthInput);
       if (!isNaN(targetLen) && targetLen > 0) {

@@ -1084,6 +1084,14 @@ function drawObjectSnap(snap) {
     _ctx.moveTo(p.x - nx * 4, p.y - ny * 4); _ctx.lineTo(p.x + nx * 4, p.y + ny * 4); _ctx.stroke();
     _ctx.beginPath(); _ctx.arc(p.x, p.y, snap.type === 'wallFace' ? 4.5 : 3.5, 0, Math.PI * 2); _ctx.fill(); _ctx.stroke();
   }
+      
+  else if (snap.type === 'measureLine') {
+    const wa = snap.wallAngle || 0, ux = Math.cos(wa), uy = Math.sin(wa), nx = -uy, ny = ux;
+    _ctx.beginPath(); _ctx.moveTo(p.x - ux * 7, p.y - uy * 7); _ctx.lineTo(p.x + ux * 7, p.y + uy * 7);
+    _ctx.moveTo(p.x - nx * 4, p.y - ny * 4); _ctx.lineTo(p.x + nx * 4, p.y + ny * 4); _ctx.stroke();
+    _ctx.beginPath(); _ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2); _ctx.fillStyle = DRAW_COLORS.measureLine; _ctx.fill();
+    _ctx.strokeStyle = DRAW_COLORS.measureLine; _ctx.lineWidth = 1.5; _ctx.stroke();
+  }
   else if (snap.type === 'tracking') {
     // Ромб — как в Renga для точки на линии отслеживания
     _ctx.beginPath();

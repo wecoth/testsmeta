@@ -314,7 +314,7 @@ this.activeTrackingPoint = { x: snap.x, y: snap.y, type: snap.type, wallDir, nor
       this.currentGuideLine = null;
       return;
     }
-    if (this.currentGuideLine && shouldKeepGuideLine(screenPoint, this.currentGuideLine, 54, 70)) {
+    if (this.currentGuideLine && shouldKeepGuideLine(screenPoint, this.currentGuideLine, 36, 48)) {
       return;
     }
 

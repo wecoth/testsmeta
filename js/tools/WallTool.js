@@ -311,39 +311,32 @@ this.activeTrackingPoint = { x: snap.x, y: snap.y, type: snap.type, wallDir, nor
   }
 
   updateWallGuide(world, screenPoint) {
-    if (!this.isDrawing || !this.drawStart) {
-      this.currentGuideLine = null;
+  if (!this.isDrawing || !this.drawStart) {
+    this.currentGuideLine = null;
+    return;
+  }
+  
+  // Если уже есть явная направляющая (от объекта) — проверяем, не пора ли её сбросить
+  if (this.currentGuideLine && this.currentGuideLine.id !== 'wall:start-axis') {
+    if (shouldKeepGuideLine(screenPoint, this.currentGuideLine, 36, 48)) {
       return;
-    }
-    if (this.currentGuideLine && shouldKeepGuideLine(screenPoint, this.currentGuideLine, 36, 48)) {
-      return;
-    }
-
-    const candidate = findGuideCandidate(screenPoint);
-    if (candidate) {
-      this.currentGuideLine = candidate;
-      return;
-    }
-
-    const dx = world.x - this.drawStart.x;
-    const dy = world.y - this.drawStart.y;
-    const travel = Math.hypot(dx, dy);
-    const axisDir = Math.abs(dx) >= Math.abs(dy) ? { x: 1, y: 0 } : { x: 0, y: 1 };
-    const axisGuide = { id: 'wall:start-axis', anchor: this.drawStart, dir: axisDir };
-
-    if (!this.currentGuideLine && travel > 10) {
-      this.currentGuideLine = axisGuide;
-      return;
-    }
-
-    if (this.currentGuideLine?.id === 'wall:start-axis') {
-      this.currentGuideLine = axisGuide;
-    }
-
-    if (this.currentGuideLine && !shouldKeepGuideLine(screenPoint, this.currentGuideLine, 54, 70)) {
+    } else {
       this.currentGuideLine = null;
     }
   }
+
+  // Пытаемся найти объектную направляющую (углы, линии стен)
+  const candidate = findGuideCandidate(screenPoint);
+  if (candidate) {
+    this.currentGuideLine = candidate;
+    return;
+  }
+
+  // ⚠️ ОТКЛЮЧАЕМ автоматическую осевую направляющую от стартовой точки.
+  // Она была главной причиной болтанки по диагонали.
+  // Если нужна привязка к осям — используйте Shift или инструмент "Линия".
+  this.currentGuideLine = null;
+}
 
   getWallPreviewEnd(world) {
     const screenPt = this.ui.mouseScreen ? { ...this.ui.mouseScreen } : toScreen(world.x, world.y);
@@ -357,33 +350,42 @@ this.activeTrackingPoint = { x: snap.x, y: snap.y, type: snap.type, wallDir, nor
     let finalSnapType = snappedBase.snapType || null;
     const hardSnap = snappedBase.snapType === 'endpoint' || snappedBase.snapType === 'corner' || snappedBase.snapType === 'intersection';
 
-    if (!hardSnap && !this.ui.shiftDown && this.drawStart) {
-      const dx = rawEnd.x - this.drawStart.x;
-      const dy = rawEnd.y - this.drawStart.y;
-      const len = Math.hypot(dx, dy);
-      if (len > 1) {
-        let angle = Math.atan2(dy, dx);
-        for (const sa of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
-          const diff = Math.abs(angle - sa);
-          if (diff < 0.15 || Math.abs(diff - 2 * Math.PI) < 0.15) {
-            angle = sa;
-            rawEnd = {
-              x: this.drawStart.x + Math.cos(angle) * len,
-              y: this.drawStart.y + Math.sin(angle) * len,
-            };
-            if (snappedBase.snapType === 'wallFace' || snappedBase.snapType === 'wallAxis') {
-              rawEnd.snapType = null;
-            }
-            break;
-          }
+    if (!hardSnap && this.ui.shiftDown && this.drawStart) {  // <-- было !this.ui.shiftDown, стало this.ui.shiftDown
+  const dx = rawEnd.x - this.drawStart.x;
+  const dy = rawEnd.y - this.drawStart.y;
+  const len = Math.hypot(dx, dy);
+  if (len > 1) {
+    let angle = Math.atan2(dy, dx);
+    for (const sa of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+      const diff = Math.abs(angle - sa);
+      if (diff < 0.15 || Math.abs(diff - 2 * Math.PI) < 0.15) {
+        angle = sa;
+        rawEnd = {
+          x: this.drawStart.x + Math.cos(angle) * len,
+          y: this.drawStart.y + Math.sin(angle) * len,
+        };
+        if (snappedBase.snapType === 'wallFace' || snappedBase.snapType === 'wallAxis') {
+          rawEnd.snapType = null;
         }
+        break;
       }
     }
+  }
+}
 
-    if (this.currentGuideLine && !hardSnap) {
-  const axisGuide = getNearestGuideLineAxis(screenPt, this.currentGuideLine);
-  // Проверяем экранное расстояние до оси направляющей
-  const distToAxis = distancePointToGuideLineScreen(screenPt, axisGuide);
+   if (this.currentGuideLine && !hardSnap) {
+  // Применяем направляющую только если это НЕ автоматическая ось от старта
+  // (на всякий случай, но с новым updateWallGuide такой уже не будет)
+  if (this.currentGuideLine.id !== 'wall:start-axis') {
+    const axisGuide = getNearestGuideLineAxis(screenPt, this.currentGuideLine);
+    const distToAxis = distancePointToGuideLineScreen(screenPt, axisGuide);
+    const MAX_GUIDE_SNAP_DIST = 24; // пикселей
+    if (distToAxis <= MAX_GUIDE_SNAP_DIST) {
+      rawEnd = { ...rawEnd, ...projectPointToGuideLineWorld(rawEnd, axisGuide) };
+    }
+  }
+}
+    
   const MAX_GUIDE_SNAP_DIST = 24; // пикселей — притягивать, только если близко
   if (distToAxis <= MAX_GUIDE_SNAP_DIST) {
     rawEnd = { ...rawEnd, ...projectPointToGuideLineWorld(rawEnd, axisGuide) };

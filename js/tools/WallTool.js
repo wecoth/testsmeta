@@ -7,7 +7,6 @@ import {
   snap, toScreen, toWorld, setModifiers,
   findObjectSnapCandidate, findGuideCandidate, getNearestGuideLineAxis, shouldKeepGuideLine,
   projectPointToGuideLineWorld, getTrackingLines, snapToTrackingLines,
-  distancePointToGuideLineScreen,   // ← добавить
 } from '../snapping.js';
 
 export class WallTool extends BaseTool {
@@ -381,17 +380,9 @@ this.activeTrackingPoint = { x: snap.x, y: snap.y, type: snap.type, wallDir, nor
     }
 
     if (this.currentGuideLine && !hardSnap) {
-  const axisGuide = getNearestGuideLineAxis(screenPt, this.currentGuideLine);
-  // Проверяем экранное расстояние до оси направляющей
-  const distToAxis = distancePointToGuideLineScreen(screenPt, axisGuide);
-  const MAX_GUIDE_SNAP_DIST = 24; // пикселей — притягивать, только если близко
-  if (distToAxis <= MAX_GUIDE_SNAP_DIST) {
-    rawEnd = { ...rawEnd, ...projectPointToGuideLineWorld(rawEnd, axisGuide) };
-  } else {
-    // Если далеко — игнорируем направляющую в этом кадре
-    this.currentGuideLine = null;
-  }
-}
+      const axisGuide = getNearestGuideLineAxis(screenPt, this.currentGuideLine);
+      rawEnd = { ...rawEnd, ...projectPointToGuideLineWorld(rawEnd, axisGuide) };
+    }
 
     // Stage 3: tracking lines
     if (this.activeTrackingPoint && !snappedBase.snapType && !this.currentGuideLine) {

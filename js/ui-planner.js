@@ -14,6 +14,7 @@ import { UpdateWallCommand } from './commands/UpdateWallCommand.js';
 
 // ── Module state ──────────────────────────────────────────────────
 let canvas, canvasWrap;
+let _redrawScheduled = false;
 let tool = 'select';
 let activeTool = null;          // экземпляр текущего инструмента
 let scale = 0.12, panX = 200, panY = 150;
@@ -512,7 +513,15 @@ function onMouseMove(e) {
 
   if (!activeTool) {
     updateCoordinatesLabel(world, null, null);
-    doRedraw();
+  }
+
+  // ДЕБАУНС ПЕРЕРИСОВКИ — максимум 60 FPS
+  if (!this._redrawScheduled) {
+    this._redrawScheduled = true;
+    requestAnimationFrame(() => {
+      doRedraw();
+      this._redrawScheduled = false;
+    });
   }
 }
 

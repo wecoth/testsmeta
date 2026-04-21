@@ -792,33 +792,61 @@ function drawTempWall(ps) {
 }
 
 function drawTempMeasure(ps) {
-  const { drawStart: ds, drawEnd: de, tool } = ps;
+  const { drawStart: ds, drawEnd: de, tool, lengthMode, lengthInput } = ps;
   if (tool !== 'measure' || !ds || !de) return;
   
   const p1 = toScreen(ds.x, ds.y);
   const p2 = toScreen(de.x, de.y);
   const len = Math.hypot(de.x - ds.x, de.y - ds.y);
+  if (len < 1) return;
+  
+  const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
   
   _ctx.save();
-  _ctx.strokeStyle = '#10b981'; // зелёный
-  _ctx.lineWidth = 2.0;
-  _ctx.setLineDash([8, 4]);
+  _ctx.strokeStyle = '#9ca3af';   // серый, как у обычных размеров
+  _ctx.lineWidth = 1.0;
+  _ctx.setLineDash([]);
   _ctx.lineCap = 'round';
   
+  // Основная линия с отступом от концов (для засечек)
+  const GAP = 12; // пиксели отступа
+  const dirX = (p2.x - p1.x) / len;
+  const dirY = (p2.y - p1.y) / len;
+  const startGap = { x: p1.x + dirX * GAP, y: p1.y + dirY * GAP };
+  const endGap   = { x: p2.x - dirX * GAP, y: p2.y - dirY * GAP };
+  
   _ctx.beginPath();
-  _ctx.moveTo(p1.x, p1.y);
-  _ctx.lineTo(p2.x, p2.y);
+  _ctx.moveTo(startGap.x, startGap.y);
+  _ctx.lineTo(endGap.x, endGap.y);
   _ctx.stroke();
   
-  // Подпись расстояния
+  // Засечки 45° на концах
+  const TICK = 6 * _fontScale;
+  const tickAngle = angle + Math.PI / 4;
+  const cosTick = Math.cos(tickAngle) * TICK;
+  const sinTick = Math.sin(tickAngle) * TICK;
+  
+  _ctx.beginPath();
+  // Засечка у стартовой точки
+  _ctx.moveTo(p1.x - cosTick, p1.y - sinTick);
+  _ctx.lineTo(p1.x + cosTick, p1.y + sinTick);
+  // Засечка у конечной точки
+  _ctx.moveTo(p2.x - cosTick, p2.y - sinTick);
+  _ctx.lineTo(p2.x + cosTick, p2.y + sinTick);
+  _ctx.stroke();
+  
+  // Текст с белым фоном по центру
   const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
-  const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-  drawAlignedTextBox(`${Math.round(len)} мм`, mid, angle, {
-    textColor: '#047857',
-    background: 'rgba(255,255,255,0.9)',
+  const labelText = (lengthMode && lengthInput) 
+    ? `${lengthInput} мм` 
+    : `${Math.round(len)} мм`;
+    
+  drawAlignedTextBox(labelText, mid, angle, {
+    textColor: '#374151',
+    background: 'rgba(255,255,255,0.95)',
+    font: '600 9px Onest, Inter, sans-serif'
   });
   
-  _ctx.setLineDash([]);
   _ctx.restore();
 }
 

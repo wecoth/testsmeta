@@ -17,6 +17,16 @@ import {
 import { findClosestOpening } from '../opening.js';
 import { hitTestWallResizeHandle, getOpeningScreenBounds, boundsIntersect } from '../render.js';
 
+function distanceToSegment(px, py, x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const len2 = dx*dx + dy*dy;
+  if (len2 === 0) return Math.hypot(px - x1, py - y1);
+  let t = ((px - x1) * dx + (py - y1) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  const projX = x1 + t * dx, projY = y1 + t * dy;
+  return Math.hypot(px - projX, py - projY);
+}
+
 export class SelectTool extends BaseTool {
   constructor(ui) {
     super(ui);
@@ -76,7 +86,7 @@ export class SelectTool extends BaseTool {
       return true;
     }
 
-    const hit = this.hitTestObject(world.x, world.y);
+    const hit = this.(world.x, world.y);
     if (hit) {
       const isSelected = this.ui.selectedItems.some(i => i.type === hit.type && i.id === hit.id);
       if (isSelected && this.ui.selectedItems.length > 0) {
@@ -151,7 +161,7 @@ export class SelectTool extends BaseTool {
     }
 
     if (!this.selectBoxStart && !this.wallResizeState) {
-      const hit = this.hitTestObject(world.x, world.y);
+      const hit = this.(world.x, world.y);
       if (hit?.type !== this.hoverItem?.type || hit?.id !== this.hoverItem?.id) {
         this.hoverItem = hit;
         this.ui.doRedraw();
@@ -294,6 +304,21 @@ onKeyDown(e) {
     return null;
   }
 
+  hitTestObject(wx, wy) {
+    // Проверка мерных линий (по расстоянию до отрезка)
+    if (appState.measures) {
+      for (const m of appState.measures) {
+        const dist = distanceToSegment(wx, wy, m.x1, m.y1, m.x2, m.y2);
+        if (dist < 15) return { type: 'measure', id: m.id };
+      }
+    }
+    const op = findClosestOpening(wx, wy);
+    if (op) return { type: 'opening', id: op.id };
+    const wall = findClosestWallSel(wx, wy);
+    if (wall) return { type: 'wall', id: wall.id };
+    return null;
+  }
+  
   getTopologicallyConnected(seedWallIds) {
     const SNAP = 2;
     const visited = new Set(seedWallIds);

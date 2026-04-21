@@ -165,6 +165,7 @@ export function redraw(ps) {
     drawTrackingLines(ps.activeTrackingPoint, ps.trackingLines);
   }
   if (ps.isDrawing && ps.drawStart && ps.drawEnd) drawTempWall(ps);
+  if (ps.tool === 'measure' && ps.isDrawing && ps.drawStart && ps.drawEnd) drawTempMeasure(ps);
   if (ps.tool === 'wall' && ps.currentGuideLine)  drawGuideLine(ps.currentGuideLine);
   if (ps.tool === 'wall' && ps.currentObjectSnap) drawCornerHotspots(ps.currentObjectSnap);
   if (ps.tool === 'wall' && ps.currentObjectSnap) drawObjectSnap(ps.currentObjectSnap);
@@ -788,6 +789,37 @@ function drawTempWall(ps) {
     lengthLabel.textContent = (lengthMode && lengthInput) ? `${lengthInput}_ мм` : `${Math.round(len)} мм`; }
   if (lblLen) lblLen.style.display = 'inline';
   if (lblLenVal) lblLenVal.textContent = Math.round(len);
+}
+
+function drawTempMeasure(ps) {
+  const { drawStart: ds, drawEnd: de, tool } = ps;
+  if (tool !== 'measure' || !ds || !de) return;
+  
+  const p1 = toScreen(ds.x, ds.y);
+  const p2 = toScreen(de.x, de.y);
+  const len = Math.hypot(de.x - ds.x, de.y - ds.y);
+  
+  _ctx.save();
+  _ctx.strokeStyle = '#10b981'; // зелёный
+  _ctx.lineWidth = 2.0;
+  _ctx.setLineDash([8, 4]);
+  _ctx.lineCap = 'round';
+  
+  _ctx.beginPath();
+  _ctx.moveTo(p1.x, p1.y);
+  _ctx.lineTo(p2.x, p2.y);
+  _ctx.stroke();
+  
+  // Подпись расстояния
+  const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+  const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+  drawAlignedTextBox(`${Math.round(len)} мм`, mid, angle, {
+    textColor: '#047857',
+    background: 'rgba(255,255,255,0.9)',
+  });
+  
+  _ctx.setLineDash([]);
+  _ctx.restore();
 }
 
 // ══════════════════════════════════════════════════════════════════

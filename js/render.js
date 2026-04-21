@@ -148,6 +148,7 @@ export function redraw(ps) {
   drawWalls(ps.selectedItems);
   drawWallJoints(ps.selectedItems);
   drawDividers(ps.selectedItems);
+  drawMeasures(ps.selectedItems);   // ← добавить
   drawOpenings(ps.selectedItems, ps.defaultDoorHinge, ps.defaultDoorSwing);
   drawWallDimensions();
   drawOpeningLeaders(exteriorWallIds);
@@ -310,6 +311,36 @@ function drawDividers(selectedItems) {
     _ctx.moveTo(p1.x, p1.y);
     _ctx.lineTo(p2.x, p2.y);
     _ctx.stroke();
+  }
+  
+  _ctx.setLineDash([]);
+  _ctx.restore();
+}
+
+function drawMeasures(selectedItems) {
+  if (!appState.measures || !appState.measures.length) return;
+  
+  _ctx.save();
+  _ctx.strokeStyle = '#10b981'; // зелёный
+  _ctx.lineWidth = 2.0;
+  _ctx.setLineDash([8, 4]);
+  _ctx.lineCap = 'round';
+  
+  for (const m of appState.measures) {
+    const p1 = toScreen(m.x1, m.y1);
+    const p2 = toScreen(m.x2, m.y2);
+    _ctx.beginPath();
+    _ctx.moveTo(p1.x, p1.y);
+    _ctx.lineTo(p2.x, p2.y);
+    _ctx.stroke();
+
+    // Подпись расстояния
+    const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+    const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+    drawAlignedTextBox(m.label, mid, angle, {
+      textColor: '#047857',
+      background: 'rgba(255,255,255,0.9)',
+    });
   }
   
   _ctx.setLineDash([]);

@@ -20,8 +20,13 @@ export function toWorld(sx, sy) { return { x: (sx - _panX) / _scale, y: (sy - _p
 
 // ── Snap type helpers ────────────────────────────────────────────
 export function getSnapTypePriority(type) {
-  return { corner: 0, endpoint: 1, intersection: 2, midpoint: 3, tracking: 3, wallFace: 4, wallAxis: 5, perpendicular: 6 }[type] ?? 9;
+  return {
+    corner: 0, endpoint: 1, intersection: 2, midpoint: 3, 
+    tracking: 3, wallFace: 4, wallAxis: 5, perpendicular: 6,
+    measureLine: 4   // ← такой же приоритет, как у грани стены
+  }[type] ?? 9;
 }
+
 export function getSnapLabel(type) {
   return {
     corner: 'Угол',

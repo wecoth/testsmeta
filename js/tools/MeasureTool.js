@@ -113,41 +113,54 @@ export class MeasureTool extends BaseTool {
   }
 
   // ─── Направляющие (оси) ─────────────────────────────────────────
-  updateGuideLine(world, screenPoint) {
+    updateGuideLine(world, screenPoint) {
     if (!this.isDrawing || !this.drawStart) {
       this.currentGuideLine = null;
       return;
     }
-    const candidate = findGuideCandidate(screenPoint);
-    if (candidate) {
-      this.currentGuideLine = candidate;
-      return;
+    const dx = world.x - this.drawStart.x;
+    const dy = world.y - this.drawStart.y;
+    const DIST_TOL = 30;   // мм
+    
+    let dir = null;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      if (Math.abs(dy) < DIST_TOL) dir = { x: 1, y: 0 };
+    } else {
+      if (Math.abs(dx) < DIST_TOL) dir = { x: 0, y: 1 };
     }
-    if (this.currentGuideLine) {
-      const nearest = getNearestGuideAxis(screenPoint, this.currentGuideLine);
-      const guideDistance = nearest ? nearest.distance : Infinity;
-      const anchorScreen = toScreen(this.currentGuideLine.anchor.x, this.currentGuideLine.anchor.y);
-      const anchorDistance = Math.hypot(screenPoint.x - anchorScreen.x, screenPoint.y - anchorScreen.y);
-      if (guideDistance <= 18 || anchorDistance <= 20) return;
+    
+    if (dir) {
+      this.currentGuideLine = {
+        anchor: { x: this.drawStart.x, y: this.drawStart.y },
+        dir: dir,
+      };
+    } else {
+      this.currentGuideLine = null;
     }
-    this.currentGuideLine = null;
   }
 
-  getMeasureEnd(world) {
+    getMeasureEnd(world) {
     const screenPt = this.ui.mouseScreen || toScreen(world.x, world.y);
     
-    // Сначала пробуем взять точку из объектной привязки
+    let end;
     if (this.currentObjectSnap) {
-      let end = { x: this.currentObjectSnap.x, y: this.currentObjectSnap.y };
-      // Если есть активная направляющая и нет жёсткой объектной привязки,
-      // проектируем на ось направляющей
-      if (this.currentGuideLine) {
-        const nearest = getNearestGuideAxis(screenPt, this.currentGuideLine);
-        const axisGuide = nearest ? { anchor: this.currentGuideLine.anchor, dir: nearest.dir } : this.currentGuideLine;
-        end = projectPointToGuideLineWorld(end, axisGuide);
-      }
-      return end;
+      end = { x: this.currentObjectSnap.x, y: this.currentObjectSnap.y };
+    } else {
+      end = snap(world.x, world.y, {
+        screenPoint: screenPt,
+        includePerpendicular: false,
+        includeWallPoint: true,
+      });
     }
+    
+    // Примагничиваем к текущей направляющей, если она есть
+    if (this.currentGuideLine) {
+      const proj = projectPointToGuideLineWorld(end, this.currentGuideLine);
+      end = { x: proj.x, y: proj.y };
+    }
+    
+    return end;
+  }
 
     // Если объектной привязки нет, используем snap с учётом направляющих
     let end = snap(world.x, world.y, {

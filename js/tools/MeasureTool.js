@@ -113,7 +113,7 @@ export class MeasureTool extends BaseTool {
   }
 
   // ─── Направляющие (оси) ─────────────────────────────────────────
-    updateGuideLine(world, screenPoint) {
+  updateGuideLine(world, screenPoint) {
     if (!this.isDrawing || !this.drawStart) {
       this.currentGuideLine = null;
       return;
@@ -139,7 +139,7 @@ export class MeasureTool extends BaseTool {
     }
   }
 
-    getMeasureEnd(world) {
+  getMeasureEnd(world) {
     const screenPt = this.ui.mouseScreen || toScreen(world.x, world.y);
     
     let end;
@@ -160,21 +160,5 @@ export class MeasureTool extends BaseTool {
     }
     
     return end;
-  }
-
-    // Если объектной привязки нет, используем snap с учётом направляющих
-    let end = snap(world.x, world.y, {
-      screenPoint: screenPt,
-      includePerpendicular: false,
-      includeWallPoint: true,
-    });
-
-    if (this.currentGuideLine) {
-      const nearest = getNearestGuideAxis(screenPt, this.currentGuideLine);
-      const axisGuide = nearest ? { anchor: this.currentGuideLine.anchor, dir: nearest.dir } : this.currentGuideLine;
-      end = { ...end, ...projectPointToGuideLineWorld(end, axisGuide) };
-    }
-
-    return { x: end.x, y: end.y };
   }
 }

@@ -3,7 +3,8 @@ import { BaseTool } from './BaseTool.js';
 import { executeCommand } from '../commands/CommandHistory.js';
 import { CreateMeasureCommand } from '../commands/CreateMeasureCommand.js';
 import {
-  snap, setModifiers, findObjectSnapCandidate, toScreen
+  snap, setModifiers, findObjectSnapCandidate, toScreen, toWorld,
+  findGuideCandidate, getNearestGuideAxis, projectPointToGuideLineWorld
 } from '../snapping.js';
 
 export class MeasureTool extends BaseTool {
@@ -13,7 +14,8 @@ export class MeasureTool extends BaseTool {
     this.isDrawing = false;
     this.drawStart = null;
     this.drawEnd = null;
-    this.currentObjectSnap = null;   // ← для отображения привязки
+    this.currentObjectSnap = null;
+    this.currentGuideLine = null;   // ← для направляющих (оси)
   }
 
   activate() {
@@ -30,6 +32,7 @@ export class MeasureTool extends BaseTool {
     this.drawStart = null;
     this.drawEnd = null;
     this.currentObjectSnap = null;
+    this.currentGuideLine = null;
   }
 
   getCursor() {
@@ -41,14 +44,14 @@ export class MeasureTool extends BaseTool {
       isDrawing: this.isDrawing,
       drawStart: this.drawStart,
       drawEnd: this.drawEnd,
-      currentObjectSnap: this.currentObjectSnap,   // ← чтобы render показал значок
+      currentObjectSnap: this.currentObjectSnap,
+      currentGuideLine: this.currentGuideLine,   // ← чтобы render нарисовал направляющие
       tool: this.name,
     };
   }
 
   onMouseDown(pos, world, e) {
     if (!this.isDrawing) {
-      // Первый клик — используем текущую привязку, если есть, иначе snap
       let startPoint;
       if (this.currentObjectSnap) {
         startPoint = { x: this.currentObjectSnap.x, y: this.currentObjectSnap.y };
@@ -61,14 +64,7 @@ export class MeasureTool extends BaseTool {
       this.drawEnd = { ...startPoint };
       this.ui.doRedraw();
     } else {
-      // Второй клик — завершаем с привязкой
-      let endPoint;
-      if (this.currentObjectSnap) {
-        endPoint = { x: this.currentObjectSnap.x, y: this.currentObjectSnap.y };
-      } else {
-        const snapped = snap(world.x, world.y, { screenPoint: pos });
-        endPoint = { x: snapped.x, y: snapped.y };
-      }
+      let endPoint = this.getMeasureEnd(world);
       const len = Math.hypot(endPoint.x - this.drawStart.x, endPoint.y - this.drawStart.y);
       if (len > 1) {
         executeCommand(new CreateMeasureCommand(
@@ -85,26 +81,21 @@ export class MeasureTool extends BaseTool {
   onMouseMove(pos, world, e) {
     setModifiers(this.ui.shiftDown, this.ui.ctrlDown);
     
-    // Обновляем привязку (как в WallTool)
+    // Обновляем объектную привязку
     this.currentObjectSnap = findObjectSnapCandidate(world, pos, {
       includeEndpoint: true,
       includeCorner: true,
       includeMidpoint: true,
       includeIntersection: true,
-      includeWallPoint: true,        // ← грани стен
+      includeWallPoint: true,
       includePerpendicular: false,
     });
 
+    // Обновляем направляющие (оси)
+    this.updateGuideLine(world, pos);
+
     if (this.isDrawing && this.drawStart) {
-      // При движении с зажатой кнопкой обновляем временную конечную точку с учётом привязки
-      let endPoint;
-      if (this.currentObjectSnap) {
-        endPoint = { x: this.currentObjectSnap.x, y: this.currentObjectSnap.y };
-      } else {
-        const snapped = snap(world.x, world.y, { screenPoint: pos });
-        endPoint = { x: snapped.x, y: snapped.y };
-      }
-      this.drawEnd = endPoint;
+      this.drawEnd = this.getMeasureEnd(world);
     }
 
     this.ui.updateCoordinatesLabel(world, this.currentObjectSnap, null);
@@ -119,5 +110,58 @@ export class MeasureTool extends BaseTool {
       return true;
     }
     return false;
+  }
+
+  // ─── Направляющие (оси) ─────────────────────────────────────────
+  updateGuideLine(world, screenPoint) {
+    if (!this.isDrawing || !this.drawStart) {
+      this.currentGuideLine = null;
+      return;
+    }
+    const candidate = findGuideCandidate(screenPoint);
+    if (candidate) {
+      this.currentGuideLine = candidate;
+      return;
+    }
+    if (this.currentGuideLine) {
+      const nearest = getNearestGuideAxis(screenPoint, this.currentGuideLine);
+      const guideDistance = nearest ? nearest.distance : Infinity;
+      const anchorScreen = toScreen(this.currentGuideLine.anchor.x, this.currentGuideLine.anchor.y);
+      const anchorDistance = Math.hypot(screenPoint.x - anchorScreen.x, screenPoint.y - anchorScreen.y);
+      if (guideDistance <= 18 || anchorDistance <= 20) return;
+    }
+    this.currentGuideLine = null;
+  }
+
+  getMeasureEnd(world) {
+    const screenPt = this.ui.mouseScreen || toScreen(world.x, world.y);
+    
+    // Сначала пробуем взять точку из объектной привязки
+    if (this.currentObjectSnap) {
+      let end = { x: this.currentObjectSnap.x, y: this.currentObjectSnap.y };
+      // Если есть активная направляющая и нет жёсткой объектной привязки,
+      // проектируем на ось направляющей
+      if (this.currentGuideLine) {
+        const nearest = getNearestGuideAxis(screenPt, this.currentGuideLine);
+        const axisGuide = nearest ? { anchor: this.currentGuideLine.anchor, dir: nearest.dir } : this.currentGuideLine;
+        end = projectPointToGuideLineWorld(end, axisGuide);
+      }
+      return end;
+    }
+
+    // Если объектной привязки нет, используем snap с учётом направляющих
+    let end = snap(world.x, world.y, {
+      screenPoint: screenPt,
+      includePerpendicular: false,
+      includeWallPoint: true,
+    });
+
+    if (this.currentGuideLine) {
+      const nearest = getNearestGuideAxis(screenPt, this.currentGuideLine);
+      const axisGuide = nearest ? { anchor: this.currentGuideLine.anchor, dir: nearest.dir } : this.currentGuideLine;
+      end = { ...end, ...projectPointToGuideLineWorld(end, axisGuide) };
+    }
+
+    return { x: end.x, y: end.y };
   }
 }

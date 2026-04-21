@@ -23,11 +23,17 @@ export function getSnapTypePriority(type) {
   return { corner: 0, endpoint: 1, intersection: 2, midpoint: 3, tracking: 3, wallFace: 4, wallAxis: 5, perpendicular: 6 }[type] ?? 9;
 }
 export function getSnapLabel(type) {
-  return { corner: 'Угол', endpoint: 'Точка стены', midpoint: 'Середина',
-    intersection: 'Пересечение', perpendicular: 'Перпендикуляр',
-    wallFace: 'Край стены', wallAxis: 'Ось стены',
-    tracking: 'Линия отслеживания' }[type] || '';
-    measureLine: 'Линия рулетки',
+  return {
+    corner: 'Угол',
+    endpoint: 'Точка стены',
+    midpoint: 'Середина',
+    intersection: 'Пересечение',
+    perpendicular: 'Перпендикуляр',
+    wallFace: 'Край стены',
+    wallAxis: 'Ось стены',
+    tracking: 'Линия отслеживания',
+    measureLine: 'Линия рулетки'    // ← свойство внутри объекта
+  }[type] || '';
 }
 
 // ── Main object snap ─────────────────────────────────────────────

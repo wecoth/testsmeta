@@ -12,6 +12,8 @@ const _state = {
   idOpen: 1,
   dividers: [],    // { id, x1, y1, x2, y2 }
   idDivider: 1,
+  measures: [],    // { id, x1, y1, x2, y2, label }
+  idMeasure: 1,
 
   // ── Smeta ──
   logoData: null,

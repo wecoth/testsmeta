@@ -458,7 +458,7 @@ export function updateCoordinatesLabel(world, objectSnap, trackingPoint) {
       dom.rulerTooltip.style.display = 'none';
     }
   }
-
+}
 // ── Обработчики событий ───────────────────────────────────────────
 
 function getCanvasPos(e) {

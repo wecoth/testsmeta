@@ -166,9 +166,9 @@ export function redraw(ps) {
   }
   if (ps.isDrawing && ps.drawStart && ps.drawEnd) drawTempWall(ps);
   if (ps.tool === 'measure' && ps.isDrawing && ps.drawStart && ps.drawEnd) drawTempMeasure(ps);
-  if (ps.tool === 'wall' && ps.currentGuideLine)  drawGuideLine(ps.currentGuideLine);
-  if (ps.tool === 'wall' && ps.currentObjectSnap) drawCornerHotspots(ps.currentObjectSnap);
-  if (ps.tool === 'wall' && ps.currentObjectSnap) drawObjectSnap(ps.currentObjectSnap);
+  if ((ps.tool === 'wall' || ps.tool === 'measure') && ps.currentGuideLine)  drawGuideLine(ps.currentGuideLine);
+  if ((ps.tool === 'wall' || ps.tool === 'measure') && ps.currentObjectSnap) drawCornerHotspots(ps.currentObjectSnap);
+  if ((ps.tool === 'wall' || ps.tool === 'measure') && ps.currentObjectSnap) drawObjectSnap(ps.currentObjectSnap);
   drawSelectionBox(ps.selectBoxStart, ps.selectBoxCurrent);
   drawCursorGhost(ps);
 }

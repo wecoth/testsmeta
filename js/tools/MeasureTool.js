@@ -98,12 +98,13 @@ export class MeasureTool extends BaseTool {
     });
   }
 
-  getMeasureEnd(world) {
+    getMeasureEnd(world) {
     const screenPt = this.ui.mouseScreen || toScreen(world.x, world.y);
-    // Используем обычный snap, но разрешаем привязку к граням
-    return snap(world.x, world.y, {
+    const snapped = snap(world.x, world.y, {
       screenPoint: screenPt,
       includePerpendicular: false,
+      includeWallPoint: true,    // явно включаем привязку к граням
     });
+    return { x: snapped.x, y: snapped.y };
   }
 }

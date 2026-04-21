@@ -15,7 +15,11 @@ export class MeasureTool extends BaseTool {
     this.drawStart = null;
     this.drawEnd = null;
     this.currentObjectSnap = null;
-    this.currentGuideLine = null;   // ← для направляющих (оси)
+    this.currentGuideLine = null;
+    
+    // Поля для ввода точной длины
+    this.lengthInput = '';
+    this.lengthMode = false;
   }
 
   activate() {
@@ -33,6 +37,8 @@ export class MeasureTool extends BaseTool {
     this.drawEnd = null;
     this.currentObjectSnap = null;
     this.currentGuideLine = null;
+    this.lengthInput = '';
+    this.lengthMode = false;
   }
 
   getCursor() {
@@ -45,7 +51,9 @@ export class MeasureTool extends BaseTool {
       drawStart: this.drawStart,
       drawEnd: this.drawEnd,
       currentObjectSnap: this.currentObjectSnap,
-      currentGuideLine: this.currentGuideLine,   // ← чтобы render нарисовал направляющие
+      currentGuideLine: this.currentGuideLine,
+      lengthMode: this.lengthMode,
+      lengthInput: this.lengthInput,
       tool: this.name,
     };
   }
@@ -62,6 +70,8 @@ export class MeasureTool extends BaseTool {
       this.isDrawing = true;
       this.drawStart = startPoint;
       this.drawEnd = { ...startPoint };
+      this.lengthInput = '';
+      this.lengthMode = false;
       this.ui.doRedraw();
     } else {
       let endPoint = this.getMeasureEnd(world);
@@ -81,7 +91,6 @@ export class MeasureTool extends BaseTool {
   onMouseMove(pos, world, e) {
     setModifiers(this.ui.shiftDown, this.ui.ctrlDown);
     
-    // Обновляем объектную привязку
     this.currentObjectSnap = findObjectSnapCandidate(world, pos, {
       includeEndpoint: true,
       includeCorner: true,
@@ -91,7 +100,6 @@ export class MeasureTool extends BaseTool {
       includePerpendicular: false,
     });
 
-    // Обновляем направляющие (оси)
     this.updateGuideLine(world, pos);
 
     if (this.isDrawing && this.drawStart) {
@@ -104,6 +112,34 @@ export class MeasureTool extends BaseTool {
   }
 
   onKeyDown(e) {
+    if (!this.isDrawing) return false;
+
+    // Ввод длины с клавиатуры
+    if (/^[0-9]$/.test(e.key)) {
+      this.lengthMode = true;
+      this.lengthInput += e.key;
+      e.preventDefault();
+      this.ui.doRedraw();
+      return true;
+    }
+    if (e.key === 'Backspace' && this.lengthMode) {
+      this.lengthInput = this.lengthInput.slice(0, -1);
+      if (!this.lengthInput) this.lengthMode = false;
+      e.preventDefault();
+      this.ui.doRedraw();
+      return true;
+    }
+    if (e.key === 'Enter' && this.lengthMode && this.lengthInput) {
+      const targetLen = parseFloat(this.lengthInput);
+      if (!isNaN(targetLen) && targetLen > 0 && this.drawStart) {
+        this.applyLength(targetLen);
+      }
+      this.lengthInput = '';
+      this.lengthMode = false;
+      e.preventDefault();
+      this.ui.doRedraw();
+      return true;
+    }
     if (e.key === 'Escape') {
       this.reset();
       this.ui.doRedraw();
@@ -111,6 +147,9 @@ export class MeasureTool extends BaseTool {
     }
     return false;
   }
+
+  onMouseUp(pos, world, e) { return false; }
+  onKeyUp(e) { return false; }
 
   // ─── Направляющие (оси) ─────────────────────────────────────────
   updateGuideLine(world, screenPoint) {
@@ -120,7 +159,7 @@ export class MeasureTool extends BaseTool {
     }
     const dx = world.x - this.drawStart.x;
     const dy = world.y - this.drawStart.y;
-    const DIST_TOL = 30;   // мм
+    const DIST_TOL = 30;
     
     let dir = null;
     if (Math.abs(dx) > Math.abs(dy)) {
@@ -140,6 +179,11 @@ export class MeasureTool extends BaseTool {
   }
 
   getMeasureEnd(world) {
+    // Если вводим длину, используем её для вычисления конечной точки
+    if (this.lengthMode && this.lengthInput) {
+      return this.computeEndFromLength(parseFloat(this.lengthInput));
+    }
+
     const screenPt = this.ui.mouseScreen || toScreen(world.x, world.y);
     
     let end;
@@ -153,12 +197,49 @@ export class MeasureTool extends BaseTool {
       });
     }
     
-    // Примагничиваем к текущей направляющей, если она есть
     if (this.currentGuideLine) {
       const proj = projectPointToGuideLineWorld(end, this.currentGuideLine);
       end = { x: proj.x, y: proj.y };
     }
     
     return end;
+  }
+
+  // Вычисляет конечную точку на основе заданной длины
+  computeEndFromLength(targetLen) {
+    if (!this.drawStart) return this.drawEnd || { x: 0, y: 0 };
+    if (targetLen <= 0) return { ...this.drawStart };
+    
+    let dir;
+    if (this.currentGuideLine) {
+      dir = this.currentGuideLine.dir;
+    } else {
+      // Используем текущее направление от старта к мыши
+      const world = this.ui.mouseScreen ? toWorld(this.ui.mouseScreen.x, this.ui.mouseScreen.y) : this.drawEnd;
+      const dx = world.x - this.drawStart.x;
+      const dy = world.y - this.drawStart.y;
+      const len = Math.hypot(dx, dy);
+      if (len > 1) {
+        dir = { x: dx / len, y: dy / len };
+      } else {
+        dir = { x: 1, y: 0 };
+      }
+    }
+    
+    return {
+      x: this.drawStart.x + dir.x * targetLen,
+      y: this.drawStart.y + dir.y * targetLen,
+    };
+  }
+
+  applyLength(targetLen) {
+    if (!this.drawStart) return;
+    const end = this.computeEndFromLength(targetLen);
+    executeCommand(new CreateMeasureCommand(
+      this.drawStart.x, this.drawStart.y,
+      end.x, end.y
+    ));
+    this.reset();
+    this.ui.doRedraw();
   }
 }

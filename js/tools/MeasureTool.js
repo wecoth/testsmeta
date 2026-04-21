@@ -2,7 +2,9 @@
 import { BaseTool } from './BaseTool.js';
 import { executeCommand } from '../commands/CommandHistory.js';
 import { CreateMeasureCommand } from '../commands/CreateMeasureCommand.js';
-import { snap, setModifiers, findObjectSnapCandidate } from '../snapping.js';
+import {
+  snap, setModifiers, findObjectSnapCandidate, toScreen
+} from '../snapping.js';
 
 export class MeasureTool extends BaseTool {
   constructor(ui) {
@@ -11,7 +13,7 @@ export class MeasureTool extends BaseTool {
     this.isDrawing = false;
     this.drawStart = null;
     this.drawEnd = null;
-    this.currentObjectSnap = null;
+    this.currentObjectSnap = null;   // ← для отображения привязки
   }
 
   activate() {
@@ -39,25 +41,40 @@ export class MeasureTool extends BaseTool {
       isDrawing: this.isDrawing,
       drawStart: this.drawStart,
       drawEnd: this.drawEnd,
-      currentObjectSnap: this.currentObjectSnap,
+      currentObjectSnap: this.currentObjectSnap,   // ← чтобы render показал значок
       tool: this.name,
     };
   }
 
   onMouseDown(pos, world, e) {
     if (!this.isDrawing) {
-      // Первый клик — фиксируем стартовую точку с привязкой
-      const snapped = snap(world.x, world.y, { screenPoint: pos });
+      // Первый клик — используем текущую привязку, если есть, иначе snap
+      let startPoint;
+      if (this.currentObjectSnap) {
+        startPoint = { x: this.currentObjectSnap.x, y: this.currentObjectSnap.y };
+      } else {
+        const snapped = snap(world.x, world.y, { screenPoint: pos });
+        startPoint = { x: snapped.x, y: snapped.y };
+      }
       this.isDrawing = true;
-      this.drawStart = { x: snapped.x, y: snapped.y };
-      this.drawEnd = { ...snapped };
+      this.drawStart = startPoint;
+      this.drawEnd = { ...startPoint };
       this.ui.doRedraw();
     } else {
-      // Второй клик — завершаем измерение
-      const end = this.getMeasureEnd(world);
-      const len = Math.hypot(end.x - this.drawStart.x, end.y - this.drawStart.y);
+      // Второй клик — завершаем с привязкой
+      let endPoint;
+      if (this.currentObjectSnap) {
+        endPoint = { x: this.currentObjectSnap.x, y: this.currentObjectSnap.y };
+      } else {
+        const snapped = snap(world.x, world.y, { screenPoint: pos });
+        endPoint = { x: snapped.x, y: snapped.y };
+      }
+      const len = Math.hypot(endPoint.x - this.drawStart.x, endPoint.y - this.drawStart.y);
       if (len > 1) {
-        executeCommand(new CreateMeasureCommand(this.drawStart.x, this.drawStart.y, end.x, end.y));
+        executeCommand(new CreateMeasureCommand(
+          this.drawStart.x, this.drawStart.y,
+          endPoint.x, endPoint.y
+        ));
       }
       this.reset();
       this.ui.doRedraw();
@@ -67,12 +84,29 @@ export class MeasureTool extends BaseTool {
 
   onMouseMove(pos, world, e) {
     setModifiers(this.ui.shiftDown, this.ui.ctrlDown);
-    this.updateObjectSnap(world, pos);
     
+    // Обновляем привязку (как в WallTool)
+    this.currentObjectSnap = findObjectSnapCandidate(world, pos, {
+      includeEndpoint: true,
+      includeCorner: true,
+      includeMidpoint: true,
+      includeIntersection: true,
+      includeWallPoint: true,        // ← грани стен
+      includePerpendicular: false,
+    });
+
     if (this.isDrawing && this.drawStart) {
-      this.drawEnd = this.getMeasureEnd(world);
+      // При движении с зажатой кнопкой обновляем временную конечную точку с учётом привязки
+      let endPoint;
+      if (this.currentObjectSnap) {
+        endPoint = { x: this.currentObjectSnap.x, y: this.currentObjectSnap.y };
+      } else {
+        const snapped = snap(world.x, world.y, { screenPoint: pos });
+        endPoint = { x: snapped.x, y: snapped.y };
+      }
+      this.drawEnd = endPoint;
     }
-    
+
     this.ui.updateCoordinatesLabel(world, this.currentObjectSnap, null);
     this.ui.doRedraw();
     return true;
@@ -85,26 +119,5 @@ export class MeasureTool extends BaseTool {
       return true;
     }
     return false;
-  }
-
-  updateObjectSnap(world, screenPoint) {
-    this.currentObjectSnap = findObjectSnapCandidate(world, screenPoint, {
-      includeEndpoint: true,
-      includeCorner: true,
-      includeMidpoint: true,
-      includeIntersection: true,
-      includeWallPoint: true,   // ← важно для привязки к граням
-      includePerpendicular: false,
-    });
-  }
-
-    getMeasureEnd(world) {
-    const screenPt = this.ui.mouseScreen || toScreen(world.x, world.y);
-    const snapped = snap(world.x, world.y, {
-      screenPoint: screenPt,
-      includePerpendicular: false,
-      includeWallPoint: true,    // явно включаем привязку к граням
-    });
-    return { x: snapped.x, y: snapped.y };
   }
 }

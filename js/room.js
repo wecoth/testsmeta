@@ -597,7 +597,7 @@ function buildWallSegments(walls, openings, roomPolygon) {
     for (const seg of clippedSegments) {
       totalLenMm += Math.hypot(seg.x2 - seg.x1, seg.y2 - seg.y1);
     }
-    if (totalLenMm < 1) return { wall, segments: [] };
+    if (totalLenMm < 1) return { wall, segments: [], totalLenMm: 0 };
 
     const wallOps = openings
       .filter(op => op.wallId === wall.id)
@@ -619,7 +619,7 @@ function buildWallSegments(walls, openings, roomPolygon) {
     if (cursor < totalLenMm - 0.5) {
       segments.push({ startMm: cursor, endMm: totalLenMm, widthMm: totalLenMm - cursor });
     }
-    return { wall, segments };
+    return { wall, segments, totalLenMm };
   });
 }
 
@@ -670,15 +670,15 @@ function computeRoomMetrics(walls, openings, heightMm, center, entranceDoorId, r
   let narrowWallsLm   = 0;
   let openingsAreaM2  = 0;
 
-  for (const { wall, segments } of wallSegData) {
-    const wallLenM = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1) / 1000;
-    for (const seg of segments) {
-      if (seg.widthMm < 500) {
-        narrowWallsLm += heightM;
-      }
+  for (const { wall, segments, totalLenMm } of wallSegData) {
+  const wallLenM = totalLenMm / 1000;   // <-- используем обрезанную длину
+  for (const seg of segments) {
+    if (seg.widthMm < 500) {
+      narrowWallsLm += heightM;
     }
-    wallAreaGrossM2 += wallLenM * heightM;
   }
+  wallAreaGrossM2 += wallLenM * heightM;
+}
 
   for (const op of openings) {
     openingsAreaM2 += (op.width * op.height) / 1e6;

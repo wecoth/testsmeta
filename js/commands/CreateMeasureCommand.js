@@ -4,12 +4,13 @@ import { appState } from '../state.js';
 import { EventBus } from '../eventBus.js';
 
 export class CreateMeasureCommand extends BaseCommand {
-  constructor(x1, y1, x2, y2) {
+  constructor(x1, y1, x2, y2, offset = 0) {
     super();
     const dist = Math.round(Math.hypot(x2 - x1, y2 - y1));
     this._measure = {
       id: appState.idMeasure,
       x1, y1, x2, y2,
+      offset,
       label: `${dist} мм`,
     };
     this.description = `Рулетка ${dist} мм`;

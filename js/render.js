@@ -432,45 +432,98 @@ function drawMeasures(selectedItems) {
 
   for (const m of appState.measures) {
     const isSel = sel('measure', m.id, selectedItems);
-    const p1 = toScreen(m.x1, m.y1);
-    const p2 = toScreen(m.x2, m.y2);
-    const len = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+    const offset = m.offset || 0;
+    const p1_raw = { x: m.x1, y: m.y1 };
+    const p2_raw = { x: m.x2, y: m.y2 };
+    const segVec = { x: p2_raw.x - p1_raw.x, y: p2_raw.y - p1_raw.y };
+    const len = Math.hypot(segVec.x, segVec.y);
     if (len < 1) continue;
-    
+
+    const perpX = -segVec.y / len;
+    const perpY = segVec.x / len;
+    const mid = { x: (p1_raw.x + p2_raw.x) / 2, y: (p1_raw.y + p2_raw.y) / 2 };
+
+    // Точки размерной линии с учётом смещения
+    const lineStart = {
+      x: p1_raw.x + perpX * offset,
+      y: p1_raw.y + perpY * offset
+    };
+    const lineEnd = {
+      x: p2_raw.x + perpX * offset,
+      y: p2_raw.y + perpY * offset
+    };
+
+    const p1 = toScreen(lineStart.x, lineStart.y);
+    const p2 = toScreen(lineEnd.x, lineEnd.y);
+    const screenLen = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+    if (screenLen < 1) continue;
+
     const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
-    const dirX = (p2.x - p1.x) / len;
-    const dirY = (p2.y - p1.y) / len;
-    
+    const dirX = (p2.x - p1.x) / screenLen;
+    const dirY = (p2.y - p1.y) / screenLen;
+
+    // Выносные линии от исходных точек до размерной линии
+    _ctx.strokeStyle = '#9ca3af';
+    _ctx.lineWidth = 0.8;
+    _ctx.setLineDash([4, 3]);
+    _ctx.beginPath();
+    const s1 = toScreen(p1_raw.x, p1_raw.y);
+    const s2 = toScreen(p2_raw.x, p2_raw.y);
+    _ctx.moveTo(s1.x, s1.y);
+    _ctx.lineTo(p1.x, p1.y);
+    _ctx.moveTo(s2.x, s2.y);
+    _ctx.lineTo(p2.x, p2.y);
+    _ctx.stroke();
+    _ctx.setLineDash([]);
+
+    // Размерная линия
     _ctx.strokeStyle = isSel ? '#0f172a' : '#111111';
-    _ctx.lineWidth = isSel ? 1.3 : 1.0;
+    _ctx.lineWidth = isSel ? 1.5 : 1.0;
     _ctx.beginPath();
     _ctx.moveTo(p1.x, p1.y);
     _ctx.lineTo(p2.x, p2.y);
     _ctx.stroke();
-    
-    // Косые засечки (статичные)
+
+    // Засечки 45°
     drawTick45(p1, angle);
     drawTick45(p2, angle);
     _ctx.stroke();
-    
-    // Текст над линией
+
+    // Текст
     const OFFSET_MM = 100;
     const offsetPx = OFFSET_MM * _getScale();
     const normalX = -dirY;
     const normalY = dirX;
-    const mid = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
     const labelPos = {
-      x: mid.x + normalX * offsetPx,
-      y: mid.y + normalY * offsetPx
+      x: (p1.x + p2.x) / 2 + normalX * offsetPx,
+      y: (p1.y + p2.y) / 2 + normalY * offsetPx
     };
-    
     drawAlignedTextBox(m.label, labelPos, angle, {
       textColor: '#111111',
       background: 'rgba(255,255,255,0.95)',
       font: '600 9px Onest, Inter, sans-serif'
     });
+
+    // Маркер перетаскивания для выделенного размера
+    if (isSel) {
+      const markerScreen = toScreen(
+        mid.x + perpX * offset,
+        mid.y + perpY * offset
+      );
+      _ctx.beginPath();
+      _ctx.arc(markerScreen.x, markerScreen.y, 6, 0, Math.PI * 2);
+      _ctx.fillStyle = '#ffffff';
+      _ctx.fill();
+      _ctx.strokeStyle = '#3b82f6';
+      _ctx.lineWidth = 2;
+      _ctx.stroke();
+      _ctx.beginPath();
+      _ctx.arc(markerScreen.x, markerScreen.y, 3, 0, Math.PI * 2);
+      _ctx.fillStyle = '#3b82f6';
+      _ctx.fill();
+    }
   }
-  
+
   _ctx.restore();
 }
 

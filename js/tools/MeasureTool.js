@@ -60,32 +60,42 @@ export class MeasureTool extends BaseTool {
   }
 
   onMouseDown(pos, world, e) {
-    if (!this.isDrawing) {
-      let startPoint;
-      if (this.currentObjectSnap) {
-        startPoint = { x: this.currentObjectSnap.x, y: this.currentObjectSnap.y };
-      } else {
-  let endPoint = this.getMeasureEnd(world);
-  const len = Math.hypot(endPoint.x - this.drawStart.x, endPoint.y - this.drawStart.y);
-  if (len > 1) {
-    executeCommand(new CreateMeasureCommand(
-      this.drawStart.x, this.drawStart.y,
-      endPoint.x, endPoint.y
-    ));
-    // Цепной режим: начинаем следующее измерение от конечной точки
-    this.drawStart = { x: endPoint.x, y: endPoint.y };
-    this.drawEnd = { x: endPoint.x, y: endPoint.y };
+  if (!this.isDrawing) {
+    let startPoint;
+    if (this.currentObjectSnap) {
+      startPoint = { x: this.currentObjectSnap.x, y: this.currentObjectSnap.y };
+    } else {
+      const snapped = snap(world.x, world.y, { screenPoint: pos, tolerance: 24 });
+      startPoint = { x: snapped.x, y: snapped.y };
+    }
+    this.isDrawing = true;
+    this.drawStart = startPoint;
+    this.drawEnd = { ...startPoint };
     this.lengthInput = '';
     this.lengthMode = false;
-    // isDrawing остаётся true
+    this.ui.doRedraw();
   } else {
-    // Если длина нулевая, просто сбрасываем
-    this.reset();
+    let endPoint = this.getMeasureEnd(world);
+    const len = Math.hypot(endPoint.x - this.drawStart.x, endPoint.y - this.drawStart.y);
+    if (len > 1) {
+      executeCommand(new CreateMeasureCommand(
+        this.drawStart.x, this.drawStart.y,
+        endPoint.x, endPoint.y
+      ));
+      // Цепной режим: начинаем следующее измерение от конечной точки
+      this.drawStart = { x: endPoint.x, y: endPoint.y };
+      this.drawEnd = { x: endPoint.x, y: endPoint.y };
+      this.lengthInput = '';
+      this.lengthMode = false;
+      // isDrawing остаётся true
+    } else {
+      // Если длина нулевая, просто сбрасываем
+      this.reset();
+    }
+    this.ui.doRedraw();
   }
-  this.ui.doRedraw();
+  return true;
 }
-    return true;
-  }
 
   onMouseMove(pos, world, e) {
     setModifiers(this.ui.shiftDown, this.ui.ctrlDown);

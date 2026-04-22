@@ -212,14 +212,13 @@ export function computeRooms(wallHeightFallback = 2700) {
   if (exteriorPoly) {
     for (const edge of edges) {
       const v1 = vertices[edge.v1], v2 = vertices[edge.v2];
-
       const mid = { x: (v1.x + v2.x) / 2, y: (v1.y + v2.y) / 2 };
       if (isPointOnPolygonBoundary(mid, exteriorPoly, 3.0)) {
         exteriorWallIds.add(edge.wallId);
       }
     }
   }
-      
+
   for (let i = 0; i < facePolys.length; i++) {
     if (exteriorIndices.has(i)) continue;
     
@@ -246,15 +245,22 @@ export function computeRooms(wallHeightFallback = 2700) {
     }
     if (insideWall) continue;
 
+    // Сбор граничных стен и определение, есть ли разделители
+    let hasDividers = false;
     const boundaryWallIds = new Set();
     const boundaryWallsList = [];
+
     for (let k = 0; k < rawPoly.length; k++) {
       const a = rawPoly[k];
       const b = rawPoly[(k + 1) % rawPoly.length];
       const wall = findWallForEdge(a.x, a.y, b.x, b.y, allWalls, 100);
-      if (wall && !wall.isDivider) {
-        boundaryWallIds.add(wall.id);
-        boundaryWallsList.push(wall);
+      if (wall) {
+        if (wall.isDivider) {
+          hasDividers = true;
+        } else if (!boundaryWallIds.has(wall.id)) {
+          boundaryWallIds.add(wall.id);
+          boundaryWallsList.push(wall);
+        }
       }
     }
     const boundaryWalls = boundaryWallsList;
@@ -267,25 +273,25 @@ export function computeRooms(wallHeightFallback = 2700) {
     const center = polygonCentroid(poly);
 
     // Вычисляем среднюю высоту, взвешенную по длине стены
-let totalLengthMm = 0;
-let weightedHeightSum = 0;
-for (const w of boundaryWalls) {
-  const len = wallFullLengthMm(w);
-  const h = w.height || wallHeightFallback;
-  totalLengthMm += len;
-  weightedHeightSum += len * h;
-}
-const avgHeightMm = totalLengthMm > 0 ? weightedHeightSum / totalLengthMm : wallHeightFallback;
-const roomHeightMm = avgHeightMm;
+    let totalLengthMm = 0;
+    let weightedHeightSum = 0;
+    for (const w of boundaryWalls) {
+      const len = wallFullLengthMm(w);
+      const h = w.height || wallHeightFallback;
+      totalLengthMm += len;
+      weightedHeightSum += len * h;
+    }
+    const avgHeightMm = totalLengthMm > 0 ? weightedHeightSum / totalLengthMm : wallHeightFallback;
+    const roomHeightMm = avgHeightMm;
 
     const roomOpenings = appState.openings.filter(op => boundaryWallIds.has(op.wallId));
     const entranceDoorId = detectEntranceDoor(roomOpenings, exteriorWallIds);
 
-    const hasDividers = boundaryWalls.some(w => w.isDivider);
-const metrics = computeRoomMetrics(
-  boundaryWalls, roomOpenings, roomHeightMm, center, entranceDoorId,
-  hasDividers ? rawPoly : poly
-);
+    const metrics = computeRoomMetrics(
+      boundaryWalls, roomOpenings, roomHeightMm, center, entranceDoorId,
+      hasDividers ? rawPoly : poly,
+      hasDividers
+    );
 
     const key = generateRoomKey(poly);
     const defaultName = roomDefaultName(appState.rooms.length);
@@ -419,13 +425,14 @@ function clipWallAxisToPolygon(wall, polygon) {
   for (let i = 0; i < ts.length - 1; i++) {
     const t1 = ts[i], t2 = ts[i + 1];
     if (t2 - t1 < 0.001) continue;
+    // Проверяем несколько точек вдоль отрезка, чтобы корректно обработать граничные отрезки
     const epsTest = 0.01;
     const testPoints = [
       { x: seg.x1 + ux * (t1 + epsTest) * len, y: seg.y1 + uy * (t1 + epsTest) * len },
       { x: seg.x1 + ux * ((t1 + t2) / 2) * len, y: seg.y1 + uy * ((t1 + t2) / 2) * len },
       { x: seg.x1 + ux * (t2 - epsTest) * len, y: seg.y1 + uy * (t2 - epsTest) * len }
     ];
-    if (testPoints.some(p => isPointInPolygon(p, polygon))) {
+    if (testPoints.some(p => isPointInPolygon(p, polygon) || isPointOnPolygonBoundary(p, polygon, 10))) {
       result.push({
         x1: seg.x1 + ux * t1 * len,
         y1: seg.y1 + uy * t1 * len,
@@ -501,7 +508,7 @@ function orderBoundaryWalls(walls, roomPolygon) {
       const d = Math.min(dist2(lastEnd, wallStart(walls[i])), dist2(lastEnd, wallEnd(walls[i])));
       if (d < bestDist) { bestDist = d; bestIdx = i; }
     }
-    if (bestIdx < 0 || bestDist > SNAP_TOL_SQ) break;
+    if (bestIdx < 0) break;
     const next = walls[bestIdx];
     result.push(dist2(lastEnd, wallEnd(next)) < dist2(lastEnd, wallStart(next))
       ? reversedWall(next) : next);
@@ -567,9 +574,9 @@ function computeCornerStats(walls) {
   return { inner, outer };
 }
 
-function computeRoomMetrics(walls, openings, heightMm, center, entranceDoorId, roomPolygon) {
+function computeRoomMetrics(walls, openings, heightMm, center, entranceDoorId, roomPolygon, roomHasDividers = false) {
   const heightM = heightMm / 1000;
-  const hasDividers = walls.some(w => w.isDivider);
+  const hasDividers = roomHasDividers;
 
   let orderedWalls, wallSegData, perimeterRawMm = 0, wallAreaGrossM2 = 0;
   let narrowWallsLm = 0;

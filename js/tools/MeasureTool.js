@@ -65,27 +65,25 @@ export class MeasureTool extends BaseTool {
       if (this.currentObjectSnap) {
         startPoint = { x: this.currentObjectSnap.x, y: this.currentObjectSnap.y };
       } else {
-        const snapped = snap(world.x, world.y, { screenPoint: pos, tolerance: 24 });
-        startPoint = { x: snapped.x, y: snapped.y };
-      }
-      this.isDrawing = true;
-      this.drawStart = startPoint;
-      this.drawEnd = { ...startPoint };
-      this.lengthInput = '';
-      this.lengthMode = false;
-      this.ui.doRedraw();
-    } else {
-      let endPoint = this.getMeasureEnd(world);
-      const len = Math.hypot(endPoint.x - this.drawStart.x, endPoint.y - this.drawStart.y);
-      if (len > 1) {
-        executeCommand(new CreateMeasureCommand(
-          this.drawStart.x, this.drawStart.y,
-          endPoint.x, endPoint.y
-        ));
-      }
-      this.reset();
-      this.ui.doRedraw();
-    }
+  let endPoint = this.getMeasureEnd(world);
+  const len = Math.hypot(endPoint.x - this.drawStart.x, endPoint.y - this.drawStart.y);
+  if (len > 1) {
+    executeCommand(new CreateMeasureCommand(
+      this.drawStart.x, this.drawStart.y,
+      endPoint.x, endPoint.y
+    ));
+    // Цепной режим: начинаем следующее измерение от конечной точки
+    this.drawStart = { x: endPoint.x, y: endPoint.y };
+    this.drawEnd = { x: endPoint.x, y: endPoint.y };
+    this.lengthInput = '';
+    this.lengthMode = false;
+    // isDrawing остаётся true
+  } else {
+    // Если длина нулевая, просто сбрасываем
+    this.reset();
+  }
+  this.ui.doRedraw();
+}
     return true;
   }
 
@@ -266,13 +264,18 @@ export class MeasureTool extends BaseTool {
   }
 
   applyLength(targetLen) {
-    if (!this.drawStart) return;
-    const end = this.computeEndFromLength(targetLen);
-    executeCommand(new CreateMeasureCommand(
-      this.drawStart.x, this.drawStart.y,
-      end.x, end.y
-    ));
-    this.reset();
-    this.ui.doRedraw();
+  if (!this.drawStart) return;
+  const end = this.computeEndFromLength(targetLen);
+  executeCommand(new CreateMeasureCommand(
+    this.drawStart.x, this.drawStart.y,
+    end.x, end.y
+  ));
+  // Цепной режим: продолжаем от конечной точки
+  this.drawStart = { x: end.x, y: end.y };
+  this.drawEnd = { x: end.x, y: end.y };
+  this.lengthInput = '';
+  this.lengthMode = false;
+  this.isDrawing = true;
+  this.ui.doRedraw();
   }
 }

@@ -134,22 +134,57 @@ export class DividerTool extends BaseTool {
 }
 
   getDividerEnd(world) {
-    const snapped = this.currentObjectSnap
-      ? { x: this.currentObjectSnap.x, y: this.currentObjectSnap.y, snapType: this.currentObjectSnap.type }
-      : snap(world.x, world.y, { screenPoint: this.ui.mouseScreen, tolerance: 24 });
-
-    let end = { x: snapped.x, y: snapped.y };
-    const hardSnap = snapped.snapType === 'endpoint' || snapped.snapType === 'corner' || snapped.snapType === 'intersection';
-    if (this.currentGuideLine && !hardSnap && this.ui.mouseScreen) {
-  // Применяем только объектные направляющие, не автоматическую ось
-  if (this.currentGuideLine.id !== 'divider:start-axis') {
-    const axisGuide = getNearestGuideLineAxis(this.ui.mouseScreen, this.currentGuideLine);
-    end = projectPointToGuideLineWorld(end, axisGuide);
+  const screenPt = this.ui.mouseScreen || toScreen(world.x, world.y);
+  
+  let end;
+  if (this.currentObjectSnap) {
+    end = { x: this.currentObjectSnap.x, y: this.currentObjectSnap.y };
+  } else {
+    const snapped = snap(world.x, world.y, {
+      screenPoint: screenPt,
+      includePerpendicular: false,
+      includeWallPoint: true,
+      tolerance: 24,
+    });
+    end = { x: snapped.x, y: snapped.y };
   }
+
+  const hardSnap = this.currentObjectSnap && 
+    (this.currentObjectSnap.type === 'endpoint' || 
+     this.currentObjectSnap.type === 'corner' || 
+     this.currentObjectSnap.type === 'intersection');
+
+  // ⭐ ОРТОГОНАЛЬНАЯ ПРИВЯЗКА (как в WallTool)
+  if (!hardSnap && !this.ui.shiftDown && this.drawStart) {
+    const dx = end.x - this.drawStart.x;
+    const dy = end.y - this.drawStart.y;
+    const len = Math.hypot(dx, dy);
+    if (len > 1) {
+      let angle = Math.atan2(dy, dx);
+      for (const sa of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+        const diff = Math.abs(angle - sa);
+        if (diff < 0.15 || Math.abs(diff - 2 * Math.PI) < 0.15) {
+          angle = sa;
+          end = {
+            x: this.drawStart.x + Math.cos(angle) * len,
+            y: this.drawStart.y + Math.sin(angle) * len,
+          };
+          break;
+        }
+      }
+    }
+  }
+
+  // Применение объектной направляющей
+  if (this.currentGuideLine && !hardSnap && screenPt) {
+    if (this.currentGuideLine.id !== 'divider:start-axis') {
+      const axisGuide = getNearestGuideLineAxis(screenPt, this.currentGuideLine);
+      end = projectPointToGuideLineWorld(end, axisGuide);
+    }
+  }
+
+  return end;
 }
-
-    return end;
-  }
 
   intersectInfiniteLineWithSegment(origin, dir, a, b) {
     const sx = b.x - a.x;

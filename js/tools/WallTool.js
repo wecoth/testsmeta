@@ -310,39 +310,28 @@ this.activeTrackingPoint = { x: snap.x, y: snap.y, type: snap.type, wallDir, nor
   }
 
   updateWallGuide(world, screenPoint) {
-    if (!this.isDrawing || !this.drawStart) {
-      this.currentGuideLine = null;
+  if (!this.isDrawing || !this.drawStart) {
+    this.currentGuideLine = null;
+    return;
+  }
+  
+  // Если уже есть объектная направляющая — проверяем, не пора ли её сбросить
+  if (this.currentGuideLine && this.currentGuideLine.id !== 'wall:start-axis') {
+    if (shouldKeepGuideLine(screenPoint, this.currentGuideLine, 36, 48)) {
       return;
-    }
-    if (this.currentGuideLine && shouldKeepGuideLine(screenPoint, this.currentGuideLine, 54, 70)) {
-      return;
-    }
-
-    const candidate = findGuideCandidate(screenPoint);
-    if (candidate) {
-      this.currentGuideLine = candidate;
-      return;
-    }
-
-    const dx = world.x - this.drawStart.x;
-    const dy = world.y - this.drawStart.y;
-    const travel = Math.hypot(dx, dy);
-    const axisDir = Math.abs(dx) >= Math.abs(dy) ? { x: 1, y: 0 } : { x: 0, y: 1 };
-    const axisGuide = { id: 'wall:start-axis', anchor: this.drawStart, dir: axisDir };
-
-    if (!this.currentGuideLine && travel > 10) {
-      this.currentGuideLine = axisGuide;
-      return;
-    }
-
-    if (this.currentGuideLine?.id === 'wall:start-axis') {
-      this.currentGuideLine = axisGuide;
-    }
-
-    if (this.currentGuideLine && !shouldKeepGuideLine(screenPoint, this.currentGuideLine, 54, 70)) {
+    } else {
       this.currentGuideLine = null;
     }
   }
+
+  // Ищем только реальные объектные направляющие
+  const candidate = findGuideCandidate(screenPoint);
+  if (candidate) {
+    this.currentGuideLine = candidate;
+  } else {
+    this.currentGuideLine = null;   // <-- НЕ создаём автоматическую ось
+  }
+}
 
   getWallPreviewEnd(world) {
     const screenPt = this.ui.mouseScreen ? { ...this.ui.mouseScreen } : toScreen(world.x, world.y);
@@ -380,9 +369,12 @@ this.activeTrackingPoint = { x: snap.x, y: snap.y, type: snap.type, wallDir, nor
     }
 
     if (this.currentGuideLine && !hardSnap) {
-      const axisGuide = getNearestGuideLineAxis(screenPt, this.currentGuideLine);
-      rawEnd = { ...rawEnd, ...projectPointToGuideLineWorld(rawEnd, axisGuide) };
-    }
+  // Применяем только объектные направляющие
+  if (this.currentGuideLine.id !== 'wall:start-axis') {
+    const axisGuide = getNearestGuideLineAxis(screenPt, this.currentGuideLine);
+    rawEnd = { ...rawEnd, ...projectPointToGuideLineWorld(rawEnd, axisGuide) };
+  }
+}
 
     // Stage 3: tracking lines
     if (this.activeTrackingPoint && !snappedBase.snapType && !this.currentGuideLine) {

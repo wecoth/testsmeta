@@ -212,12 +212,21 @@ export function computeRooms(wallHeightFallback = 2700) {
   if (exteriorPoly) {
     for (const edge of edges) {
       const v1 = vertices[edge.v1], v2 = vertices[edge.v2];
-      const mid = { x: (v1.x + v2.x) / 2, y: (v1.y + v2.y) / 2 };
-      if (isPointOnPolygonBoundary(mid, exteriorPoly, 3.0)) {
-        exteriorWallIds.add(edge.wallId);
-      }
-    }
-  }
+      // Проверяем несколько точек вдоль отрезка, чтобы корректно обработать граничные отрезки
+const epsTest = 0.01;
+const testPoints = [
+  { x: seg.x1 + ux * (t1 + epsTest) * len, y: seg.y1 + uy * (t1 + epsTest) * len },
+  { x: seg.x1 + ux * (t1 + t2) / 2 * len, y: seg.y1 + uy * (t1 + t2) / 2 * len },
+  { x: seg.x1 + ux * (t2 - epsTest) * len, y: seg.y1 + uy * (t2 - epsTest) * len }
+];
+if (testPoints.some(p => isPointInPolygon(p, polygon))) {
+  result.push({
+    x1: seg.x1 + ux * t1 * len,
+    y1: seg.y1 + uy * t1 * len,
+    x2: seg.x1 + ux * t2 * len,
+    y2: seg.y1 + uy * t2 * len,
+  });
+}
 
   for (let i = 0; i < facePolys.length; i++) {
     if (exteriorIndices.has(i)) continue;

@@ -179,36 +179,64 @@ export class MeasureTool extends BaseTool {
 }
 
   getMeasureEnd(world) {
-    // Если вводим длину, используем её для вычисления конечной точки
-    if (this.lengthMode && this.lengthInput) {
-      return this.computeEndFromLength(parseFloat(this.lengthInput));
-    }
+  // Если вводим длину, используем её для вычисления конечной точки
+  if (this.lengthMode && this.lengthInput) {
+    return this.computeEndFromLength(parseFloat(this.lengthInput));
+  }
 
-    const screenPt = this.ui.mouseScreen || toScreen(world.x, world.y);
-    
-    let end;
-    if (this.currentObjectSnap) {
-      end = { x: this.currentObjectSnap.x, y: this.currentObjectSnap.y };
-    } else {
-      end = snap(world.x, world.y, {
-        screenPoint: screenPt,
-        includePerpendicular: false,
-        includeWallPoint: true,
-        tolerance: 24,
-      });
+  const screenPt = this.ui.mouseScreen || toScreen(world.x, world.y);
+  
+  // Базовая привязка
+  let end;
+  if (this.currentObjectSnap) {
+    end = { x: this.currentObjectSnap.x, y: this.currentObjectSnap.y };
+  } else {
+    end = snap(world.x, world.y, {
+      screenPoint: screenPt,
+      includePerpendicular: false,
+      includeWallPoint: true,
+      tolerance: 24,
+    });
+  }
+  
+  const hardSnap = this.currentObjectSnap && 
+    (this.currentObjectSnap.type === 'endpoint' || 
+     this.currentObjectSnap.type === 'corner' || 
+     this.currentObjectSnap.type === 'intersection');
+
+  // ⭐ ОРТОГОНАЛЬНАЯ ПРИВЯЗКА (как в WallTool)
+  if (!hardSnap && !this.ui.shiftDown && this.drawStart) {
+    const dx = end.x - this.drawStart.x;
+    const dy = end.y - this.drawStart.y;
+    const len = Math.hypot(dx, dy);
+    if (len > 1) {
+      let angle = Math.atan2(dy, dx);
+      for (const sa of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
+        const diff = Math.abs(angle - sa);
+        if (diff < 0.15 || Math.abs(diff - 2 * Math.PI) < 0.15) {
+          angle = sa;
+          end = {
+            x: this.drawStart.x + Math.cos(angle) * len,
+            y: this.drawStart.y + Math.sin(angle) * len,
+          };
+          break;
+        }
+      }
     }
-    
-    if (this.currentGuideLine) {
-  // Применяем только объектные направляющие, не автоматическую ось
-  if (this.currentGuideLine.id !== 'measure:start-axis') {
-    const axisGuide = getNearestGuideLineAxis(screenPt, this.currentGuideLine);
-    const proj = projectPointToGuideLineWorld(end, axisGuide);
-    end = { x: proj.x, y: proj.y };
   }
+
+  // Применение объектной направляющей (если есть)
+  if (this.currentGuideLine) {
+    // Применяем только объектные направляющие, не автоматическую ось
+    if (this.currentGuideLine.id !== 'measure:start-axis') {
+      const axisGuide = getNearestGuideLineAxis(screenPt, this.currentGuideLine);
+      const proj = projectPointToGuideLineWorld(end, axisGuide);
+      end = { x: proj.x, y: proj.y };
+    }
+  }
+  
+  return end;
 }
-    
-    return end;
-  }
 
   // Вычисляет конечную точку на основе заданной длины
   computeEndFromLength(targetLen) {

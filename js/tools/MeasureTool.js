@@ -10,18 +10,22 @@ import {
 
 export class MeasureTool extends BaseTool {
   constructor(ui) {
-    super(ui);
-    this.name = 'measure';
-    this.isDrawing = false;
-    this.drawStart = null;
-    this.drawEnd = null;
-    this.currentObjectSnap = null;
-    this.currentGuideLine = null;
-    
-    // Поля для ввода точной длины
-    this.lengthInput = '';
-    this.lengthMode = false;
-  }
+  super(ui);
+  this.name = 'measure';
+  this.isDrawing = false;
+  this.drawStart = null;
+  this.drawEnd = null;
+  this.currentObjectSnap = null;
+  this.currentGuideLine = null;
+  
+  // Поля для ввода точной длины
+  this.lengthInput = '';
+  this.lengthMode = false;
+
+  // Стадии выноса размера
+  this.isSettingOffset = false;
+  this.measurementSegment = null; // { p1, p2, distance }
+}
 
   activate() {
     this.reset();
@@ -33,34 +37,39 @@ export class MeasureTool extends BaseTool {
   }
 
   reset() {
-    this.isDrawing = false;
-    this.drawStart = null;
-    this.drawEnd = null;
-    this.currentObjectSnap = null;
-    this.currentGuideLine = null;
-    this.lengthInput = '';
-    this.lengthMode = false;
-  }
+  this.isDrawing = false;
+  this.drawStart = null;
+  this.drawEnd = null;
+  this.currentObjectSnap = null;
+  this.currentGuideLine = null;
+  this.lengthInput = '';
+  this.lengthMode = false;
+  this.isSettingOffset = false;
+  this.measurementSegment = null;
+}
 
   getCursor() {
     return 'crosshair';
   }
 
   getRenderState() {
-    return {
-      isDrawing: this.isDrawing,
-      drawStart: this.drawStart,
-      drawEnd: this.drawEnd,
-      currentObjectSnap: this.currentObjectSnap,
-      currentGuideLine: this.currentGuideLine,
-      lengthMode: this.lengthMode,
-      lengthInput: this.lengthInput,
-      tool: this.name,
-    };
-  }
+  return {
+    isDrawing: this.isDrawing,
+    drawStart: this.drawStart,
+    drawEnd: this.drawEnd,
+    currentObjectSnap: this.currentObjectSnap,
+    currentGuideLine: this.currentGuideLine,
+    lengthMode: this.lengthMode,
+    lengthInput: this.lengthInput,
+    tool: this.name,
+    isSettingOffset: this.isSettingOffset,
+    measurementSegment: this.measurementSegment,
+  };
+}
 
   onMouseDown(pos, world, e) {
   if (!this.isDrawing) {
+    // Первый клик: начало измерения
     let startPoint;
     if (this.currentObjectSnap) {
       startPoint = { x: this.currentObjectSnap.x, y: this.currentObjectSnap.y };
@@ -74,24 +83,39 @@ export class MeasureTool extends BaseTool {
     this.lengthInput = '';
     this.lengthMode = false;
     this.ui.doRedraw();
-  } else {
+  } else if (!this.isSettingOffset) {
+    // Второй клик: фиксируем отрезок и переходим к выносу
     let endPoint = this.getMeasureEnd(world);
     const len = Math.hypot(endPoint.x - this.drawStart.x, endPoint.y - this.drawStart.y);
     if (len > 1) {
-      executeCommand(new CreateMeasureCommand(
-        this.drawStart.x, this.drawStart.y,
-        endPoint.x, endPoint.y
-      ));
-      // Цепной режим: начинаем следующее измерение от конечной точки
-      this.drawStart = { x: endPoint.x, y: endPoint.y };
-      this.drawEnd = { x: endPoint.x, y: endPoint.y };
-      this.lengthInput = '';
-      this.lengthMode = false;
-      // isDrawing остаётся true
+      this.measurementSegment = {
+        p1: { ...this.drawStart },
+        p2: { ...endPoint },
+        distance: len
+      };
+      this.isSettingOffset = true;
+      this.drawEnd = this.getOffsetPosition(world);
     } else {
-      // Если длина нулевая, просто сбрасываем
       this.reset();
     }
+    this.ui.doRedraw();
+  } else {
+    // Третий клик: создаём размер с выносом
+    let offsetPoint = this.getOffsetPosition(world);
+    // Вычисляем смещение от середины отрезка
+    const mid = {
+      x: (this.measurementSegment.p1.x + this.measurementSegment.p2.x) / 2,
+      y: (this.measurementSegment.p1.y + this.measurementSegment.p2.y) / 2
+    };
+    const offsetDist = Math.hypot(offsetPoint.x - mid.x, offsetPoint.y - mid.y);
+    
+    // Пока создаём обычный размер (без сохранения смещения в команде)
+    // В будущем можно доработать CreateMeasureCommand для поддержки offset
+    executeCommand(new CreateMeasureCommand(
+      this.measurementSegment.p1.x, this.measurementSegment.p1.y,
+      this.measurementSegment.p2.x, this.measurementSegment.p2.y
+    ));
+    this.reset();
     this.ui.doRedraw();
   }
   return true;
@@ -112,9 +136,11 @@ export class MeasureTool extends BaseTool {
 
     this.updateGuideLine(world, pos);
 
-    if (this.isDrawing && this.drawStart) {
-      this.drawEnd = this.getMeasureEnd(world);
-    }
+    if (this.isSettingOffset) {
+  this.drawEnd = this.getOffsetPosition(world);
+} else if (this.isDrawing && this.drawStart) {
+  this.drawEnd = this.getMeasureEnd(world);
+}
 
     this.ui.updateCoordinatesLabel(world, this.currentObjectSnap, null);
     this.ui.doRedraw();
@@ -246,6 +272,30 @@ export class MeasureTool extends BaseTool {
   return end;
 }
 
+// Вычисляет положение размерной линии при выносе (перпендикулярно отрезку)
+getOffsetPosition(world) {
+  if (!this.measurementSegment) return world;
+  const seg = this.measurementSegment;
+  
+  const segVec = { x: seg.p2.x - seg.p1.x, y: seg.p2.y - seg.p1.y };
+  const perpVec = { x: -segVec.y, y: segVec.x };
+  const perpLen = Math.hypot(perpVec.x, perpVec.y);
+  
+  if (perpLen > 0) {
+    perpVec.x /= perpLen;
+    perpVec.y /= perpLen;
+  }
+
+  const mid = { x: (seg.p1.x + seg.p2.x) / 2, y: (seg.p1.y + seg.p2.y) / 2 };
+  const toMouse = { x: world.x - mid.x, y: world.y - mid.y };
+  const offsetDist = toMouse.x * perpVec.x + toMouse.y * perpVec.y;
+  
+  return {
+    x: mid.x + perpVec.x * offsetDist,
+    y: mid.y + perpVec.y * offsetDist
+  };
+}
+  
   // Вычисляет конечную точку на основе заданной длины
   computeEndFromLength(targetLen) {
     if (!this.drawStart) return this.drawEnd || { x: 0, y: 0 };

@@ -358,8 +358,8 @@ export function computeRooms(wallHeightFallback = 2700) {
     const entranceDoorId = detectEntranceDoor(roomOpenings, exteriorWallIds);
 
     const metrics = computeRoomMetrics(
-      boundaryWalls, roomOpenings, roomHeightMm, center, entranceDoorId
-    );
+  boundaryWalls, roomOpenings, roomHeightMm, center, entranceDoorId, poly
+);
 
     const key = generateRoomKey(poly);
     const defaultName = roomDefaultName(appState.rooms.length);
@@ -452,6 +452,87 @@ function getBbox(poly) {
   return { minX, minY, maxX, maxY };
 }
 
+/**
+ * Обрезает ось стены полигоном комнаты.
+ * Возвращает массив отрезков [{x1,y1,x2,y2}], попадающих внутрь полигона.
+ */
+function clipWallAxisToPolygon(wall, polygon) {
+  const result = [];
+  if (!polygon || polygon.length < 3) return result;
+
+  const seg = {
+    x1: wall.cx1 ?? wall.x1, y1: wall.cy1 ?? wall.y1,
+    x2: wall.cx2 ?? wall.x2, y2: wall.cy2 ?? wall.y2
+  };
+  const len = Math.hypot(seg.x2 - seg.x1, seg.y2 - seg.y1);
+  if (len < 0.5) return result;
+
+  const ux = (seg.x2 - seg.x1) / len;
+  const uy = (seg.y2 - seg.y1) / len;
+
+  // Находим все пересечения с рёбрами полигона
+  const ts = [0, 1];
+  for (let i = 0; i < polygon.length; i++) {
+    const a = polygon[i];
+    const b = polygon[(i + 1) % polygon.length];
+    const edge = { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+
+    const inter = segmentIntersectionLocal(seg, edge);
+    if (inter && inter.t > 0.001 && inter.t < 0.999) {
+      ts.push(inter.t);
+    }
+  }
+
+  // Добавляем точки проекции вершин полигона на ось (если они внутри тела стены)
+  // Это нужно для случаев, когда стена упирается в другую стену не под прямым углом.
+  const halfT = (wall.thickness || 0) / 2;
+  for (const p of polygon) {
+    const dx = p.x - seg.x1, dy = p.y - seg.y1;
+    const along = dx * ux + dy * uy;
+    if (along < -halfT || along > len + halfT) continue;
+    const perp = Math.abs(dx * (-uy) + dy * ux);
+    if (perp <= halfT + 10) {
+      const t = Math.max(0, Math.min(1, along / len));
+      ts.push(t);
+    }
+  }
+
+  ts.sort((a, b) => a - b);
+  
+  // Для каждого интервала [t1, t2] проверяем, находится ли его середина внутри полигона
+  for (let i = 0; i < ts.length - 1; i++) {
+    const t1 = ts[i], t2 = ts[i + 1];
+    if (t2 - t1 < 0.001) continue;
+    const midT = (t1 + t2) / 2;
+    const mid = {
+      x: seg.x1 + ux * midT * len,
+      y: seg.y1 + uy * midT * len
+    };
+    if (isPointInPolygon(mid, polygon)) {
+      result.push({
+        x1: seg.x1 + ux * t1 * len,
+        y1: seg.y1 + uy * t1 * len,
+        x2: seg.x1 + ux * t2 * len,
+        y2: seg.y1 + uy * t2 * len,
+      });
+    }
+  }
+
+  return result;
+}
+
+function segmentIntersectionLocal(a, b, eps = 0.001) {
+  const r = { x: a.x2 - a.x1, y: a.y2 - a.y1 };
+  const s = { x: b.x2 - b.x1, y: b.y2 - b.y1 };
+  const denom = r.x * s.y - r.y * s.x;
+  if (Math.abs(denom) < eps) return null;
+  const qp = { x: b.x1 - a.x1, y: b.y1 - a.y1 };
+  const t = (qp.x * s.y - qp.y * s.x) / denom;
+  const u = (qp.x * r.y - qp.y * r.x) / denom;
+  if (t < -eps || t > 1 + eps || u < -eps || u > 1 + eps) return null;
+  return { x: a.x1 + r.x * t, y: a.y1 + r.y * t, t, u };
+}
+
 function detectEntranceDoor(openings, exteriorWallIds) {
   for (const op of openings) {
     if (op.type === 'door' && exteriorWallIds.has(op.wallId)) return op.id;
@@ -466,9 +547,13 @@ function round2(v) { return Math.round(v * 100) / 100; }
 
 function wallStart(w) { return { x: w.cx1 ?? w.x1, y: w.cy1 ?? w.y1 }; }
 function wallEnd(w)   { return { x: w.cx2 ?? w.x2, y: w.cy2 ?? w.y2 }; }
-function wallLengthMm(w) {
-  const s = wallStart(w), e = wallEnd(w);
-  return Math.hypot(e.x - s.x, e.y - s.y);
+function wallLengthMm(w, roomPolygon) {
+  if (!roomPolygon) {
+    const s = wallStart(w), e = wallEnd(w);
+    return Math.hypot(e.x - s.x, e.y - s.y);
+  }
+  const clipped = clipWallAxisToPolygon(w, roomPolygon);
+  return clipped.reduce((sum, seg) => sum + Math.hypot(seg.x2 - seg.x1, seg.y2 - seg.y1), 0);
 }
 function reversedWall(w) {
   return { ...w,
@@ -480,7 +565,10 @@ function reversedWall(w) {
 function dist2(a, b) { return (a.x - b.x) ** 2 + (a.y - b.y) ** 2; }
 
 const SNAP_TOL_SQ = 200 * 200;
-function orderBoundaryWalls(walls) {
+function orderBoundaryWalls(walls, roomPolygon) {
+  // Используем wallStart/wallEnd, но они могут быть не нужны для сортировки
+  // Сортировка по-прежнему по координатам концов, но теперь нужна длина из roomPolygon
+  // Временно оставим как есть, но при вызове передадим roomPolygon
   if (walls.length <= 1) return walls;
   const used = new Array(walls.length).fill(false);
   const result = [walls[0]];
@@ -502,16 +590,20 @@ function orderBoundaryWalls(walls) {
   return result;
 }
 
-function buildWallSegments(walls, openings) {
+function buildWallSegments(walls, openings, roomPolygon) {
   return walls.map(wall => {
-    const lenMm = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1);
-    if (lenMm < 1) return { wall, segments: [] };
+    const clippedSegments = clipWallAxisToPolygon(wall, roomPolygon);
+    let totalLenMm = 0;
+    for (const seg of clippedSegments) {
+      totalLenMm += Math.hypot(seg.x2 - seg.x1, seg.y2 - seg.y1);
+    }
+    if (totalLenMm < 1) return { wall, segments: [] };
 
     const wallOps = openings
       .filter(op => op.wallId === wall.id)
       .map(op => ({
-        startMm: Math.max(0,     (op.t - op.width / 2 / lenMm) * lenMm),
-        endMm:   Math.min(lenMm, (op.t + op.width / 2 / lenMm) * lenMm),
+        startMm: Math.max(0,     (op.t - op.width / 2 / totalLenMm) * totalLenMm),
+        endMm:   Math.min(totalLenMm, (op.t + op.width / 2 / totalLenMm) * totalLenMm),
       }))
       .filter(op => op.endMm > op.startMm)
       .sort((a, b) => a.startMm - b.startMm);
@@ -524,8 +616,8 @@ function buildWallSegments(walls, openings) {
       }
       cursor = Math.max(cursor, op.endMm);
     }
-    if (cursor < lenMm - 0.5) {
-      segments.push({ startMm: cursor, endMm: lenMm, widthMm: lenMm - cursor });
+    if (cursor < totalLenMm - 0.5) {
+      segments.push({ startMm: cursor, endMm: totalLenMm, widthMm: totalLenMm - cursor });
     }
     return { wall, segments };
   });
@@ -555,14 +647,14 @@ function computeCornerStats(walls) {
   return { inner, outer };
 }
 
-function computeRoomMetrics(walls, openings, heightMm, center, entranceDoorId) {
+function computeRoomMetrics(walls, openings, heightMm, center, entranceDoorId, roomPolygon) {
   const heightM = heightMm / 1000;
 
-  const orderedWalls = orderBoundaryWalls(walls);
-  const wallSegData  = buildWallSegments(orderedWalls, openings);
+  const orderedWalls = orderBoundaryWalls(walls, poly);
+  const wallSegData  = buildWallSegments(orderedWalls, openings, poly);
 
   let perimeterRawMm = 0;
-  for (const w of orderedWalls) perimeterRawMm += wallLengthMm(w);
+  for (const w of orderedWalls) perimeterRawMm += wallLengthMm(w, poly);
 
   let perimeterDeductMm = 0;
   for (const op of openings) {

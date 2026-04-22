@@ -56,6 +56,10 @@ function screenPointToBounds(p) {
   return { left: p.x, top: p.y, right: p.x, bottom: p.y };
 }
 
+function boundsIntersect(a, b) {
+  return !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom);
+}
+
 export class SelectTool extends BaseTool {
   constructor(ui) {
     super(ui);
@@ -330,49 +334,40 @@ export class SelectTool extends BaseTool {
         bottom: Math.max(this.selectBoxStart.y, this.selectBoxCurrent.y),
       };
       if ((box.right - box.left) > 5 && (box.bottom - box.top) > 5) {
-        const items = [];
-        const pxScale = Math.abs(toScreen(1, 0).x - toScreen(0, 0).x) || 0.12;
-        const wallPadPx = 6;
+  const items = [];
+  const pxScale = Math.abs(toScreen(1, 0).x - toScreen(0, 0).x) || 0.12;
+  const wallPadPx = 6;
 
-        for (const wall of appState.walls) {
-          const s1 = toScreen(wall.x1, wall.y1);
-          const s2 = toScreen(wall.x2, wall.y2);
-          const halfTpx = Math.max(2, (wall.thickness * pxScale) / 2) + wallPadPx;
-          const wb = {
-            left: Math.min(s1.x, s2.x) - halfTpx,
-            right: Math.max(s1.x, s2.x) + halfTpx,
-            top: Math.min(s1.y, s2.y) - halfTpx,
-            bottom: Math.max(s1.y, s2.y) + halfTpx,
-          };
-          if (isBoundsInside(wb, box, 2)) items.push({ type: 'wall', id: wall.id });
-        }
-        for (const op of appState.openings) {
-          const ob = getOpeningScreenBounds(op);
-          if (ob && isBoundsInside(ob, box, 2)) items.push({ type: 'opening', id: op.id });
-        }
-        for (const m of (appState.measures || [])) {
-          const p1 = toScreen(m.x1, m.y1);
-          const p2 = toScreen(m.x2, m.y2);
-          if (isBoundsInside(lineBounds(p1, p2, 6), box, 1)) items.push({ type: 'measure', id: m.id });
-        }
-        for (const d of (appState.dividers || [])) {
-          const p1 = toScreen(d.x1, d.y1);
-          const p2 = toScreen(d.x2, d.y2);
-          if (isBoundsInside(lineBounds(p1, p2, 8), box, 1)) items.push({ type: 'divider', id: d.id });
-        }
-        if (items.length) {
-          this.ui.setSelection(this.ui.shiftDown ? [...this.ui.selectedItems, ...items] : items);
-        } else if (!this.ui.shiftDown) {
-          this.ui.clearSelection();
-        }
-      } else if (!this.ui.shiftDown) {
-        this.ui.clearSelection();
-      }
-      this.selectBoxStart = null;
-      this.selectBoxCurrent = null;
-      this.ui.doRedraw();
-      return true;
-    }
+  for (const wall of appState.walls) {
+    const s1 = toScreen(wall.x1, wall.y1);
+    const s2 = toScreen(wall.x2, wall.y2);
+    const halfTpx = Math.max(2, (wall.thickness * pxScale) / 2) + wallPadPx;
+    const wb = {
+      left: Math.min(s1.x, s2.x) - halfTpx,
+      right: Math.max(s1.x, s2.x) + halfTpx,
+      top: Math.min(s1.y, s2.y) - halfTpx,
+      bottom: Math.max(s1.y, s2.y) + halfTpx,
+    };
+    if (boundsIntersect(wb, box)) items.push({ type: 'wall', id: wall.id });
+  }
+  for (const op of appState.openings) {
+    const ob = getOpeningScreenBounds(op);
+    if (ob && boundsIntersect(ob, box)) items.push({ type: 'opening', id: op.id });
+  }
+  for (const m of (appState.measures || [])) {
+    const p1 = toScreen(m.x1, m.y1);
+    const p2 = toScreen(m.x2, m.y2);
+    const mb = lineBounds(p1, p2, 6);
+    if (boundsIntersect(mb, box)) items.push({ type: 'measure', id: m.id });
+  }
+  for (const d of (appState.dividers || [])) {
+    const p1 = toScreen(d.x1, d.y1);
+    const p2 = toScreen(d.x2, d.y2);
+    const db = lineBounds(p1, p2, 8);
+    if (boundsIntersect(db, box)) items.push({ type: 'divider', id: d.id });
+  }
+  ...
+}
 
     return false;
   }

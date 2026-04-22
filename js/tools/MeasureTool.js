@@ -155,40 +155,28 @@ export class MeasureTool extends BaseTool {
 
   // ─── Направляющие (оси) ─────────────────────────────────────────
   updateGuideLine(world, screenPoint) {
-    if (!this.isDrawing || !this.drawStart) {
-      this.currentGuideLine = null;
+  if (!this.isDrawing || !this.drawStart) {
+    this.currentGuideLine = null;
+    return;
+  }
+
+  // Если уже есть объектная направляющая — проверяем, не пора ли её сбросить
+  if (this.currentGuideLine && this.currentGuideLine.id !== 'measure:start-axis') {
+    if (shouldKeepGuideLine(screenPoint, this.currentGuideLine, 36, 48)) {
       return;
-    }
-
-    if (this.currentGuideLine && shouldKeepGuideLine(screenPoint, this.currentGuideLine, 54, 70)) {
-      return;
-    }
-
-    const candidate = findGuideCandidate(screenPoint);
-    if (candidate) {
-      this.currentGuideLine = candidate;
-      return;
-    }
-
-    const dx = world.x - this.drawStart.x;
-    const dy = world.y - this.drawStart.y;
-    const travel = Math.hypot(dx, dy);
-    const axisDir = Math.abs(dx) >= Math.abs(dy) ? { x: 1, y: 0 } : { x: 0, y: 1 };
-    const axisGuide = { id: 'measure:start-axis', anchor: this.drawStart, dir: axisDir };
-
-    if (!this.currentGuideLine && travel > 10) {
-      this.currentGuideLine = axisGuide;
-      return;
-    }
-
-    if (this.currentGuideLine?.id === 'measure:start-axis') {
-      this.currentGuideLine = axisGuide;
-    }
-
-    if (this.currentGuideLine && !shouldKeepGuideLine(screenPoint, this.currentGuideLine, 54, 70)) {
+    } else {
       this.currentGuideLine = null;
     }
   }
+
+  // Ищем только реальные объектные направляющие (стены, проёмы, другие рулетки)
+  const candidate = findGuideCandidate(screenPoint);
+  if (candidate) {
+    this.currentGuideLine = candidate;
+  } else {
+    this.currentGuideLine = null;   // НЕ создаём автоматическую ось
+  }
+}
 
   getMeasureEnd(world) {
     // Если вводим длину, используем её для вычисления конечной точки
@@ -211,10 +199,13 @@ export class MeasureTool extends BaseTool {
     }
     
     if (this.currentGuideLine) {
-      const axisGuide = getNearestGuideLineAxis(screenPt, this.currentGuideLine);
-      const proj = projectPointToGuideLineWorld(end, axisGuide);
-      end = { x: proj.x, y: proj.y };
-    }
+  // Применяем только объектные направляющие, не автоматическую ось
+  if (this.currentGuideLine.id !== 'measure:start-axis') {
+    const axisGuide = getNearestGuideLineAxis(screenPt, this.currentGuideLine);
+    const proj = projectPointToGuideLineWorld(end, axisGuide);
+    end = { x: proj.x, y: proj.y };
+  }
+}
     
     return end;
   }

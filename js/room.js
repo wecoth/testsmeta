@@ -280,9 +280,11 @@ const roomHeightMm = avgHeightMm;
     const roomOpenings = appState.openings.filter(op => boundaryWallIds.has(op.wallId));
     const entranceDoorId = detectEntranceDoor(roomOpenings, exteriorWallIds);
 
-    const metrics = computeRoomMetrics(
-      boundaryWalls, roomOpenings, roomHeightMm, center, entranceDoorId, poly
-    );
+    const hasDividers = boundaryWalls.some(w => w.isDivider);
+const metrics = computeRoomMetrics(
+  boundaryWalls, roomOpenings, roomHeightMm, center, entranceDoorId,
+  hasDividers ? rawPoly : poly
+);
 
     const key = generateRoomKey(poly);
     const defaultName = roomDefaultName(appState.rooms.length);

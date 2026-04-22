@@ -650,11 +650,11 @@ function computeCornerStats(walls) {
 function computeRoomMetrics(walls, openings, heightMm, center, entranceDoorId, roomPolygon) {
   const heightM = heightMm / 1000;
 
-  const orderedWalls = orderBoundaryWalls(walls, poly);
-  const wallSegData  = buildWallSegments(orderedWalls, openings, poly);
+  const orderedWalls = orderBoundaryWalls(walls, roomPolygon);
+  const wallSegData  = buildWallSegments(orderedWalls, openings, roomPolygon);
 
   let perimeterRawMm = 0;
-  for (const w of orderedWalls) perimeterRawMm += wallLengthMm(w, poly);
+  for (const w of orderedWalls) perimeterRawMm += wallLengthMm(w, roomPolygon);
 
   let perimeterDeductMm = 0;
   for (const op of openings) {

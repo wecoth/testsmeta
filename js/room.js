@@ -512,15 +512,15 @@ function clipWallAxisToPolygon(wall, polygon) {
       x: seg.x1 + ux * midT * len,
       y: seg.y1 + uy * midT * len
     };
-    if (isPointInPolygon(mid, polygon)) {
-      result.push({
-        x1: seg.x1 + ux * t1 * len,
-        y1: seg.y1 + uy * t1 * len,
-        x2: seg.x1 + ux * t2 * len,
-        y2: seg.y1 + uy * t2 * len,
-      });
-    }
-  }
+    const halfT = (wall.thickness || 0) / 2;
+if (isPointInPolygon(mid, polygon) || isPointOnPolygonBoundary(mid, polygon, halfT + 5)) {
+  result.push({
+    x1: seg.x1 + ux * t1 * len,
+    y1: seg.y1 + uy * t1 * len,
+    x2: seg.x1 + ux * t2 * len,
+    y2: seg.y1 + uy * t2 * len,
+  });
+}
 
   return result;
 }

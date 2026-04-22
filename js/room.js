@@ -320,15 +320,19 @@ export function computeRooms(wallHeightFallback = 2700) {
     if (insideWall) continue;
 
     // Находим граничные стены (чьи рёбра лежат на полигоне)
+        // Находим граничные стены напрямую через рёбра rawPoly
     const boundaryWallIds = new Set();
-    for (const edge of edges) {
-      const v1 = vertices[edge.v1], v2 = vertices[edge.v2];
-      const mid = { x: (v1.x + v2.x) / 2, y: (v1.y + v2.y) / 2 };
-      if (isPointOnPolygonBoundary(mid, rawPoly, 3.0)) {
-        boundaryWallIds.add(edge.wallId);
+    const boundaryWallsList = [];
+    for (let k = 0; k < rawPoly.length; k++) {
+      const a = rawPoly[k];
+      const b = rawPoly[(k + 1) % rawPoly.length];
+      const wall = findWallForEdge(a.x, a.y, b.x, b.y, allWalls, 100);
+      if (wall && !wall.isDivider) {
+        boundaryWallIds.add(wall.id);
+        boundaryWallsList.push(wall);
       }
     }
-    const boundaryWalls = allWalls.filter(w => boundaryWallIds.has(w.id) && !w.isDivider);
+    const boundaryWalls = boundaryWallsList;
 
     // Stage 7 fix: площадь всегда считается по ВНУТРЕННИМ ГРАНЯМ стен.
     // Пользователь рисует по внутренним углам (ввёл 3000 — значит между

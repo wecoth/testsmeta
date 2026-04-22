@@ -265,10 +265,17 @@ export function computeRooms(wallHeightFallback = 2700) {
 
     const center = polygonCentroid(poly);
 
-    let roomHeightMm = wallHeightFallback;
-    for (const w of boundaryWalls) {
-      if (w.height && w.height < roomHeightMm) roomHeightMm = w.height;
-    }
+    // Вычисляем среднюю высоту, взвешенную по длине стены
+let totalLengthMm = 0;
+let weightedHeightSum = 0;
+for (const w of boundaryWalls) {
+  const len = wallFullLengthMm(w);
+  const h = w.height || wallHeightFallback;
+  totalLengthMm += len;
+  weightedHeightSum += len * h;
+}
+const avgHeightMm = totalLengthMm > 0 ? weightedHeightSum / totalLengthMm : wallHeightFallback;
+const roomHeightMm = avgHeightMm;
 
     const roomOpenings = appState.openings.filter(op => boundaryWallIds.has(op.wallId));
     const entranceDoorId = detectEntranceDoor(roomOpenings, exteriorWallIds);

@@ -15,6 +15,7 @@ import {
   invalidateJointCache,
 } from '../wall.js';
 import { hitTestWallResizeHandle, getOpeningScreenBounds } from '../render.js';
+import { EventBus } from '../eventBus.js';
 
 function distanceToSegment(px, py, x1, y1, x2, y2) {
   const dx = x2 - x1, dy = y2 - y1;
@@ -67,6 +68,7 @@ export class SelectTool extends BaseTool {
     this.selectBoxCurrent = null;
     this.selectClickCandidate = null;
     this.hoverItem = null;
+    this.dragMeasureState = null; // { measureId, startOffset, startWorld, measure }
   }
 
   activate() {
@@ -85,6 +87,7 @@ export class SelectTool extends BaseTool {
     this.selectBoxCurrent = null;
     this.selectClickCandidate = null;
     this.hoverItem = null;
+    this.dragMeasureState = null;
   }
 
   getCursor() {
@@ -100,20 +103,23 @@ export class SelectTool extends BaseTool {
   }
 
   onMouseDown(pos, world, e) {
-    const handle = hitTestWallResizeHandle(pos, this.ui.tool, this.ui.selectedItems);
-    if (handle) {
-      this.wallResizeState = {
-        wallId:    handle.wall.id,
-        endpoint:  handle.endpoint,
-        fixedPoint: getWallContourPoint(handle.wall, handle.endpoint === 'start' ? 'end' : 'start'),
-        changed:   false,
-        geomBefore: BaseCommand.snapWall(handle.wall),
-      };
-      this.ui.canvas.style.cursor = 'grabbing';
-      this.ui.doRedraw();
-      return true;
-    }
+  // Проверка: не тянем ли маркер размера
+  const selectedMeasure = this.ui.selectedItems.length === 1 && this.ui.selectedItems[0].type === 'measure'
+    ? appState.measures.find(m => m.id === this.ui.selectedItems[0].id)
+    : null;
+  if (selectedMeasure && this.hitTestMeasureMarker(selectedMeasure, world, pos, 12)) {
+    this.dragMeasureState = {
+      measureId: selectedMeasure.id,
+      startOffset: selectedMeasure.offset || 0,
+      startWorld: { x: world.x, y: world.y },
+      measure: selectedMeasure
+    };
+    this.ui.canvas.style.cursor = 'grabbing';
+    this.ui.doRedraw();
+    return true;
+  }
 
+  const handle = hitTestWallResizeHandle(pos, this.ui.tool, this.ui.selectedItems);
     const hit = this.hitTestObject(world.x, world.y, pos);
     if (hit) {
       const isSelected = this.ui.selectedItems.some(i => i.type === hit.type && i.id === hit.id);
@@ -152,30 +158,24 @@ export class SelectTool extends BaseTool {
   }
 
   onMouseMove(pos, world, e) {
-    if (this.wallResizeState) {
-      const wall = appState.walls.find(w => w.id === this.wallResizeState.wallId);
-      if (!wall) {
-        this.wallResizeState = null;
-        this.ui.doRedraw();
-        return true;
-      }
-      const moved = getSnappedWallResizePoint(
-        this.wallResizeState.fixedPoint, world, pos, this.ui.shiftDown
-      );
-      const ns = this.wallResizeState.endpoint === 'start' ? moved : this.wallResizeState.fixedPoint;
-      const ne = this.wallResizeState.endpoint === 'start' ? this.wallResizeState.fixedPoint : moved;
-      if (Math.hypot(ne.x - ns.x, ne.y - ns.y) >= 1) {
-        const changed = updateWallGeometry(wall, ns, ne, {
-          preserveFrom: this.wallResizeState.endpoint === 'start' ? 'end' : 'start'
-        });
-        this.wallResizeState.changed = this.wallResizeState.changed || changed;
-        this.ui.debouncedComputeRooms();
-      }
-      this.ui.canvas.style.cursor = 'grabbing';
-      this.ui.doRedraw();
-      return true;
-    }
+  if (this.dragMeasureState) {
+    const m = this.dragMeasureState.measure;
+    const segVec = { x: m.x2 - m.x1, y: m.y2 - m.y1 };
+    const len = Math.hypot(segVec.x, segVec.y);
+    if (len < 1) return true;
+    const perpX = -segVec.y / len;
+    const perpY = segVec.x / len;
+    const mid = { x: (m.x1 + m.x2) / 2, y: (m.y1 + m.y2) / 2 };
+    const toMouse = { x: world.x - mid.x, y: world.y - mid.y };
+    const newOffset = toMouse.x * perpX + toMouse.y * perpY;
+    // Ограничим смещение (опционально)
+    m.offset = newOffset;
+    this.ui.doRedraw();
+    return true;
+  }
 
+  if (this.wallResizeState) {
+    
     if (this.dragState) {
       for (const snap of this.dragState.wallSnapshots) {
         const wall = appState.walls.find(w => w.id === snap.id);
@@ -215,7 +215,19 @@ export class SelectTool extends BaseTool {
     return false;
   }
 
-  onMouseUp(pos, world, e) {
+  onMouseUp(pos, world, e) {onMouseUp(pos, world, e) {
+  if (this.dragMeasureState) {
+    const { measureId, startOffset } = this.dragMeasureState;
+    const measure = appState.measures.find(m => m.id === measureId);
+    if (measure && Math.abs((measure.offset || 0) - startOffset) > 0.1) {
+      // Фиксируем изменение (можно просто эмитнуть событие, т.к. offset уже в measure)
+      EventBus.emit('measures:changed');
+    }
+    this.dragMeasureState = null;
+    this.ui.canvas.style.cursor = 'default';
+    this.ui.doRedraw();
+    return true;
+  }
     // Завершение drag перемещения
     if (this.dragState) {
       const moved = this.dragState.wallSnapshots.some(snap => {
@@ -393,6 +405,24 @@ onKeyDown(e) {
 
     return null;
   }
+
+hitTestMeasureMarker(measure, worldPoint, screenPoint, tolerancePx = 10) {
+  if (!measure) return false;
+  const { x1, y1, x2, y2, offset = 0 } = measure;
+  const segVec = { x: x2 - x1, y: y2 - y1 };
+  const len = Math.hypot(segVec.x, segVec.y);
+  if (len < 1) return false;
+  const perpX = -segVec.y / len;
+  const perpY = segVec.x / len;
+  const mid = { x: (x1 + x2) / 2, y: (y1 + y2) / 2 };
+  const markerWorld = {
+    x: mid.x + perpX * offset,
+    y: mid.y + perpY * offset
+  };
+  const screenMarker = toScreen(markerWorld.x, markerWorld.y);
+  const dist = Math.hypot(screenPoint.x - screenMarker.x, screenPoint.y - screenMarker.y);
+  return dist <= tolerancePx;
+}
   
   getTopologicallyConnected(seedWallIds) {
     const SNAP = 2;

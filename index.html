@@ -136,54 +136,54 @@
   .spp-toggle.active .tog-dot { background:#4a6fe3; }
   .spp-toggle:hover:not(.active) { background:#e8eaed;color:#444; }
 
-  /* Scrollable body — all pages stacked */
+  /* ── Scrollable body — pages stacked vertically ── */
   .spp-body {
-    flex:1;overflow-y:auto;overflow-x:hidden;
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    padding:24px 16px 40px;
-    gap:20px;
-    /* Disable scroll anchoring — prevents browser from shifting scroll
-       position when JS adds content (rooms table, etc.) above visible area */
-    overflow-anchor: none;
+    flex:1; overflow-y:auto; overflow-x:hidden;
+    display:flex; flex-direction:column; align-items:center;
+    padding:24px 0 60px;
+    gap:0;
+    background:#c8c5bf;
+    overflow-anchor:none;
   }
-  /* Each page wrapper */
+
+  /* Each page slot — height set by JS to fit scaled A4 */
   .spp-page {
-    width:100%;
-    display:flex;
-    justify-content:center;
-    transition:opacity .2s;
+    width:100%; flex-shrink:0;
+    display:flex; justify-content:center; align-items:flex-start;
   }
-  .spp-page.spp-hidden { display:none; }
+  .spp-page.spp-hidden { display:none !important; }
 
-  /* A4 sheet — wider and fills more space */
+  /* ── A4 landscape sheet — NATIVE 1123×794px, JS scales it ── */
+  /* 297mm × 210mm at 96dpi = 1122.5 × 793.7 → rounded to 1123×794 */
   .spp-a4 {
-    width:100%;
-    max-width:860px;
-    min-height:520px;
-    background:#fff;
-    box-shadow:0 3px 20px rgba(0,0,0,.13);
-    border-radius:4px;
-    position:relative;
-    /* Cancel modal scale/margin inherited from .preview-page */
-    transform:none !important;
-    margin-bottom:0 !important;
+    width:1123px !important;
+    height:794px !important;
+    min-height:unset !important;
+    max-width:unset !important;
     flex-shrink:0;
+    background:#fff;
+    box-shadow:0 4px 28px rgba(0,0,0,.22);
+    border-radius:2px;
+    position:relative;
+    overflow:hidden;
+    transform-origin:top center;
+    /* GOST font */
+    font-family:'Merriweather',serif;
+    font-size:13px;
+    color:#1c1c1c;
   }
+  /* Force GOST font on all content, except editor UI */
+  .spp-a4 *                    { font-family:'Merriweather',serif !important; }
+  .spp-a4 .be-toolbar,
+  .spp-a4 .be-tbtn             { font-family:'Onest',sans-serif !important; }
+  .spp-a4 table                { font-size:12px; }
+  .spp-a4 th                   { font-size:11px; }
 
-  /* Cover page: explicit height needed — all children are position:absolute */
-  .spp-a4.cover-pg {
-    height:700px;
-    min-height:700px;
-  }
+  /* Cover — children are position:absolute */
+  .spp-a4.cover-pg { display:block; }
 
-  /* Blueprint page uses flex column internally */
-  .spp-a4.spp-blueprint {
-    display:flex !important;
-    flex-direction:column;
-    min-height:600px;
-  }
+  /* Blueprint — flex column */
+  .spp-a4.spp-blueprint { display:flex !important; flex-direction:column; }
 
   /* Hide old modal preview button */
   .btn-preview { display:none !important; }
@@ -636,7 +636,7 @@
 
     <!-- 1. Cover page -->
     <div class="spp-page" data-page="cover">
-      <div class="preview-page cover-pg spp-a4" data-be-page="cover" id="prevCover2" style="position:relative;overflow:hidden;height:700px;min-height:700px">
+      <div class="preview-page cover-pg spp-a4" data-be-page="cover" id="prevCover2">
         <div id="prevCovLogo2" style="position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center">
           <img id="prevLogoImg2" alt="" style="max-height:70px;max-width:180px;display:none">
           <div id="prevCircle2" style="width:66px;height:66px;border:2px solid #1c1c1c;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:500">К</div>
@@ -653,7 +653,7 @@
 
     <!-- 2. Planning page -->
     <div class="spp-page" data-page="plan">
-      <div class="preview-page spp-a4" id="prevPlanning2" data-be-page="plan" style="min-height:600px">
+      <div class="preview-page spp-a4" id="prevPlanning2" data-be-page="plan">
 
         <!-- Title — editable block -->
         <div class="be-plan-title be-editable-title" style="font-size:22px;font-weight:400;text-align:center;padding:28px 66px 20px;letter-spacing:.5px">Планирование работ:</div>
@@ -943,6 +943,8 @@
             window.BlockEditor.initPage(a4);
           });
         }
+        // Scale A4 pages to fit panel width
+        if (typeof window.setA4Scale === 'function') window.setA4Scale();
       }, 400);
     });
   }

@@ -711,13 +711,16 @@ html, body {
   flex-direction: column;
 }
 
-/* 20mm margin guide — CSS fallback (also rendered by BlockEditor as .be-margin-guide).
-   20mm at 96dpi = 75.6px ≈ 76px native. */
+/* 20mm margin guide — design-time ruler only, not printed.
+   Renders as a very faint dashed frame inside the page so the
+   user sees the "safe" content area. BlockEditor also adds a
+   .be-margin-guide element; :has() hides the CSS one to avoid
+   duplicate lines. 20mm at 96dpi = 75.6px ≈ 76px native. */
 .spp-a4::before {
   content: '';
   position: absolute;
   top: 76px; left: 76px; right: 76px; bottom: 76px;
-  border: 1px dashed rgba(160,160,160,0.35);
+  border: 1px dashed rgba(180,180,180,0.45);
   pointer-events: none;
   z-index: 0;
   box-sizing: border-box;

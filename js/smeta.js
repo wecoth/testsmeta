@@ -609,6 +609,10 @@ function _applyA4Scale() {
   // Measure the real content width available inside .spp-body
   // (accounts for scrollbar, paddings). Fallback to clientWidth.
   const bodyRect = body.getBoundingClientRect();
+  // If panel is hidden (display:none) or zero-width, defer:
+  // applying scale now would lock page at minimum 0.25 forever.
+  if (bodyRect.width < 50) return;
+
   const cs = getComputedStyle(body);
   const padL = parseFloat(cs.paddingLeft)  || 0;
   const padR = parseFloat(cs.paddingRight) || 0;

@@ -585,26 +585,32 @@ export function syncEditorToDoc() {
 }
 
 // ── A4 scale: fit pages to panel width ───────────────────────────
-// Native A4 landscape = 1123px wide. We scale each .spp-a4 down
-// so it fills the .spp-body minus padding (24px each side).
+// Native A4 landscape = 1123 × 794px at 96dpi.
+// We read .spp-body clientWidth and scale each page to fill it.
 
 function setA4Scale() {
   const body = document.querySelector('.spp-body');
   if (!body) return;
-  const availW = body.clientWidth - 48; // 24px padding each side
-  const nativeW = 1123;
-  const nativeH = 794;
-  const sc = Math.min(1, availW / nativeW);
+
+  const NATIVE_W = 1123;
+  const NATIVE_H = 794;
+  const GAP = 24; // gap between pages (px, at native scale)
+
+  // Available width = body clientWidth minus horizontal padding (none now, but safety)
+  const availW = body.clientWidth - 32; // 16px cushion each side
+  const sc = Math.min(1, Math.max(0.3, availW / NATIVE_W));
+
+  const scaledH = Math.round(NATIVE_H * sc);
 
   document.querySelectorAll('.spp-a4').forEach(page => {
     page.style.transform = `scale(${sc})`;
     page.style.transformOrigin = 'top center';
   });
 
-  // Each .spp-page wrapper needs height = scaled page height + gap
-  const scaledH = nativeH * sc;
-  document.querySelectorAll('.spp-page').forEach(wrap => {
-    wrap.style.height = (scaledH + 20) + 'px'; // 20px gap between pages
+  // Each .spp-page wrapper: height = scaledH so pages don't overlap in scroll
+  document.querySelectorAll('.spp-page:not(.spp-hidden)').forEach(wrap => {
+    wrap.style.height = scaledH + 'px';
+    wrap.style.marginBottom = GAP + 'px';
   });
 }
 

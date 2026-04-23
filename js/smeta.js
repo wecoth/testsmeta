@@ -588,18 +588,15 @@ export function syncEditorToDoc() {
 // Native A4 landscape = 1123 × 794px at 96dpi.
 // We read .spp-body clientWidth and scale each page to fill it.
 
-function setA4Scale() {
+export function setA4Scale() {
   const body = document.querySelector('.spp-body');
   if (!body) return;
 
   const NATIVE_W = 1123;
   const NATIVE_H = 794;
-  const GAP = 24; // gap between pages (px, at native scale)
 
-  // Available width = body clientWidth minus horizontal padding (none now, but safety)
-  const availW = body.clientWidth - 32; // 16px cushion each side
+  const availW = body.clientWidth - 32;
   const sc = Math.min(1, Math.max(0.3, availW / NATIVE_W));
-
   const scaledH = Math.round(NATIVE_H * sc);
 
   document.querySelectorAll('.spp-a4').forEach(page => {
@@ -607,12 +604,12 @@ function setA4Scale() {
     page.style.transformOrigin = 'top center';
   });
 
-  // Each .spp-page wrapper: height = scaledH so pages don't overlap in scroll
-  document.querySelectorAll('.spp-page:not(.spp-hidden)').forEach(wrap => {
+  document.querySelectorAll('.spp-page').forEach(wrap => {
     wrap.style.height = scaledH + 'px';
-    wrap.style.marginBottom = GAP + 'px';
   });
 }
+// Also expose globally for inline scripts
+window.setA4Scale = setA4Scale;
 
 // ── Init smeta ────────────────────────────────────────────────────
 

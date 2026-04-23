@@ -670,34 +670,83 @@ html, body {
   display: none !important;
 }
 
-/* A4 page in right panel — scales to fit available width */
+/* ═══════════════════════════════════════════════════════════════
+   A4 LANDSCAPE — STRICT PROPORTIONS
+   Native: 1123 × 794px (297mm × 210mm @96dpi)
+   Scale to fit panel width via JS or CSS container query.
+═══════════════════════════════════════════════════════════════ */
+
+/* A4 page in right panel — exact landscape A4 proportions */
 .spp-a4 {
-  width: 100%;
-  max-width: 860px;
-  aspect-ratio: 297 / 210;
+  /* Native A4 landscape dimensions at 96dpi */
+  width: 1123px;
+  height: 794px;
+  flex-shrink: 0;
   background: #fff;
-  box-shadow: 0 3px 20px rgba(0,0,0,.13);
-  border-radius: 4px;
+  box-shadow: 0 3px 20px rgba(0,0,0,.18);
+  border-radius: 3px;
   position: relative;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  margin: 0 auto;
+  /* Font: GOST for everything in preview pages */
+  font-family: 'Merriweather', serif;
+  font-size: 11px;
+  color: #1c1c1c;
+  /* Scale down to fit panel — JS sets transform via setA4Scale() */
+  transform-origin: top center;
 }
 
+/* The .spp-page wrapper must accommodate the scaled height */
+.spp-page {
+  width: 100%;
+  display: flex !important;
+  justify-content: center;
+  align-items: flex-start;
+  /* JS sets margin-bottom to (scaled_height - native_height) for scroll */
+}
+
+.spp-page.spp-hidden { display: none !important; }
+
+/* Cover page — all children are position:absolute */
 .spp-a4.cover-pg {
-  aspect-ratio: 297 / 210 !important;
-  height: auto !important;
-  min-height: auto !important;
-  max-height: none !important;
-  overflow: hidden !important;
+  display: block;
+}
+
+/* Blueprint page uses flex column internally */
+.spp-a4.spp-blueprint {
+  display: flex !important;
+  flex-direction: column;
+}
+
+/* Force GOST font on all text inside preview pages */
+.spp-a4 * {
+  font-family: 'Merriweather', serif !important;
+}
+/* Except UI controls from BlockEditor */
+.spp-a4 .be-toolbar,
+.spp-a4 .be-tbtn {
+  font-family: 'Onest', sans-serif !important;
+}
+
+/* Base font sizes in preview (10–12pt = 13–16px at 96dpi) */
+.spp-a4 { font-size: 13px; }
+.spp-a4 table { font-size: 12px; }
+.spp-a4 th { font-size: 11px; }
+
+/* spp-body: vertical scroll, centered, gap between pages */
+.spp-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  position: relative;
+  align-items: center;
+  padding: 24px 0 60px;
+  gap: 0;
+  background: #ddd9d2;
 }
-  background: #fff;
-  box-shadow: 0 3px 20px rgba(0,0,0,.13);
-  border-radius: 4px;
+
+/* Hide old modal preview button */
+.btn-preview { display: none !important; }
   position: relative;
   overflow: hidden;           /* чтобы содержимое не вылезало */
   display: flex;

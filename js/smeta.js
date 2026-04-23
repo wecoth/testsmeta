@@ -586,17 +586,37 @@ export function syncEditorToDoc() {
 
 // ── A4 scale: fit pages to panel width ───────────────────────────
 // Native A4 landscape = 1123 × 794px at 96dpi.
-// We read .spp-body clientWidth and scale each page to fill it.
+// We measure the real available width inside .spp-body and scale
+// each page with CSS transform to fit it. Height of the .spp-page
+// wrapper is set to scaledH so neighbouring pages don't overlap
+// (scale() doesn't affect layout box).
+
+const NATIVE_W = 1123;
+const NATIVE_H = 794;
+
+let _scaleRafId = 0;
 
 export function setA4Scale() {
+  if (_scaleRafId) cancelAnimationFrame(_scaleRafId);
+  _scaleRafId = requestAnimationFrame(_applyA4Scale);
+}
+
+function _applyA4Scale() {
+  _scaleRafId = 0;
   const body = document.querySelector('.spp-body');
   if (!body) return;
 
-  const NATIVE_W = 1123;
-  const NATIVE_H = 794;
+  // Measure the real content width available inside .spp-body
+  // (accounts for scrollbar, paddings). Fallback to clientWidth.
+  const bodyRect = body.getBoundingClientRect();
+  const cs = getComputedStyle(body);
+  const padL = parseFloat(cs.paddingLeft)  || 0;
+  const padR = parseFloat(cs.paddingRight) || 0;
+  // small horizontal margin so page doesn't kiss the panel edges
+  const SIDE_MARGIN = 16;
+  const availW = Math.max(100, bodyRect.width - padL - padR - SIDE_MARGIN * 2);
 
-  const availW = body.clientWidth - 32;
-  const sc = Math.min(1, Math.max(0.3, availW / NATIVE_W));
+  const sc = Math.min(1, Math.max(0.25, availW / NATIVE_W));
   const scaledH = Math.round(NATIVE_H * sc);
 
   document.querySelectorAll('.spp-a4').forEach(page => {
@@ -604,6 +624,8 @@ export function setA4Scale() {
     page.style.transformOrigin = 'top center';
   });
 
+  // .spp-page is the flex wrapper — set its height to the scaled A4 height
+  // so the next page starts below, not under the scaled one.
   document.querySelectorAll('.spp-page').forEach(wrap => {
     wrap.style.height = scaledH + 'px';
   });
@@ -632,6 +654,11 @@ export function initSmeta() {
     new ResizeObserver(() => setA4Scale()).observe(body);
   } else {
     window.addEventListener('resize', setA4Scale);
+  }
+
+  // Re-scale when fonts finish loading (GOST font changes metrics)
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(() => setA4Scale());
   }
 }
 

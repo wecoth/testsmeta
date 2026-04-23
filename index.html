@@ -583,42 +583,47 @@
     <!-- 1. Cover page -->
     <div class="spp-page" data-page="cover">
       <div class="preview-page cover-pg spp-a4" data-be-page="cover" id="prevCover2">
-        <div id="prevCovLogo2" style="position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center">
-          <img id="prevLogoImg2" alt="" style="max-height:70px;max-width:180px;display:none">
-          <div id="prevCircle2" style="width:66px;height:66px;border:2px solid #1c1c1c;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:500">К</div>
+        <!-- Top small "Проектно-сметная документация" caption -->
+        <div id="prevCovType2" style="position:absolute;left:50%;top:52px;transform:translateX(-50%);font-size:16px;font-weight:400;color:#3a3a3a;letter-spacing:1px;white-space:nowrap">Проектно-сметная документация</div>
+
+        <!-- Main logo + name block, vertically centered -->
+        <div id="prevCovLogo2" style="position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);display:flex;flex-direction:row;align-items:center;gap:18px">
+          <img id="prevLogoImg2" alt="" style="max-height:96px;max-width:220px;display:none">
+          <div id="prevCircle2" style="width:88px;height:88px;border:2px solid #1c1c1c;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:400;font-family:'Merriweather',serif">К</div>
         </div>
-        <div id="prevCovName2" style="position:absolute;left:50%;top:54%;transform:translate(-50%,-50%);font-size:20px;font-weight:400;letter-spacing:5px;text-transform:uppercase;white-space:nowrap">КОМПАНИЯ</div>
-        <div id="prevCovSlogan2" style="position:absolute;left:50%;top:60%;transform:translate(-50%,-50%);font-size:10px;letter-spacing:4px;color:#888;text-transform:uppercase;white-space:nowrap">КАЧЕСТВО ПОД КЛЮЧ</div>
-        <div id="prevCovType2" style="position:absolute;left:50%;top:72%;transform:translate(-50%,-50%);font-size:14px;font-weight:300;color:#555;letter-spacing:2px;white-space:nowrap">Проектно-сметная документация</div>
-        <div style="position:absolute;bottom:40px;right:40px;display:flex;align-items:center;gap:6px">
-          <div id="prevFootCircle2" style="width:22px;height:22px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:600;color:#aaa">К</div>
-          <div id="prevFootName2" style="font-size:9px;font-weight:600;letter-spacing:2px;color:#aaa">КОМПАНИЯ</div>
+        <div id="prevCovName2" style="position:absolute;left:50%;top:54%;transform:translate(-50%,-50%);font-size:38px;font-weight:400;letter-spacing:3px;text-transform:uppercase;white-space:nowrap;color:#1c1c1c">КОМПАНИЯ</div>
+        <div id="prevCovSlogan2" style="position:absolute;left:50%;top:61%;transform:translate(-50%,-50%);font-size:15px;letter-spacing:6px;color:#888;text-transform:uppercase;white-space:nowrap">КАЧЕСТВО ПОД КЛЮЧ</div>
+
+        <!-- Footer logo — bottom right -->
+        <div style="position:absolute;bottom:46px;right:76px;display:flex;align-items:center;gap:8px">
+          <div id="prevFootCircle2" style="width:24px;height:24px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:400;color:#aaa;font-family:'Merriweather',serif">К</div>
+          <div id="prevFootName2" style="font-size:13px;font-weight:400;letter-spacing:3px;color:#aaa">КОМПАНИЯ</div>
         </div>
       </div>
     </div>
 
     <!-- 2. Planning page -->
     <div class="spp-page" data-page="plan">
-      <div class="preview-page spp-a4" id="prevPlanning2" data-be-page="plan">
+      <div class="preview-page spp-a4" id="prevPlanning2" data-be-page="plan" style="display:flex;flex-direction:column">
 
         <!-- Title — editable block -->
-        <div class="be-plan-title be-editable-title" style="font-size:22px;font-weight:400;text-align:center;padding:28px 66px 20px;letter-spacing:.5px">Планирование работ:</div>
+        <div class="be-plan-title be-editable-title" style="font-size:30px;font-weight:400;text-align:center;padding:56px 96px 28px;letter-spacing:.5px;color:#1c1c1c;flex-shrink:0">Планирование работ:</div>
 
         <!-- Main grid: 50/50 -->
-        <div class="be-plan-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:0;padding:0 66px 28px;min-height:420px">
+        <div class="be-plan-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:32px;padding:0 96px 40px;flex:1;min-height:0">
 
           <!-- LEFT: drawing/plan image -->
-          <div class="be-plan-left" style="padding-right:16px;display:flex;flex-direction:column;border-right:1px solid #eee">
-            <div id="prevPlanBox2" style="flex:1;min-height:280px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fafafa;border:1px solid #e8e8e8;border-radius:3px">
+          <div class="be-plan-left" style="display:flex;flex-direction:column;min-width:0">
+            <div id="prevPlanBox2" style="flex:1;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fafafa;border:1px solid #e8e8e8;border-radius:3px">
               <img id="prevPlanImg2" alt="" style="width:100%;height:100%;object-fit:contain;display:none;background:#fff">
-              <div id="prevPlanPh2" style="color:#ccc;font-size:40px">⬚</div>
+              <div id="prevPlanPh2" style="color:#ccc;font-size:48px">⬚</div>
             </div>
           </div>
 
           <!-- RIGHT: info + rooms table -->
-          <div class="be-plan-right" style="padding-left:16px;display:flex;flex-direction:column;gap:12px">
-            <div id="prevObjInfo2" style="font-size:11px;line-height:2;color:#333"></div>
-            <div class="be-plan-docs" style="font-size:10px;color:#555;line-height:1.9">
+          <div class="be-plan-right" style="display:flex;flex-direction:column;gap:18px;min-width:0">
+            <div id="prevObjInfo2" style="font-size:13px;line-height:1.9;color:#3a3a3a"></div>
+            <div class="be-plan-docs" style="font-size:12px;color:#555;line-height:1.85">
               На основании осмотра объекта подготовлены следующие документы:<br>
               – Обмерный план.<br>
               – Смета строительно-монтажных работ (СМР).<br>
@@ -626,13 +631,13 @@
               – Календарный график производства работ.
             </div>
             <div>
-              <div style="font-size:11px;font-weight:500;text-align:center;margin-bottom:6px;letter-spacing:.3px">Экспликация помещений</div>
-              <table style="width:100%;border-collapse:collapse;font-size:10px">
+              <div style="font-size:13px;font-weight:400;text-align:center;margin-bottom:8px;letter-spacing:.3px;color:#3a3a3a">Экспликация помещений</div>
+              <table style="width:100%;border-collapse:collapse;font-size:11px">
                 <thead><tr>
-                  <th style="border:1px solid #ccc;padding:5px 7px;text-align:left;font-weight:500;font-size:9.5px;background:#f5f5f2">Помещение</th>
-                  <th style="border:1px solid #ccc;padding:5px 7px;text-align:center;font-weight:500;font-size:9.5px;background:#f5f5f2">Пол м²</th>
-                  <th style="border:1px solid #ccc;padding:5px 7px;text-align:center;font-weight:500;font-size:9.5px;background:#f5f5f2">Стены м²</th>
-                  <th style="border:1px solid #ccc;padding:5px 7px;text-align:center;font-weight:500;font-size:9.5px;background:#f5f5f2">Периметр</th>
+                  <th style="border:1px solid #bbb;padding:6px 8px;text-align:left;font-weight:400;font-size:11px;background:#f5f5f2;color:#3a3a3a">Помещение</th>
+                  <th style="border:1px solid #bbb;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#f5f5f2;color:#3a3a3a">Пол м²</th>
+                  <th style="border:1px solid #bbb;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#f5f5f2;color:#3a3a3a">Стены м²</th>
+                  <th style="border:1px solid #bbb;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#f5f5f2;color:#3a3a3a">Периметр</th>
                 </tr></thead>
                 <tbody id="prevRoomsBody2"></tbody>
               </table>
@@ -640,23 +645,29 @@
           </div>
 
         </div><!-- /be-plan-grid -->
+
+        <!-- Footer logo -->
+        <div style="position:absolute;bottom:40px;right:76px;display:flex;align-items:center;gap:8px">
+          <div style="width:22px;height:22px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa;font-family:'Merriweather',serif">К</div>
+          <div style="font-size:11px;letter-spacing:2.5px;color:#aaa">КОМПАНИЯ</div>
+        </div>
       </div>
     </div>
 
     <!-- 3. Обмерный план -->
     <div class="spp-page" data-page="blueprint">
       <div class="preview-page spp-a4 spp-blueprint" id="prevBlueprint2" data-be-page="blueprint">
-        <div style="padding:20px 28px 12px;border-bottom:1px solid #eee;display:flex;align-items:baseline;gap:10px;flex-shrink:0">
-          <span style="font:700 13px/1.4 Georgia,serif;letter-spacing:0.05em">Обмерный план:</span>
-          <span style="font-size:10px;color:#999" id="prevBpAddress2"></span>
+        <div style="padding:40px 96px 16px;display:flex;align-items:baseline;justify-content:center;gap:14px;flex-shrink:0">
+          <span style="font:400 28px/1.2 'Merriweather',serif;color:#1c1c1c;letter-spacing:.5px">Обмерный план</span>
+          <span style="font-size:13px;color:#888" id="prevBpAddress2"></span>
         </div>
-        <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fafafa;min-height:500px">
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fafafa;margin:0 76px 40px;border:1px solid #e8e8e8;border-radius:3px">
           <img id="prevBpImg2" alt="" style="max-width:100%;max-height:100%;object-fit:contain;display:none">
-          <div id="prevBpPh2" style="color:#ccc;font-size:40px;text-align:center;line-height:1.4">⬚<br><span style="font-size:13px;letter-spacing:0">Используйте «Захватить чертёж»</span></div>
+          <div id="prevBpPh2" style="color:#ccc;font-size:48px;text-align:center;line-height:1.4">⬚<br><span style="font-size:14px;letter-spacing:0;color:#aaa">Используйте «Захватить чертёж»</span></div>
         </div>
-        <div style="padding:8px 28px;display:flex;justify-content:flex-end;align-items:center;gap:5px;border-top:1px solid #eee;flex-shrink:0">
-          <div id="prevBpFtC2" style="width:18px;height:18px;border:1.5px solid #bbb;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:7px;font-weight:600;color:#bbb">К</div>
-          <div id="prevBpFtN2" style="font-size:9px;font-weight:600;letter-spacing:2px;color:#bbb">КОМПАНИЯ</div>
+        <div style="padding:0 76px 40px;display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-shrink:0">
+          <div id="prevBpFtC2" style="width:22px;height:22px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa;font-family:'Merriweather',serif">К</div>
+          <div id="prevBpFtN2" style="font-size:11px;letter-spacing:2.5px;color:#aaa">КОМПАНИЯ</div>
         </div>
       </div>
     </div>
@@ -664,19 +675,26 @@
     <!-- 4. SMR page -->
     <div class="spp-page" data-page="smr">
       <div class="preview-page spp-a4" id="prevSmr2" data-be-page="smr">
-        <div style="padding:40px 52px;display:flex;flex-direction:column">
-          <div class="be-editable-title" style="font-size:22px;font-weight:400;text-align:center;margin-bottom:28px">Смета строительно-монтажных работ</div>
-          <table style="width:100%;border-collapse:collapse;font-size:10px">
+        <div style="padding:44px 76px 28px;display:flex;flex-direction:column;height:100%;box-sizing:border-box">
+          <div class="be-editable-title" style="font-size:26px;font-weight:400;text-align:center;margin-bottom:22px;color:#1c1c1c;letter-spacing:.3px">Смета строительно-монтажных работ</div>
+          <table style="width:100%;border-collapse:collapse;font-size:11px;color:#2a2a2a">
             <thead><tr>
-              <th style="border:1px solid #ccc;padding:5px 6px;text-align:center;font-weight:500;font-size:9.5px;background:#f5f5f2;width:24px">№</th>
-              <th style="border:1px solid #ccc;padding:5px 6px;text-align:left;font-weight:500;font-size:9.5px;background:#f5f5f2">Наименование</th>
-              <th style="border:1px solid #ccc;padding:5px 6px;text-align:center;font-weight:500;font-size:9.5px;background:#f5f5f2;width:46px">Ед.</th>
-              <th style="border:1px solid #ccc;padding:5px 6px;text-align:center;font-weight:500;font-size:9.5px;background:#f5f5f2;width:52px">Кол</th>
-              <th style="border:1px solid #ccc;padding:5px 6px;text-align:right;font-weight:500;font-size:9.5px;background:#f5f5f2;width:98px">Всего ₽</th>
+              <th style="border:1px solid #c9b86a;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#fcebb0;width:32px">№<br>п/п</th>
+              <th style="border:1px solid #c9b86a;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#fcebb0">СМР</th>
+              <th style="border:1px solid #c9b86a;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#fcebb0;width:66px">Ед. изм.</th>
+              <th style="border:1px solid #c9b86a;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#fcebb0;width:66px">Кол-во</th>
+              <th style="border:1px solid #c9b86a;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#fcebb0;width:108px">За ед. ₽</th>
+              <th style="border:1px solid #c9b86a;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#fcebb0;width:120px">Всего ₽</th>
+              <th style="border:1px solid #c9b86a;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#fcebb0;width:100px">Примечание</th>
             </tr></thead>
             <tbody id="prevSmrBody2"></tbody>
           </table>
-          <div id="prevSmrEmpty2" style="padding:60px 0;text-align:center;color:#ccc;font-size:13px">Загрузите файл СМР или введите вручную</div>
+          <div id="prevSmrEmpty2" style="padding:80px 0;text-align:center;color:#ccc;font-size:14px">Загрузите файл СМР или введите вручную</div>
+        </div>
+        <!-- Footer logo -->
+        <div style="position:absolute;bottom:36px;right:76px;display:flex;align-items:center;gap:8px">
+          <div style="width:22px;height:22px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa;font-family:'Merriweather',serif">К</div>
+          <div style="font-size:11px;letter-spacing:2.5px;color:#aaa">КОМПАНИЯ</div>
         </div>
       </div>
     </div>
@@ -684,19 +702,25 @@
     <!-- 5. Mat page -->
     <div class="spp-page" data-page="mat">
       <div class="preview-page spp-a4" id="prevMat2" data-be-page="mat">
-        <div style="padding:40px 52px;display:flex;flex-direction:column">
-          <div class="be-editable-title" style="font-size:22px;font-weight:400;text-align:center;margin-bottom:28px">Смета на строительные и отделочные материалы</div>
-          <table style="width:100%;border-collapse:collapse;font-size:10px">
+        <div style="padding:44px 76px 28px;display:flex;flex-direction:column;height:100%;box-sizing:border-box">
+          <div class="be-editable-title" style="font-size:26px;font-weight:400;text-align:center;margin-bottom:22px;color:#1c1c1c;letter-spacing:.3px">Смета на строительные и отделочные материалы</div>
+          <table style="width:100%;border-collapse:collapse;font-size:11px;color:#2a2a2a">
             <thead><tr>
-              <th style="border:1px solid #ccc;padding:5px 6px;text-align:center;font-weight:500;font-size:9.5px;background:#f5f5f2;width:24px">№</th>
-              <th style="border:1px solid #ccc;padding:5px 6px;text-align:left;font-weight:500;font-size:9.5px;background:#f5f5f2">Наименование</th>
-              <th style="border:1px solid #ccc;padding:5px 6px;text-align:center;font-weight:500;font-size:9.5px;background:#f5f5f2;width:46px">Ед.</th>
-              <th style="border:1px solid #ccc;padding:5px 6px;text-align:center;font-weight:500;font-size:9.5px;background:#f5f5f2;width:52px">Кол</th>
-              <th style="border:1px solid #ccc;padding:5px 6px;text-align:right;font-weight:500;font-size:9.5px;background:#f5f5f2;width:98px">Всего ₽</th>
+              <th style="border:1px solid #9fb8d9;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#d8e4f2;width:32px">№<br>п/п</th>
+              <th style="border:1px solid #9fb8d9;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#d8e4f2">Строительные материалы</th>
+              <th style="border:1px solid #9fb8d9;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#d8e4f2;width:66px">Ед. изм.</th>
+              <th style="border:1px solid #9fb8d9;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#d8e4f2;width:66px">Кол-во</th>
+              <th style="border:1px solid #9fb8d9;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#d8e4f2;width:108px">За ед. ₽</th>
+              <th style="border:1px solid #9fb8d9;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#d8e4f2;width:120px">Всего ₽</th>
+              <th style="border:1px solid #9fb8d9;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#d8e4f2;width:100px">Примечание</th>
             </tr></thead>
             <tbody id="prevMatBody2"></tbody>
           </table>
-          <div id="prevMatEmpty2" style="padding:60px 0;text-align:center;color:#ccc;font-size:13px">Загрузите файл материалов или введите вручную</div>
+          <div id="prevMatEmpty2" style="padding:80px 0;text-align:center;color:#ccc;font-size:14px">Загрузите файл материалов или введите вручную</div>
+        </div>
+        <div style="position:absolute;bottom:36px;right:76px;display:flex;align-items:center;gap:8px">
+          <div style="width:22px;height:22px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa;font-family:'Merriweather',serif">К</div>
+          <div style="font-size:11px;letter-spacing:2.5px;color:#aaa">КОМПАНИЯ</div>
         </div>
       </div>
     </div>
@@ -704,23 +728,28 @@
     <!-- Final page -->
     <div class="spp-page" data-page="final">
       <div class="preview-page spp-a4" id="prevFinal2" data-be-page="final">
-        <div style="padding:40px 52px;display:flex;flex-direction:column">
-          <table style="width:100%;border-collapse:collapse;font-size:11px;margin-top:20px">
+        <div style="padding:44px 76px 28px;display:flex;flex-direction:column;height:100%;box-sizing:border-box">
+          <div class="be-editable-title" style="font-size:26px;font-weight:400;text-align:center;margin-bottom:22px;color:#1c1c1c;letter-spacing:.3px">Итого по разделам</div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px;color:#2a2a2a">
             <thead><tr>
-              <th style="border:1px solid #ccc;padding:6px 10px;background:#f5f5f2;font-weight:500;font-size:10px;text-align:center;width:28px">№</th>
-              <th style="border:1px solid #ccc;padding:6px 10px;background:#f5f5f2;font-weight:500;font-size:10px">Разделы</th>
-              <th style="border:1px solid #ccc;padding:6px 10px;background:#f5f5f2;font-weight:500;font-size:10px;text-align:center;width:50px">Ед.</th>
-              <th style="border:1px solid #ccc;padding:6px 10px;background:#f5f5f2;font-weight:500;font-size:10px;text-align:center;width:60px">Кол-во</th>
-              <th style="border:1px solid #ccc;padding:6px 10px;background:#f5f5f2;font-weight:500;font-size:10px;text-align:right;width:110px">За ед. ₽</th>
-              <th style="border:1px solid #ccc;padding:6px 10px;background:#f5f5f2;font-weight:500;font-size:10px;text-align:right;width:120px">Всего ₽</th>
-              <th style="border:1px solid #ccc;padding:6px 10px;background:#f5f5f2;font-weight:500;font-size:10px;width:80px">Примечание</th>
+              <th style="border:1px solid #9fc9a4;padding:7px 10px;background:#cfe5d1;font-weight:400;font-size:11px;text-align:center;width:32px">№<br>п/п</th>
+              <th style="border:1px solid #9fc9a4;padding:7px 10px;background:#cfe5d1;font-weight:400;font-size:11px;text-align:center">Разделы</th>
+              <th style="border:1px solid #9fc9a4;padding:7px 10px;background:#cfe5d1;font-weight:400;font-size:11px;text-align:center;width:66px">Ед. изм.</th>
+              <th style="border:1px solid #9fc9a4;padding:7px 10px;background:#cfe5d1;font-weight:400;font-size:11px;text-align:center;width:70px">Кол-во</th>
+              <th style="border:1px solid #9fc9a4;padding:7px 10px;background:#cfe5d1;font-weight:400;font-size:11px;text-align:center;width:120px">За ед. ₽</th>
+              <th style="border:1px solid #9fc9a4;padding:7px 10px;background:#cfe5d1;font-weight:400;font-size:11px;text-align:center;width:130px">Всего ₽</th>
+              <th style="border:1px solid #9fc9a4;padding:7px 10px;background:#cfe5d1;font-weight:400;font-size:11px;text-align:center;width:100px">Примечание</th>
             </tr></thead>
             <tbody id="prevFinBody2"></tbody>
           </table>
-          <div style="display:flex;justify-content:flex-end;gap:14px;align-items:baseline;margin-top:24px;font-size:14px">
-            <span style="font-size:12px;color:#666">Итого по разделам:</span>
-            <strong id="prevFinVal2" style="font-size:20px;font-weight:500">0 ₽</strong>
+          <div style="display:flex;justify-content:flex-end;gap:16px;align-items:baseline;margin-top:28px;font-size:14px">
+            <span style="font-size:13px;color:#3a3a3a;font-weight:400">Итого по разделам:</span>
+            <strong id="prevFinVal2" style="font-size:20px;font-weight:400;color:#1c1c1c">0 ₽</strong>
           </div>
+        </div>
+        <div style="position:absolute;bottom:36px;right:76px;display:flex;align-items:center;gap:8px">
+          <div style="width:22px;height:22px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa;font-family:'Merriweather',serif">К</div>
+          <div style="font-size:11px;letter-spacing:2.5px;color:#aaa">КОМПАНИЯ</div>
         </div>
       </div>
     </div>
@@ -869,6 +898,14 @@
         if (view === 'smeta') {
           var sppBody = document.getElementById('sppBody');
           if (sppBody) sppBody.scrollTop = 0;
+          // Re-run A4 scale now that .spp-body has real width
+          if (typeof window.setA4Scale === 'function') {
+            requestAnimationFrame(function() {
+              window.setA4Scale();
+              // second pass after layout settles
+              setTimeout(window.setA4Scale, 80);
+            });
+          }
         }
         // Trigger resize for canvas
         if (view === 'planner') window.dispatchEvent(new Event('resize'));

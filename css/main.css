@@ -644,95 +644,14 @@ html, body {
 }
 .spp-tab:hover { background: var(--card); color: var(--ink); }
 .spp-tab.active { background: #e8eeff; color: #3a5ed0; font-weight: 600; }
-.spp-body {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;   /* ← ВОТ ЭТО ГЛАВНОЕ ИСПРАВЛЕНИЕ */
-  padding: 24px 16px 40px;
-  gap: 20px;
-  overflow-anchor: none;
-  margin-top: 0 !important;
-  transform: none !important;
-  position: relative;
-  top: 0;
-}
-.spp-page {
-  width: 100%;
-  display: flex !important;
-  justify-content: center;
-  transition: opacity .2s;
-}
-.spp-page.spp-hidden {
-  display: none !important;
-}
 
 /* ═══════════════════════════════════════════════════════════════
    A4 LANDSCAPE — STRICT PROPORTIONS
    Native: 1123 × 794px (297mm × 210mm @96dpi)
-   Scale to fit panel width via JS or CSS container query.
+   Scale to fit panel width via JS setA4Scale().
 ═══════════════════════════════════════════════════════════════ */
 
-/* A4 page in right panel — exact landscape A4 proportions */
-.spp-a4 {
-  /* Native A4 landscape dimensions at 96dpi */
-  width: 1123px;
-  height: 794px;
-  flex-shrink: 0;
-  background: #fff;
-  box-shadow: 0 3px 20px rgba(0,0,0,.18);
-  border-radius: 3px;
-  position: relative;
-  overflow: hidden;
-  /* Font: GOST for everything in preview pages */
-  font-family: 'Merriweather', serif;
-  font-size: 11px;
-  color: #1c1c1c;
-  /* Scale down to fit panel — JS sets transform via setA4Scale() */
-  transform-origin: top center;
-}
-
-/* The .spp-page wrapper must accommodate the scaled height */
-.spp-page {
-  width: 100%;
-  display: flex !important;
-  justify-content: center;
-  align-items: flex-start;
-  /* JS sets margin-bottom to (scaled_height - native_height) for scroll */
-}
-
-.spp-page.spp-hidden { display: none !important; }
-
-/* Cover page — all children are position:absolute */
-.spp-a4.cover-pg {
-  display: block;
-}
-
-/* Blueprint page uses flex column internally */
-.spp-a4.spp-blueprint {
-  display: flex !important;
-  flex-direction: column;
-}
-
-/* Force GOST font on all text inside preview pages */
-.spp-a4 * {
-  font-family: 'Merriweather', serif !important;
-}
-/* Except UI controls from BlockEditor */
-.spp-a4 .be-toolbar,
-.spp-a4 .be-tbtn {
-  font-family: 'Onest', sans-serif !important;
-}
-
-/* Base font sizes in preview (10–12pt = 13–16px at 96dpi) */
-.spp-a4 { font-size: 13px; }
-.spp-a4 table { font-size: 12px; }
-.spp-a4 th { font-size: 11px; }
-
-/* spp-body: vertical scroll, centered, gap between pages */
+/* spp-body: vertical scroll, dark background, pages centred */
 .spp-body {
   flex: 1;
   overflow-y: auto;
@@ -741,18 +660,57 @@ html, body {
   flex-direction: column;
   align-items: center;
   padding: 24px 0 60px;
-  gap: 0;
-  background: #ddd9d2;
+  gap: 24px;
+  background: #cbc8c2;
 }
+
+/* Each page slot: full width, centred, height set by JS to scaledH+gap */
+.spp-page {
+  width: 100%;
+  display: flex !important;
+  justify-content: center;
+  align-items: flex-start;
+  flex-shrink: 0;
+}
+.spp-page.spp-hidden { display: none !important; }
+
+/* A4 page — native 1123×794px, JS scales it to fit panel */
+.spp-a4 {
+  width: 1123px;
+  height: 794px;
+  flex-shrink: 0;
+  background: #fff;
+  box-shadow: 0 4px 24px rgba(0,0,0,.22);
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+  font-family: 'Merriweather', serif;
+  font-size: 13px;
+  color: #1c1c1c;
+  transform-origin: top center;
+}
+
+/* Cover page — children are position:absolute */
+.spp-a4.cover-pg { display: block; }
+
+/* Blueprint page — flex column */
+.spp-a4.spp-blueprint {
+  display: flex !important;
+  flex-direction: column;
+}
+
+/* Force GOST font everywhere inside preview pages */
+.spp-a4 * { font-family: 'Merriweather', serif !important; }
+/* Except editor UI */
+.spp-a4 .be-toolbar,
+.spp-a4 .be-tbtn { font-family: 'Onest', sans-serif !important; }
+
+/* Table font sizes */
+.spp-a4 table { font-size: 12px; }
+.spp-a4 th    { font-size: 11px; }
 
 /* Hide old modal preview button */
 .btn-preview { display: none !important; }
-  position: relative;
-  overflow: hidden;           /* чтобы содержимое не вылезало */
-  display: flex;
-  flex-direction: column;
-  margin: 0 auto;
-}
 
 /* Inline edit on spp-a4 elements */
 .spp-a4 [data-editable] {

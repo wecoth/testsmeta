@@ -403,98 +403,12 @@ function _syncRightPanel({ cn, cl, sl, on, client, ex, dt, rooms, tf, tw, tp, sm
 
 // ── Preview modal ─────────────────────────────────────────────────
 
-export function openPreview() {
-  liveUpdate();
-  document.getElementById('modalOverlay')?.classList.add('open');
-  document.body.style.overflow = 'hidden';
-  setTimeout(initEditor, 100);
-}
-
-export function closePreview() {
-  document.getElementById('modalOverlay')?.classList.remove('open');
-  document.body.style.overflow = '';
-}
-
-export function closePreviewOnBg(e) {
-  if (e.target === document.getElementById('modalOverlay')) closePreview();
-}
-
 // ── PDF generation ────────────────────────────────────────────────
 
-export function buildDocPages(rows, totalVal, titleText) {
-  const PER = 26; let html = '';
-  for (let s = 0; s < rows.length; s += PER) {
-    const chunk = rows.slice(s, s + PER), isLast = s + PER >= rows.length;
-    html += `<div class="a4"><div class="pg"><div class="smeta-ttl">${titleText}</div>
-      <table class="sm-t"><thead><tr>
-        <th style="width:24px">№<br>п/п</th><th>Наименование</th>
-        <th style="width:46px">Ед.<br>изм.</th><th style="width:52px">Кол-во</th>
-        <th style="width:90px">За ед. ₽</th><th style="width:100px">Всего ₽</th>
-      </tr></thead><tbody>${chunk.map((r, i) => `<tr><td>${s + i + 1}</td><td>${esc(r.name)}</td>
-        <td style="text-align:center">${esc(r.unit)}</td><td style="text-align:center">${r.qty}</td>
-        <td style="text-align:right">—</td><td style="text-align:right;font-weight:500">${fmt(r.total)}</td></tr>`).join('')}
-      </tbody>${isLast ? `<tfoot><tr class="tot-r"><td colspan="4" style="border:1px solid #e0e0e0"></td>
-        <td style="text-align:right;font-weight:700;background:#f5f5f2;border:1px solid #ccc">Итого:</td>
-        <td style="text-align:right;font-weight:700;background:#f5f5f2;border:1px solid #ccc">${fmt(totalVal)}</td></tr></tfoot>` : ''}
-      </table><div class="pg-foot"><div class="pfc">${cLetter()}</div><div class="pfn">${esc(cName().toUpperCase())}</div></div>
-    </div></div>`;
-  }
-  return html;
-}
 
 export async function generatePDF() {
-  const cn = cName(), cl = cLetter();
-  const sl = (document.getElementById('companySlogan')?.value || 'КАЧЕСТВО ПОД КЛЮЧ').toUpperCase();
+  liveUpdate(); // Ensure spp-a4 pages are up to date before PDF capture
   const on = document.getElementById('objectName')?.value || '—';
-  const client = document.getElementById('clientName')?.value || '—';
-  const ex = document.getElementById('executorName')?.value || '—';
-  const dt = fmtDate(document.getElementById('inspDate')?.value);
-
-  // Update print-doc elements
-  const cli = document.getElementById('covLogoImg'), cc = document.getElementById('covCircle');
-  if (appState.logoData) { if (cli) { cli.src = appState.logoData; cli.style.display = 'block'; } if (cc) cc.style.display = 'none'; }
-  else { if (cli) cli.style.display = 'none'; if (cc) { cc.style.display = 'flex'; cc.textContent = cl; } }
-  ['covName', 'covSlogan', 'covFtC', 'covFtN'].forEach((id, i) => {
-    const el = document.getElementById(id); if (!el) return;
-    el.textContent = i === 0 ? cn.toUpperCase() : i === 1 ? sl : i === 2 ? cl : cn.toUpperCase();
-  });
-
-  const pi = document.getElementById('docPlanImg'), ph = document.getElementById('docPlanPh');
-  if (appState.planData) { if (pi) { pi.src = appState.planData; pi.style.display = 'block'; } if (ph) ph.style.display = 'none'; }
-  else { if (pi) pi.style.display = 'none'; if (ph) ph.style.display = 'block'; }
-
-  const doi = document.getElementById('docObjInfo');
-  if (doi) doi.innerHTML = `<strong>Объект:</strong> ${esc(on)}<br><strong>Дата осмотра:</strong> ${dt}<br><strong>Заказчик:</strong> ${esc(client)}<br><strong>Исполнитель:</strong> ${esc(ex)}`;
-
-  const rooms = getRooms(); let tf = 0, tw = 0, tp = 0;
-  const docRb = document.getElementById('docRoomsBody');
-  if (docRb) {
-    docRb.innerHTML = '';
-    rooms.forEach(r => {
-      tf += parseFloat(r.floor) || 0; tw += parseFloat(r.walls) || 0; tp += parseFloat(r.perim) || 0;
-      docRb.innerHTML += `<tr><td>${esc(r.name)}</td><td>${r.floor}</td><td>${r.walls}</td><td>${r.perim}</td></tr>`;
-    });
-  }
-  ['dTotF', 'dTotW', 'dTotP'].forEach((id, i) => { const el = document.getElementById(id); if (el) el.textContent = [tf, tw, tp][i].toFixed(2); });
-  ['pfC1', 'pfC2'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = cl; });
-  ['pfN1', 'pfN2'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = cn.toUpperCase(); });
-
-  const smrRows = collectSmrRows(), smrTot = getSmrTotal();
-  const smrDp = document.getElementById('smrDocPages');
-  if (smrDp) smrDp.innerHTML = smrRows.length > 0 ? buildDocPages(smrRows, smrTot, 'Смета строительно-монтажных работ') : '';
-
-  const matRows = collectMatRows(), matTot = getMatTotal();
-  const matDp = document.getElementById('matDocPages');
-  if (matDp) matDp.innerHTML = matRows.length > 0 ? buildDocPages(matRows, matTot, 'Смета на строительные и отделочные материалы') : '';
-
-  const fb = document.getElementById('finBody'); let num = 0;
-  if (fb) {
-    fb.innerHTML = '';
-    if (smrRows.length > 0) { num++; fb.innerHTML += `<tr><td>${num}</td><td>Строительно-монтажные работы</td><td>м²</td><td>${tf.toFixed(2)}</td><td>${tf > 0 ? fmt(smrTot / tf) : '—'}</td><td>${fmt(smrTot)}</td><td></td></tr>`; }
-    if (matRows.length > 0) { num++; fb.innerHTML += `<tr><td>${num}</td><td>Строительные и отделочные материалы</td><td>м²</td><td>${tf.toFixed(2)}</td><td>${tf > 0 ? fmt(matTot / tf) : '—'}</td><td>${fmt(matTot)}</td><td></td></tr>`; }
-  }
-  const ft = document.getElementById('finTotal'); if (ft) ft.textContent = fmt(smrTot + matTot);
-  syncEditorToDoc();
 
   // Собираем HTML превью-страниц (.spp-a4), которые не скрыты
   // Клонируем, убираем UI-контролы редактора, сбрасываем transform (scale)
@@ -502,7 +416,7 @@ export async function generatePDF() {
   document.querySelectorAll('.spp-page:not(.spp-hidden) .spp-a4').forEach(page => {
     const clone = page.cloneNode(true);
     // Remove editor UI
-    clone.querySelectorAll('.be-toolbar, .be-h-corner, .be-h-rot, .be-h-rot-line, .be-margin-guide').forEach(el => el.remove());
+    clone.querySelectorAll('.be-toolbar, .be-h-corner, .be-h-rot, .be-margin-guide').forEach(el => el.remove());
     // Remove editor classes/styles that affect appearance
     clone.querySelectorAll('.be-block').forEach(el => {
       el.classList.remove('be-selected', 'be-editing');
@@ -569,20 +483,6 @@ export async function generatePDF() {
   finally { btns.forEach(b => { b.textContent = 'Сформировать PDF →'; b.disabled = false; }); }
 }
 
-// ── Preview editor (stub — replaced by BlockEditor v3) ────────────
-function initEditor() { /* replaced by BlockEditor.init() */ }
-
-export function syncEditorToDoc() {
-  [['prevCovLogo', ['covLogoImg', 'covCircle']], ['prevCovName', ['covName']], ['prevCovSlogan', ['covSlogan']], ['prevCovType', ['covDtype']], ['prevCovFoot', ['covFtC', 'covFtN']]].forEach(([prevId, docIds]) => {
-    const prevEl = document.getElementById(prevId); if (!prevEl) return;
-    const hidden = prevEl.style.display === 'none';
-    docIds.forEach(id => { const el = document.getElementById(id); if (el) el.style.display = hidden ? 'none' : ''; });
-  });
-  const logoEl = document.getElementById('prevCovLogo');
-  if (logoEl?.dataset.scale) { const sc = logoEl.dataset.scale; ['covLogoImg', 'covCircle'].forEach(id => { const el = document.getElementById(id); if (el) el.style.transform = `scale(${sc})`; }); }
-  const nameEl = document.getElementById('prevCovName');
-  if (nameEl?.dataset.scale) { const sc = nameEl.dataset.scale; const el = document.getElementById('covName'); if (el) el.style.transform = `scale(${sc})`; }
-}
 
 // ── A4 scale: fit pages to panel width ───────────────────────────
 // Native A4 landscape = 1123 × 794px at 96dpi.
@@ -749,15 +649,6 @@ const BlockEditor = (() => {
     }
     .be-h-rot::after { content: '↻'; }
     .be-h-rot:active { cursor: grabbing; }
-    /* Vertical line — hidden when handle is inside block */
-    .be-h-rot-line {
-      display: none !important;
-      width: 1px; height: 18px;
-      background: rgba(74,159,255,0.5);
-      pointer-events: none;
-      z-index: 10000;
-    }
-
     /* === Toolbar === */
     .be-toolbar {
       display: none;
@@ -869,14 +760,14 @@ const BlockEditor = (() => {
     const page = el.closest('.spp-a4');
     if (page) page.style.overflow = 'visible';
     // show handles
-    el.querySelectorAll('.be-h-corner, .be-h-rot, .be-h-rot-line').forEach(h => h.style.display = '');
+    el.querySelectorAll('.be-h-corner, .be-h-rot').forEach(h => h.style.display = '');
   }
 
   function deselect(el) {
     if (!el) return;
     el.classList.remove('be-selected', 'be-editing');
     if (el.contentEditable === 'true') el.contentEditable = 'false';
-    el.querySelectorAll('.be-h-corner, .be-h-rot, .be-h-rot-line').forEach(h => h.style.display = 'none');
+    el.querySelectorAll('.be-h-corner, .be-h-rot').forEach(h => h.style.display = 'none');
     // Restore page clipping
     const page = el.closest('.spp-a4');
     if (page) page.style.overflow = 'hidden';
@@ -1079,10 +970,6 @@ const BlockEditor = (() => {
     });
 
     // Rotate handle + line
-    const rotLine = document.createElement('div');
-    rotLine.className = 'be-h-rot-line'; rotLine.style.display = 'none';
-    el.appendChild(rotLine);
-
     const rotH = document.createElement('div');
     rotH.className = 'be-h-rot'; rotH.style.display = 'none';
     el.appendChild(rotH);
@@ -1193,157 +1080,4 @@ function initRightPanelEditor() {
   window.BlockEditor = BlockEditor;
 }
 
-// ── Layout Snapshot: сохранить/загрузить расположение блоков превью ──────────
-// Временная утилита: позволяет расставить блоки в редакторе вручную,
-// сохранить JSON-снапшот, а потом зашить координаты прямо в HTML.
-//
-// Формат снапшота:
-// {
-//   _version: 1,
-//   _note: "Layout snapshot for smeta preview panel",
-//   pages: {
-//     "prevCover2": {
-//       "prevCovType2":  { x, y, w, h, rot, hidden },
-//       "prevCovLogo2":  { x, y, w, h, rot, hidden },
-//       ...
-//     },
-//     "prevPlanning2": { ... },
-//     ...
-//   }
-// }
-
-export function saveLayoutSnapshot() {
-  const snapshot = {
-    _version: 1,
-    _note: 'Layout snapshot — smeta preview panel. x/y/w/h in native A4 px (1123×794). Import via loadLayoutSnapshot().',
-    pages: {}
-  };
-
-  document.querySelectorAll('.spp-a4').forEach(page => {
-    const pageId = page.id || page.dataset.bePage || 'unknown';
-    snapshot.pages[pageId] = {};
-
-    page.querySelectorAll('.be-block').forEach(el => {
-      const id = el.id;
-      if (!id) return; // анонимные блоки пропускаем
-      snapshot.pages[pageId][id] = {
-        x:      parseFloat(el.dataset.beX   || el.style.left  || '0'),
-        y:      parseFloat(el.dataset.beY   || el.style.top   || '0'),
-        w:      parseFloat(el.dataset.beW   || '0') || null,
-        h:      parseFloat(el.dataset.beH   || '0') || null,
-        rot:    parseFloat(el.dataset.beRot || '0'),
-        hidden: el.dataset.beHidden === '1' || el.classList.contains('be-hidden'),
-      };
-    });
-  });
-
-  const json = JSON.stringify(snapshot, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'smeta-layout-snapshot.json';
-  a.click();
-  console.log('[LayoutSnapshot] Saved:', snapshot);
-  return snapshot;
-}
-
-export function loadLayoutSnapshot(jsonOrFile) {
-  function applySnapshot(snapshot) {
-    if (!snapshot?.pages) {
-      console.warn('[LayoutSnapshot] Invalid snapshot — no .pages field');
-      return;
-    }
-    let applied = 0;
-    for (const [pageId, blocks] of Object.entries(snapshot.pages)) {
-      for (const [blockId, st] of Object.entries(blocks)) {
-        const el = document.getElementById(blockId);
-        if (!el) { console.warn(`[LayoutSnapshot] Element not found: #${blockId}`); continue; }
-
-        // Применяем позицию/размер
-        const state = {
-          x:   (st.x   != null) ? st.x   : 0,
-          y:   (st.y   != null) ? st.y   : 0,
-          w:   (st.w   != null) ? st.w   : (parseFloat(el.dataset.beW || '0') || 200),
-          h:   (st.h   != null) ? st.h   : (parseFloat(el.dataset.beH || '0') || 60),
-          rot: (st.rot != null) ? st.rot : 0,
-        };
-
-        el.dataset.beX   = state.x;
-        el.dataset.beY   = state.y;
-        el.dataset.beW   = state.w;
-        el.dataset.beH   = state.h;
-        el.dataset.beRot = state.rot;
-        el.style.position = 'absolute';
-        el.style.left     = state.x + 'px';
-        el.style.top      = state.y + 'px';
-        el.style.width    = state.w + 'px';
-        el.style.height   = state.h + 'px';
-        el.style.transform = `rotate(${state.rot}deg)`;
-        el.style.transformOrigin = 'top left';
-
-        // Видимость
-        if (st.hidden) {
-          el.classList.add('be-hidden');
-          el.dataset.beHidden = '1';
-        } else {
-          el.classList.remove('be-hidden');
-          el.dataset.beHidden = '0';
-        }
-        applied++;
-      }
-    }
-    console.log(`[LayoutSnapshot] Applied ${applied} blocks`);
-  }
-
-  if (typeof jsonOrFile === 'string') {
-    try { applySnapshot(JSON.parse(jsonOrFile)); } catch(e) { console.error('[LayoutSnapshot] JSON parse error:', e); }
-  } else if (jsonOrFile instanceof File) {
-    const r = new FileReader();
-    r.onload = ev => {
-      try { applySnapshot(JSON.parse(ev.target.result)); } catch(e) { console.error('[LayoutSnapshot] JSON parse error:', e); }
-    };
-    r.readAsText(jsonOrFile);
-  } else if (jsonOrFile && typeof jsonOrFile === 'object') {
-    applySnapshot(jsonOrFile);
-  }
-}
-
-// ── Подключаем к кнопкам Save/Load Project ────────────────────────────────────
-// Кнопки уже есть в HTML (#btnSaveProject / #btnLoadProject),
-// но нигде не были подключены к JS. Цепляем сюда LAYOUT-снапшот.
-// Если позже понадобится полноценный save проекта — заменить эти обработчики.
-document.addEventListener('DOMContentLoaded', () => {
-  const saveBtn = document.getElementById('btnSaveProject');
-  const loadInp = document.getElementById('btnLoadProject');
-
-  if (saveBtn) {
-    saveBtn.addEventListener('click', () => {
-      saveLayoutSnapshot();
-    });
-  }
-
-  if (loadInp) {
-    loadInp.addEventListener('change', e => {
-      const file = e.target.files?.[0];
-      if (file) {
-        loadLayoutSnapshot(file);
-        // Сброс input чтобы повторная загрузка того же файла тоже срабатывала
-        loadInp.value = '';
-      }
-    });
-  }
-});
-
 export { BlockEditor };
-
-// Expose all exports globally so inline onclick handlers work
-// even if main.js hasn't assigned window._smetaModule yet.
-if (!window._smetaModule) {
-  window._smetaModule = {
-    generatePDF, handleLogo, handlePlan, captureCanvas,
-    liveUpdate, addRoom, recalcRooms,
-    handleSmr, initSmrManual, addSmrRow, recalcSmr,
-    handleMat, initMatManual, addMatRow, recalcMat,
-    renumRows, saveLayoutSnapshot, loadLayoutSnapshot,
-  };
-}

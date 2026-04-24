@@ -568,32 +568,47 @@ export function initSmeta() {
 
 
 // ══════════════════════════════════════════════════════════════════
-// BLOCK EDITOR v3 — Figma-style: drag body, corner resize, free rotate
+// BLOCK EDITOR v4 — Figma-style: drag body, corner resize, toolbar
 // ══════════════════════════════════════════════════════════════════
 //
 // Controls per selected element:
 //   • Body drag          → move freely inside page
-//   • 4 corner handles   → proportional resize (shift = free)
-//   • Rotate handle (top-center circle) → free angle drag
+//   • 4 corner handles   → resize (shift = free aspect, default = proportional)
 //   • Double-click text  → inline contentEditable
-//   • Toolbar: A− A+ | 👁/✕ (hide/show) | ⌫ (delete)
+//   • Toolbar: A− A+ | 👁/✕ (hide/show)
 //
 // A4 landscape: 297mm × 210mm at 96dpi = 1122.5 × 793.7px (native)
-// Preview panel scales the .spp-a4 via CSS transform: scale(panelW/1123)
+// Preview panel scales the .spp-a4 via CSS transform: scale(panelW/1123).
+// transform-origin is 'top center' on .spp-a4.
 // All internal coordinates are in native A4 pixels (1123×794).
-// Margin guide = 20mm = 75.6px native.
+//
+// Key architectural fix vs v3:
+// — snapshotToDom() теперь вызывается СРАЗУ в attach(), пока элемент
+//   ещё в нормальном потоке (flow). Это решает «прыжок на первом клике»:
+//   раньше элемент был position:absolute через CSS .be-block, без
+//   left/top — из-за shrink-to-fit его ширина коллапсировала до ширины
+//   контента и первый клик фиксировал неверные w/h.
+// — handles и toolbar получают обратный scale (1/sc), чтобы на
+//   любом зуме оставаться визуально одного экранного размера.
 
 const BlockEditor = (() => {
 
+  // ── Constants ────────────────────────────────────────────────
+  const NATIVE_W = 1123;
+  const NATIVE_H = 794;
+  const MARGIN_PX = 76;       // 20mm guide
+  const MIN_W = 40;
+  const MIN_H = 24;
+
   // ── State ────────────────────────────────────────────────────
   let _sel = null;   // currently selected .be-block element
-  let _pageScale = 1; // live CSS scale of the page wrapper (for pointer→page coords)
 
   // ── CSS ──────────────────────────────────────────────────────
   const CSS = `
-    /* === .be-block wrapper === */
+    /* === .be-block wrapper ===
+       Intentionally NOT position:absolute by default — snapshotToDom
+       switches it to absolute once, after capturing flow geometry. */
     .be-block {
-      position: absolute;
       box-sizing: border-box;
       cursor: default;
       user-select: none;
@@ -614,11 +629,13 @@ const BlockEditor = (() => {
     }
     .be-block.be-hidden {
       opacity: 0.08;
-      pointer-events: all !important;
+      pointer-events: all;
     }
     .be-block.be-hidden:hover { opacity: 0.25; }
 
-    /* === Corner resize handles === */
+    /* === Corner resize handles ===
+       Positioned in block-local coords (scaled with the page).
+       Inverse-scaled via inline style so their ON-SCREEN size stays 10px. */
     .be-h-corner {
       position: absolute;
       width: 10px; height: 10px;
@@ -627,33 +644,23 @@ const BlockEditor = (() => {
       border-radius: 2px;
       z-index: 10001;
       pointer-events: all;
+      box-sizing: border-box;
     }
-    .be-h-corner[data-c="nw"] { top: 2px; left: 2px; cursor: nw-resize; }
-    .be-h-corner[data-c="ne"] { top: 2px; right: 2px; cursor: ne-resize; }
-    .be-h-corner[data-c="se"] { bottom: 2px; right: 2px; cursor: se-resize; }
-    .be-h-corner[data-c="sw"] { bottom: 2px; left: 2px; cursor: sw-resize; }
+    .be-h-corner[data-c="nw"] { top: 0; left: 0; transform-origin: top left;      cursor: nw-resize; }
+    .be-h-corner[data-c="ne"] { top: 0; right: 0; transform-origin: top right;    cursor: ne-resize; }
+    .be-h-corner[data-c="se"] { bottom: 0; right: 0; transform-origin: bottom right; cursor: se-resize; }
+    .be-h-corner[data-c="sw"] { bottom: 0; left: 0; transform-origin: bottom left;   cursor: sw-resize; }
 
-    /* === Rotate handle === */
-    .be-h-rot {
-      position: absolute;
-      top: 4px; left: 50%; transform: translateX(-50%);
-      width: 16px; height: 16px;
-      background: #fff;
-      border: 2px solid #4a9eff;
-      border-radius: 50%;
-      cursor: grab;
-      z-index: 10001;
-      pointer-events: all;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 10px; color: #4a9eff; line-height: 1;
-    }
-    .be-h-rot::after { content: '↻'; }
-    .be-h-rot:active { cursor: grabbing; }
-    /* === Toolbar === */
+    /* === Toolbar ===
+       Anchored above the block. Inverse-scaled so it stays readable
+       regardless of page zoom. */
     .be-toolbar {
       display: none;
       position: absolute;
-      bottom: 100%; margin-bottom: 6px; left: 50%; transform: translateX(-50%);
+      bottom: 100%;
+      left: 50%;
+      margin-bottom: 6px;
+      transform-origin: bottom center;
       z-index: 10002;
       background: #1a1a2e;
       border-radius: 8px;
@@ -681,78 +688,107 @@ const BlockEditor = (() => {
     .be-tbtn:hover { background: rgba(255,255,255,.28); }
     .be-tbtn.be-tbtn-del { background: rgba(180,40,30,.55); }
     .be-tbtn.be-tbtn-del:hover { background: rgba(220,60,45,.85); }
-
-    /* === A4 margin guide === */
-    .be-margin-guide {
-      position: absolute;
-      pointer-events: none; z-index: 1;
-      border: 1px dashed rgba(160,160,160,.35);
-      box-sizing: border-box;
-    }
   `;
 
   function injectStyle() {
-    if (document.getElementById('be-style-v3')) return;
+    if (document.getElementById('be-style-v4')) return;
+    // Remove old v3 style if present (hot-reload safety)
+    document.getElementById('be-style-v3')?.remove();
     const s = document.createElement('style');
-    s.id = 'be-style-v3'; s.textContent = CSS;
+    s.id = 'be-style-v4'; s.textContent = CSS;
     document.head.appendChild(s);
   }
 
   // ── Helpers ──────────────────────────────────────────────────
 
-  // Get current CSS scale of a .spp-a4 page (so we can map screen px → page px)
+  // Live CSS scale of the .spp-a4 page wrapper (screen px ↔ native page px).
   function getPageScale(page) {
+    if (!page) return 1;
     const matrix = new DOMMatrixReadOnly(getComputedStyle(page).transform);
     return matrix.m11 || 1;
   }
 
-  // Read/write transform state stored as data attrs
+  // Read transform state from data attrs (set by snapshotToDom / applyState).
   function getState(el) {
     return {
-      x:   parseFloat(el.dataset.beX   || el.style.left  || '0'),
-      y:   parseFloat(el.dataset.beY   || el.style.top   || '0'),
-      w:   parseFloat(el.dataset.beW   || el.getBoundingClientRect().width / getPageScale(el.closest('.spp-a4')) || '200'),
-      h:   parseFloat(el.dataset.beH   || el.getBoundingClientRect().height / getPageScale(el.closest('.spp-a4')) || '60'),
-      rot: parseFloat(el.dataset.beRot || '0'),
+      x: parseFloat(el.dataset.beX || '0'),
+      y: parseFloat(el.dataset.beY || '0'),
+      w: parseFloat(el.dataset.beW || '200'),
+      h: parseFloat(el.dataset.beH || '60'),
     };
   }
 
   function applyState(el, st) {
-    el.dataset.beX = st.x; el.dataset.beY = st.y;
-    el.dataset.beW = st.w; el.dataset.beH = st.h;
-    el.dataset.beRot = st.rot;
+    el.dataset.beX = st.x;
+    el.dataset.beY = st.y;
+    el.dataset.beW = st.w;
+    el.dataset.beH = st.h;
     el.style.left   = st.x + 'px';
     el.style.top    = st.y + 'px';
     el.style.width  = st.w + 'px';
     el.style.height = st.h + 'px';
-    el.style.transform = `rotate(${st.rot}deg)`;
-    el.style.transformOrigin = 'top left';
   }
 
   // Snapshot natural (pre-absolute) size+position from DOM.
-  // Мерим ПЕРЕД переводом в absolute, чтобы захватить реальный flow-размер.
+  // Called ONCE per element, ideally in attach() while element is still in flow.
+  // After this the element is position:absolute with frozen left/top/width/height
+  // in native page coordinates.
   function snapshotToDom(el, page) {
     if (el.dataset.bePosInit) return;
-    el.dataset.bePosInit = '1';
-    const sc = getPageScale(page);
 
-    // Мерим до изменения стилей — пока элемент ещё в потоке
+    const sc = getPageScale(page);
+    // Measure BEFORE any style mutation — element is in its natural flow/inline-style place.
     const pageR = page.getBoundingClientRect();
     const elR   = el.getBoundingClientRect();
+
+    // pageR and elR are both post-transform (screen) rects, so dividing by sc
+    // converts the delta back to native-page pixels. transform-origin of the
+    // page doesn't matter here: both points share the same transform, so the
+    // delta is preserved under scale around any origin.
     const x = (elR.left - pageR.left) / sc;
     const y = (elR.top  - pageR.top)  / sc;
     const w = elR.width  / sc;
     const h = elR.height / sc;
 
-    // Теперь переводим в absolute с зафиксированными размерами
-    el.style.position = 'absolute';
-    el.style.margin   = '0';
-    el.style.inset    = '';
-    el.style.flexShrink = '0'; // не даём flex-контейнеру сжать блок
-    // strip translate() but keep rotate already set
+    // Now freeze geometry in absolute coordinates.
+    el.style.position   = 'absolute';
+    el.style.margin     = '0';
+    el.style.inset      = '';
+    el.style.flexShrink = '0';   // protect against flex parent squeezing
+    // Strip any translate() on inline style (used for centering via left:50%; translate(-50%)).
+    // We keep geometry purely via left/top/width/height now.
     const cur = el.style.transform || '';
-    el.style.transform = cur.replace(/translate\([^)]*\)/g, '').trim();
-    applyState(el, { x, y, w, h, rot: parseFloat(el.dataset.beRot || '0') });
+    const cleaned = cur.replace(/translate[XY]?\([^)]*\)/g, '').trim();
+    el.style.transform = cleaned || '';
+
+    applyState(el, { x, y, w, h });
+    el.dataset.bePosInit = '1';
+  }
+
+  // Update inverse-scale on handles/toolbar so they keep screen size constant.
+  function updateHandleScale(el, page) {
+    const sc = getPageScale(page);
+    const inv = sc ? (1 / sc) : 1;
+    el.querySelectorAll('.be-h-corner').forEach(h => {
+      // Keep corner-specific transform-origin via CSS, just apply inverse scale here.
+      h.style.transform = `scale(${inv})`;
+    });
+    const tb = el.querySelector(':scope > .be-toolbar');
+    if (tb) {
+      tb.style.transform = `translateX(-50%) scale(${inv})`;
+    }
+  }
+
+  // Clamp block within page bounds (soft: only position, not size).
+  function clampIntoPage(st) {
+    const maxX = NATIVE_W - Math.min(st.w, NATIVE_W);
+    const maxY = NATIVE_H - Math.min(st.h, NATIVE_H);
+    return {
+      x: Math.max(0, Math.min(maxX, st.x)),
+      y: Math.max(0, Math.min(maxY, st.y)),
+      w: st.w,
+      h: st.h,
+    };
   }
 
   // ── Selection ────────────────────────────────────────────────
@@ -761,58 +797,48 @@ const BlockEditor = (() => {
     if (_sel && _sel !== el) deselect(_sel);
     _sel = el;
     el.classList.add('be-selected');
-    // Allow toolbar/handles to overflow the page boundary while editing
     const page = el.closest('.spp-a4');
-    if (page) page.style.overflow = 'visible';
-    // show handles
-    el.querySelectorAll('.be-h-corner, .be-h-rot').forEach(h => h.style.display = '');
+    if (page) {
+      page.style.overflow = 'visible'; // let handles/toolbar peek outside
+      updateHandleScale(el, page);
+    }
+    el.querySelectorAll('.be-h-corner').forEach(h => h.style.display = '');
   }
 
   function deselect(el) {
     if (!el) return;
     el.classList.remove('be-selected', 'be-editing');
     if (el.contentEditable === 'true') el.contentEditable = 'false';
-    el.querySelectorAll('.be-h-corner, .be-h-rot').forEach(h => h.style.display = 'none');
-    // Restore page clipping
+    el.querySelectorAll('.be-h-corner').forEach(h => h.style.display = 'none');
     const page = el.closest('.spp-a4');
     if (page) page.style.overflow = 'hidden';
     _sel = null;
   }
 
-  function setupPageDeselect(page) {
-    if (page.dataset.beDesel) return;
-    page.dataset.beDesel = '1';
-    page.addEventListener('mousedown', e => {
-      if (!e.target.closest('.be-block') && !e.target.closest('.be-toolbar')) {
-        if (_sel) deselect(_sel);
-      }
-    });
-  }
-
-  // ── Margin guide ─────────────────────────────────────────────
-  // 20mm on A4 @96dpi = 20/25.4*96 ≈ 75.6px native
-  const MARGIN_PX = 76;
-
-  function addMarginGuide(page) {
-    if (page.querySelector('.be-margin-guide')) return;
-    const g = document.createElement('div');
-    g.className = 'be-margin-guide';
-    g.style.cssText = `top:${MARGIN_PX}px;left:${MARGIN_PX}px;right:${MARGIN_PX}px;bottom:${MARGIN_PX}px;`;
-    page.prepend(g);
+  // Deselect on clicks outside any block (page bg, panel bg).
+  function setupGlobalDeselect() {
+    if (document.body.dataset.beGlobalDesel) return;
+    document.body.dataset.beGlobalDesel = '1';
+    document.addEventListener('mousedown', e => {
+      if (!_sel) return;
+      if (e.target.closest('.be-block, .be-toolbar, .be-h-corner')) return;
+      deselect(_sel);
+    }, true);
   }
 
   // ── Drag (body) ──────────────────────────────────────────────
 
   function setupBodyDrag(el, page) {
     el.addEventListener('mousedown', e => {
-      if (e.target.closest('.be-toolbar, .be-h-corner, .be-h-rot')) return;
+      if (e.target.closest('.be-toolbar, .be-h-corner')) return;
       if (e.button !== 0) return;
-      // Если клик попал на вложенный be-block — не перехватываем, он сам разберётся
+      // Clicks on a nested be-block belong to that nested block.
       const innerBlock = e.target.closest('.be-block');
       if (innerBlock && innerBlock !== el) return;
-      e.preventDefault(); e.stopPropagation();
+
+      e.preventDefault();
+      e.stopPropagation();
       select(el);
-      snapshotToDom(el, page);
 
       const sc = getPageScale(page);
       const st = getState(el);
@@ -822,7 +848,7 @@ const BlockEditor = (() => {
       const onMove = mv => {
         const dx = (mv.clientX - sx) / sc;
         const dy = (mv.clientY - sy) / sc;
-        const ns = { ...getState(el), x: ox + dx, y: oy + dy };
+        const ns = clampIntoPage({ ...getState(el), x: ox + dx, y: oy + dy });
         applyState(el, ns);
       };
       const onUp = () => {
@@ -835,84 +861,59 @@ const BlockEditor = (() => {
   }
 
   // ── Corner resize ────────────────────────────────────────────
+  // Default: proportional (aspect-locked) resize along the drag diagonal.
+  // Shift held: free resize (independent w/h).
 
   function setupCornerResize(corner, el, page) {
     corner.addEventListener('mousedown', e => {
-      e.preventDefault(); e.stopPropagation();
-      snapshotToDom(el, page);
+      e.preventDefault();
+      e.stopPropagation();
+      select(el);
 
       const sc  = getPageScale(page);
-      const c   = corner.dataset.c;  // nw ne se sw
+      const c   = corner.dataset.c;   // nw | ne | se | sw
       const st0 = { ...getState(el) };
+      const ratio = st0.w / st0.h;    // aspect ratio
       const sx  = e.clientX, sy = e.clientY;
+
+      // Diagonal sign relative to the moving corner:
+      //   se:  +x/+y both grow,
+      //   nw:  -x/-y both grow,
+      //   ne:  +x/-y,
+      //   sw:  -x/+y.
+      const sgnX = (c === 'se' || c === 'ne') ? +1 : -1;
+      const sgnY = (c === 'se' || c === 'sw') ? +1 : -1;
 
       const onMove = mv => {
         const dx = (mv.clientX - sx) / sc;
         const dy = (mv.clientY - sy) / sc;
-        let { x, y, w, h } = st0;
-        const ratio = st0.w / st0.h; // aspect ratio для пропорц. масштаба
-
-        // По умолчанию — пропорциональный масштаб (как scale).
-        // Shift зажат — свободное изменение размера.
         const free = mv.shiftKey;
 
-        if (c === 'se') {
-          // Ведущая ось — та что изменилась сильнее
-          const dominant = Math.abs(dx) >= Math.abs(dy) ? 'w' : 'h';
-          w = Math.max(40, w + dx);
-          h = Math.max(20, h + dy);
-          if (!free) { if (dominant === 'w') h = w / ratio; else w = h * ratio; }
-        }
-        if (c === 'sw') {
-          const dw = -dx;
-          const dominant = Math.abs(dx) >= Math.abs(dy) ? 'w' : 'h';
-          w = Math.max(40, w + dw); h = Math.max(20, h + dy);
-          if (!free) { if (dominant === 'w') h = w / ratio; else w = h * ratio; }
-          x = st0.x + st0.w - w;
-        }
-        if (c === 'ne') {
-          const dominant = Math.abs(dx) >= Math.abs(dy) ? 'w' : 'h';
-          w = Math.max(40, w + dx); h = Math.max(20, h - dy);
-          if (!free) { if (dominant === 'w') h = w / ratio; else w = h * ratio; }
-          y = st0.y + st0.h - h;
-        }
-        if (c === 'nw') {
-          const dw = -dx, dh = -dy;
-          const dominant = Math.abs(dx) >= Math.abs(dy) ? 'w' : 'h';
-          w = Math.max(40, w + dw); h = Math.max(20, h + dh);
-          if (!free) { if (dominant === 'w') h = w / ratio; else w = h * ratio; }
-          x = st0.x + st0.w - w;
-          y = st0.y + st0.h - h;
+        // Candidate new width/height driven by this corner's signs.
+        let w = st0.w + sgnX * dx;
+        let h = st0.h + sgnY * dy;
+        w = Math.max(MIN_W, w);
+        h = Math.max(MIN_H, h);
+
+        if (!free) {
+          // Proportional: use the axis that grew MORE (relative to original),
+          // so diagonal drag feels natural.
+          const rw = w / st0.w;
+          const rh = h / st0.h;
+          if (rw >= rh) { h = w / ratio; } else { w = h * ratio; }
+          // Re-clamp after aspect coupling
+          if (h < MIN_H) { h = MIN_H; w = h * ratio; }
+          if (w < MIN_W) { w = MIN_W; h = w / ratio; }
         }
 
-        applyState(el, { ...getState(el), x, y, w, h });
-      };
-      const onUp = () => {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-      };
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    });
-  }
+        // Compute new top-left so the OPPOSITE corner stays pinned.
+        let x = st0.x, y = st0.y;
+        if (c === 'nw') { x = st0.x + (st0.w - w); y = st0.y + (st0.h - h); }
+        if (c === 'ne') {                         y = st0.y + (st0.h - h); }
+        if (c === 'sw') { x = st0.x + (st0.w - w);                         }
+        // 'se' keeps st0.x / st0.y.
 
-  // ── Rotate ───────────────────────────────────────────────────
-
-  function setupRotate(rotHandle, el, page) {
-    rotHandle.addEventListener('mousedown', e => {
-      e.preventDefault(); e.stopPropagation();
-      snapshotToDom(el, page);
-
-      const sc = getPageScale(page);
-      const pageR = page.getBoundingClientRect();
-      const elR   = el.getBoundingClientRect();
-      // Center of element in screen coords
-      const cx = (elR.left + elR.right)  / 2;
-      const cy = (elR.top  + elR.bottom) / 2;
-
-      const onMove = mv => {
-        const angle = Math.atan2(mv.clientY - cy, mv.clientX - cx) * 180 / Math.PI + 90;
-        applyState(el, { ...getState(el), rot: Math.round(angle * 10) / 10 });
+        applyState(el, { x, y, w, h });
       };
       const onUp = () => {
         document.removeEventListener('mousemove', onMove);
@@ -937,7 +938,7 @@ const BlockEditor = (() => {
       <button class="be-tbtn" data-a="fs-">A−</button>
       <button class="be-tbtn" data-a="fs+">A+</button>
       <span class="be-toolbar-sep"></span>
-      <button class="be-tbtn be-tbtn-del" data-a="hide">✕</button>`;
+      <button class="be-tbtn be-tbtn-del" data-a="hide" title="Скрыть">✕</button>`;
     t.addEventListener('mousedown', e => e.stopPropagation());
     t.addEventListener('click', e => {
       const btn = e.target.closest('[data-a]'); if (!btn) return;
@@ -955,48 +956,40 @@ const BlockEditor = (() => {
     return t;
   }
 
-  // ── Attach all controls to one element ───────────────────────
+  // ── Attach controls to one element ───────────────────────────
 
   function attach(el, page) {
     if (!el || el.dataset.beInit) return;
     el.dataset.beInit = '1';
     el.classList.add('be-block');
 
-    // Toolbar
+    // Freeze flow geometry into absolute coords IMMEDIATELY.
+    // This is the key fix: we capture real width/height while the element
+    // is still laid out by its parent, BEFORE any handle/toolbar chrome
+    // gets added (they'd distort measurements).
+    snapshotToDom(el, page);
+
+    // Toolbar (must be child so it's positioned relative to block).
     el.appendChild(mkToolbar(el));
 
-    // Corner resize handles
+    // Corner resize handles.
     ['nw','ne','se','sw'].forEach(c => {
       const h = document.createElement('div');
-      h.className = 'be-h-corner'; h.dataset.c = c;
+      h.className = 'be-h-corner';
+      h.dataset.c = c;
       h.style.display = 'none';
       el.appendChild(h);
       setupCornerResize(h, el, page);
     });
 
-    // Rotate handle + line
-    const rotH = document.createElement('div');
-    rotH.className = 'be-h-rot'; rotH.style.display = 'none';
-    el.appendChild(rotH);
-    setupRotate(rotH, el, page);
-
-    // Body drag
+    // Body drag — attached to element mousedown; the handler itself
+    // filters out clicks on handles/toolbar/nested blocks.
     setupBodyDrag(el, page);
 
-    // Click → select
-    el.addEventListener('mousedown', e => {
-      if (e.target.closest('.be-toolbar, .be-h-corner, .be-h-rot')) return;
-      // Если клик на вложенный be-block — не перехватываем
-      const innerBlock = e.target.closest('.be-block');
-      if (innerBlock && innerBlock !== el) return;
-      e.stopPropagation();
-      select(el);
-    });
-
-    // Double-click → edit text (if no table/img)
+    // Double-click to edit text (skip if block contains table or img).
     if (!el.querySelector('table') && !el.querySelector('img')) {
       el.addEventListener('dblclick', e => {
-        if (e.target.closest('.be-toolbar, .be-h-corner, .be-h-rot')) return;
+        if (e.target.closest('.be-toolbar, .be-h-corner')) return;
         select(el);
         el.contentEditable = 'true';
         el.spellcheck = false;
@@ -1027,20 +1020,10 @@ const BlockEditor = (() => {
     page.dataset.bePageInit = '1';
     page.style.position = 'relative';
 
-    addMarginGuide(page);
-    setupPageDeselect(page);
-
-    // Явный список редактируемых блоков по странице.
-    // ВАЖНО: не используем "все прямые дети" — это даёт вложенные be-block
-    // (контейнер + его содержимое), что ломает выделение.
+    // Explicit allowlist per page. NEVER pick up layout wrappers
+    // (.be-plan-grid, .be-plan-left, …) — they're containers, not blocks.
     const pageId = page.id || '';
-
-    // Универсальные блоки (есть на всех страницах)
-    const commonSelectors = [
-      '.be-editable-title',
-    ];
-
-    // Блоки специфичные для каждой страницы
+    const commonSelectors = ['.be-editable-title'];
     const pageSelectors = {
       'prevCover2':    ['#prevCovType2', '#prevCovLogo2', '#prevCovName2', '#prevCovSlogan2'],
       'prevPlanning2': ['#prevPlanBox2', '#prevObjInfo2', '.be-plan-docs', '#prevExplBox2'],
@@ -1055,24 +1038,44 @@ const BlockEditor = (() => {
       ...(pageSelectors[pageId] || []),
     ];
 
-    // Цепляем ТОЛЬКО явно перечисленные элементы.
-    // НЕ трогаем прямых детей-контейнеров (.be-plan-grid и т.д.) —
-    // они layout-обёртки и не должны быть be-block.
+    // Collect first, attach second — avoids re-measuring elements whose
+    // earlier siblings have already been absolute-ified.
+    //
+    // IMPORTANT ORDERING:
+    // We attach elements in DOM order. When an earlier sibling becomes
+    // position:absolute, it leaves the flex flow and later siblings shift.
+    // That's fine: each later sibling is still measured in its OWN natural
+    // flow position at the moment of its own snapshot. The block that
+    // already snapshotted is anchored by explicit left/top and won't move.
+    const targets = [];
     selectors.forEach(sel => {
-      page.querySelectorAll(sel).forEach(el => {
-        attach(el, page);
-      });
+      page.querySelectorAll(sel).forEach(el => targets.push(el));
     });
+    // Dedupe (different selectors may match the same element).
+    const seen = new Set();
+    targets
+      .filter(el => { if (seen.has(el)) return false; seen.add(el); return true; })
+      .forEach(el => attach(el, page));
+  }
+
+  // Re-apply inverse scale to selected block's handles/toolbar on zoom.
+  function _onPageScaleChanged() {
+    if (!_sel) return;
+    const page = _sel.closest('.spp-a4');
+    if (page) updateHandleScale(_sel, page);
   }
 
   // ── Public API ────────────────────────────────────────────────
 
   function init() {
     injectStyle();
+    setupGlobalDeselect();
     document.querySelectorAll('.spp-a4').forEach(initPage);
+    // Keep handle scale correct when panel resizes (setA4Scale rAFs often).
+    window.addEventListener('resize', _onPageScaleChanged);
   }
 
-  return { init, initPage };
+  return { init, initPage, attach };
 
 })();
 

@@ -1131,4 +1131,145 @@ function initRightPanelEditor() {
   window.BlockEditor = BlockEditor;
 }
 
+// ── Layout Snapshot: сохранить/загрузить расположение блоков превью ──────────
+// Временная утилита: позволяет расставить блоки в редакторе вручную,
+// сохранить JSON-снапшот, а потом зашить координаты прямо в HTML.
+//
+// Формат снапшота:
+// {
+//   _version: 1,
+//   _note: "Layout snapshot for smeta preview panel",
+//   pages: {
+//     "prevCover2": {
+//       "prevCovType2":  { x, y, w, h, rot, hidden },
+//       "prevCovLogo2":  { x, y, w, h, rot, hidden },
+//       ...
+//     },
+//     "prevPlanning2": { ... },
+//     ...
+//   }
+// }
+
+export function saveLayoutSnapshot() {
+  const snapshot = {
+    _version: 1,
+    _note: 'Layout snapshot — smeta preview panel. x/y/w/h in native A4 px (1123×794). Import via loadLayoutSnapshot().',
+    pages: {}
+  };
+
+  document.querySelectorAll('.spp-a4').forEach(page => {
+    const pageId = page.id || page.dataset.bePage || 'unknown';
+    snapshot.pages[pageId] = {};
+
+    page.querySelectorAll('.be-block').forEach(el => {
+      const id = el.id;
+      if (!id) return; // анонимные блоки пропускаем
+      snapshot.pages[pageId][id] = {
+        x:      parseFloat(el.dataset.beX   || el.style.left  || '0'),
+        y:      parseFloat(el.dataset.beY   || el.style.top   || '0'),
+        w:      parseFloat(el.dataset.beW   || '0') || null,
+        h:      parseFloat(el.dataset.beH   || '0') || null,
+        rot:    parseFloat(el.dataset.beRot || '0'),
+        hidden: el.dataset.beHidden === '1' || el.classList.contains('be-hidden'),
+      };
+    });
+  });
+
+  const json = JSON.stringify(snapshot, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'smeta-layout-snapshot.json';
+  a.click();
+  console.log('[LayoutSnapshot] Saved:', snapshot);
+  return snapshot;
+}
+
+export function loadLayoutSnapshot(jsonOrFile) {
+  function applySnapshot(snapshot) {
+    if (!snapshot?.pages) {
+      console.warn('[LayoutSnapshot] Invalid snapshot — no .pages field');
+      return;
+    }
+    let applied = 0;
+    for (const [pageId, blocks] of Object.entries(snapshot.pages)) {
+      for (const [blockId, st] of Object.entries(blocks)) {
+        const el = document.getElementById(blockId);
+        if (!el) { console.warn(`[LayoutSnapshot] Element not found: #${blockId}`); continue; }
+
+        // Применяем позицию/размер
+        const state = {
+          x:   st.x   ?? 0,
+          y:   st.y   ?? 0,
+          w:   st.w   ?? parseFloat(el.dataset.beW || '0') || 200,
+          h:   st.h   ?? parseFloat(el.dataset.beH || '0') || 60,
+          rot: st.rot ?? 0,
+        };
+
+        el.dataset.beX   = state.x;
+        el.dataset.beY   = state.y;
+        el.dataset.beW   = state.w;
+        el.dataset.beH   = state.h;
+        el.dataset.beRot = state.rot;
+        el.style.position = 'absolute';
+        el.style.left     = state.x + 'px';
+        el.style.top      = state.y + 'px';
+        el.style.width    = state.w + 'px';
+        el.style.height   = state.h + 'px';
+        el.style.transform = `rotate(${state.rot}deg)`;
+        el.style.transformOrigin = 'top left';
+
+        // Видимость
+        if (st.hidden) {
+          el.classList.add('be-hidden');
+          el.dataset.beHidden = '1';
+        } else {
+          el.classList.remove('be-hidden');
+          el.dataset.beHidden = '0';
+        }
+        applied++;
+      }
+    }
+    console.log(`[LayoutSnapshot] Applied ${applied} blocks`);
+  }
+
+  if (typeof jsonOrFile === 'string') {
+    try { applySnapshot(JSON.parse(jsonOrFile)); } catch(e) { console.error('[LayoutSnapshot] JSON parse error:', e); }
+  } else if (jsonOrFile instanceof File) {
+    const r = new FileReader();
+    r.onload = ev => {
+      try { applySnapshot(JSON.parse(ev.target.result)); } catch(e) { console.error('[LayoutSnapshot] JSON parse error:', e); }
+    };
+    r.readAsText(jsonOrFile);
+  } else if (jsonOrFile && typeof jsonOrFile === 'object') {
+    applySnapshot(jsonOrFile);
+  }
+}
+
+// ── Подключаем к кнопкам Save/Load Project ────────────────────────────────────
+// Кнопки уже есть в HTML (#btnSaveProject / #btnLoadProject),
+// но нигде не были подключены к JS. Цепляем сюда LAYOUT-снапшот.
+// Если позже понадобится полноценный save проекта — заменить эти обработчики.
+document.addEventListener('DOMContentLoaded', () => {
+  const saveBtn = document.getElementById('btnSaveProject');
+  const loadInp = document.getElementById('btnLoadProject');
+
+  if (saveBtn) {
+    saveBtn.addEventListener('click', () => {
+      saveLayoutSnapshot();
+    });
+  }
+
+  if (loadInp) {
+    loadInp.addEventListener('change', e => {
+      const file = e.target.files?.[0];
+      if (file) {
+        loadLayoutSnapshot(file);
+        // Сброс input чтобы повторная загрузка того же файла тоже срабатывала
+        loadInp.value = '';
+      }
+    });
+  }
+});
+
 export { BlockEditor };

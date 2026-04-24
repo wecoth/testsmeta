@@ -729,22 +729,27 @@ const BlockEditor = (() => {
     el.style.transformOrigin = 'top left';
   }
 
-  // Snapshot natural (pre-absolute) size+position from DOM
+  // Snapshot natural (pre-absolute) size+position from DOM.
+  // Мерим ПЕРЕД переводом в absolute, чтобы захватить реальный flow-размер.
   function snapshotToDom(el, page) {
     if (el.dataset.bePosInit) return;
     el.dataset.bePosInit = '1';
     const sc = getPageScale(page);
+
+    // Мерим до изменения стилей — пока элемент ещё в потоке
     const pageR = page.getBoundingClientRect();
     const elR   = el.getBoundingClientRect();
     const x = (elR.left - pageR.left) / sc;
     const y = (elR.top  - pageR.top)  / sc;
     const w = elR.width  / sc;
     const h = elR.height / sc;
-    // clear previous layout
+
+    // Теперь переводим в absolute с зафиксированными размерами
     el.style.position = 'absolute';
     el.style.margin   = '0';
     el.style.inset    = '';
-    // strip translate() but keep rotate/scale already set
+    el.style.flexShrink = '0'; // не даём flex-контейнеру сжать блок
+    // strip translate() but keep rotate already set
     const cur = el.style.transform || '';
     el.style.transform = cur.replace(/translate\([^)]*\)/g, '').trim();
     applyState(el, { x, y, w, h, rot: parseFloat(el.dataset.beRot || '0') });
@@ -1038,7 +1043,7 @@ const BlockEditor = (() => {
     // Блоки специфичные для каждой страницы
     const pageSelectors = {
       'prevCover2':    ['#prevCovType2', '#prevCovLogo2', '#prevCovName2', '#prevCovSlogan2'],
-      'prevPlanning2': ['#prevPlanBox2', '#prevObjInfo2', '.be-plan-docs'],
+      'prevPlanning2': ['#prevPlanBox2', '#prevObjInfo2', '.be-plan-docs', '#prevExplBox2'],
       'prevBlueprint2':['#prevBpAddress2'],
       'prevSmr2':      [],
       'prevMat2':      [],
@@ -1050,17 +1055,13 @@ const BlockEditor = (() => {
       ...(pageSelectors[pageId] || []),
     ];
 
+    // Цепляем ТОЛЬКО явно перечисленные элементы.
+    // НЕ трогаем прямых детей-контейнеров (.be-plan-grid и т.д.) —
+    // они layout-обёртки и не должны быть be-block.
     selectors.forEach(sel => {
       page.querySelectorAll(sel).forEach(el => {
-        attach(el, page); // attach() сам защищён от двойного вызова через dataset.beInit
+        attach(el, page);
       });
-    });
-
-    // Прямые дети страницы — цепляем всех, кроме margin-guide.
-    // Вложенные конфликты разрешаются в setupBodyDrag через проверку innerBlock !== el.
-    Array.from(page.children).forEach(child => {
-      if (child.classList.contains('be-margin-guide')) return;
-      attach(child, page);
     });
   }
 

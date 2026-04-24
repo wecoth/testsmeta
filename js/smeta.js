@@ -1132,19 +1132,45 @@ const BlockEditor = (() => {
     addMarginGuide(page);
     setupPageDeselect(page);
 
-    // Selectors of individually editable elements inside pages
-    const editSelectors = [
-      '#prevCovLogo2', '#prevCovName2', '#prevCovSlogan2', '#prevCovType2',
-      '#prevObjInfo2', '#prevPlanBox2', '#prevBpAddress2',
-      '.be-editable-title', '.be-plan-docs',
+    // Явный список редактируемых блоков по странице.
+    // ВАЖНО: не используем "все прямые дети" — это даёт вложенные be-block
+    // (контейнер + его содержимое), что ломает выделение.
+    const pageId = page.id || '';
+
+    // Универсальные блоки (есть на всех страницах)
+    const commonSelectors = [
+      '.be-editable-title',
     ];
-    editSelectors.forEach(sel => {
-      page.querySelectorAll(sel).forEach(el => attach(el, page));
+
+    // Блоки специфичные для каждой страницы
+    const pageSelectors = {
+      'prevCover2':    ['#prevCovType2', '#prevCovLogo2', '#prevCovName2', '#prevCovSlogan2'],
+      'prevPlanning2': ['#prevPlanBox2', '#prevObjInfo2', '.be-plan-docs'],
+      'prevBlueprint2':['#prevBpAddress2'],
+      'prevSmr2':      [],
+      'prevMat2':      [],
+      'prevFinal2':    [],
+    };
+
+    const selectors = [
+      ...commonSelectors,
+      ...(pageSelectors[pageId] || []),
+    ];
+
+    selectors.forEach(sel => {
+      page.querySelectorAll(sel).forEach(el => {
+        // Не цепляем если уже внутри другого be-block на этой странице
+        if (el.closest('.be-block')) return;
+        attach(el, page);
+      });
     });
 
-    // Also attach direct children that are sizeable layout blocks
+    // Прямые дети страницы — только если они НЕ являются layout-контейнерами
+    // и НЕ содержат других редактируемых блоков внутри себя.
+    // Используем data-be-block="true" как явный маркер в HTML для opt-in.
     Array.from(page.children).forEach(child => {
       if (child.classList.contains('be-margin-guide')) return;
+      if (child.dataset.beBlock !== 'true') return; // только явно помеченные
       if (!child.dataset.beInit) attach(child, page);
     });
   }

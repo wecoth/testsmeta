@@ -800,6 +800,22 @@ const BlockEditor = (() => {
     const cleaned = cur.replace(/translate[XY]?\([^)]*\)/g, '').trim();
     el.style.transform = cleaned || '';
 
+    // CRITICAL: reparent to the page itself.
+    //
+    // Our x/y are in .spp-a4's native coordinate system. But position:absolute
+    // positions against the NEAREST positioned ancestor — which, for elements
+    // inside .be-plan-right (position:relative) or similar wrappers, is NOT
+    // .spp-a4. Writing left:578 to an element whose containing block starts
+    // at offsetLeft=577 shoves it another 577px to the right — off the page.
+    //
+    // Moving the element to be a direct child of .spp-a4 makes the page the
+    // containing block, so our native-coord x/y land exactly where we measured.
+    // Elements stay identified by id/class, so any code that queries them
+    // (liveUpdate, etc.) keeps working.
+    if (el.parentNode !== page) {
+      page.appendChild(el);
+    }
+
     applyState(el, { x, y, w, h });
     el.dataset.bePosInit = '1';
 

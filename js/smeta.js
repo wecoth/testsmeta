@@ -734,37 +734,63 @@ const BlockEditor = (() => {
     el.style.height = st.h + 'px';
   }
 
-  // Lazy snapshot — convert a flow/inline-positioned element to frozen
-  // position:absolute in native page coordinates. Returns true on success,
-  // false if the page isn't visible/ready yet (caller should retry later).
+  // Lazy snapshot — convert an element to frozen position:absolute in
+  // NATIVE page coordinates (1123×794 pre-transform space).
   //
-  // Safe to call repeatedly: if already snapshotted, this is a no-op.
+  // Measurement uses offsetLeft/offsetTop chain up to .spp-a4, NOT
+  // getBoundingClientRect(). Reason:
+  //   - offsetLeft/offsetTop report LAYOUT coords, unaffected by CSS
+  //     transform on ancestors.
+  //   - getBoundingClientRect() gives screen coords after every ancestor's
+  //     transform. Dividing the delta by scale is mathematically correct
+  //     in theory, but in practice fragile: transform-origin, stacked
+  //     scales, subpixel rounding, and reading getComputedStyle() mid-
+  //     layout-thrash all contribute to drift. v4 chased this for a week.
+  //
+  // Since .spp-a4 is position:relative (set in initPage) and all our
+  // target ancestors (.be-plan-grid, .be-plan-left/right, etc.) have no
+  // position, the offsetParent chain terminates at .spp-a4 — giving us
+  // native-page coords directly, scale-free.
+  //
+  // Returns true on success, false if the page isn't ready yet.
   function snapshotToDom(el, page) {
     if (isSnapshotted(el)) return true;
 
-    const sc = getPageScale(page);
-    if (!sc) return false; // page not rendered yet — don't fossilise
+    // Walk offsetParent chain to sum up coords relative to .spp-a4.
+    // If the chain exits the page (or hits <body>) before reaching .spp-a4,
+    // something weird is going on — bail out rather than fossilise.
+    let x = 0, y = 0;
+    let node = el;
+    let guard = 0;
+    while (node && node !== page) {
+      x += node.offsetLeft || 0;
+      y += node.offsetTop  || 0;
+      node = node.offsetParent;
+      if (++guard > 20) return false; // runaway
+    }
+    if (node !== page) return false;   // never reached the page
 
-    const pageR = page.getBoundingClientRect();
-    const elR   = el.getBoundingClientRect();
-    // Both rects are post-transform (screen px). Dividing the delta by sc
-    // converts back to native-page px. transform-origin doesn't matter:
-    // both points share the same transform, so their delta is preserved.
-    const x = (elR.left - pageR.left) / sc;
-    const y = (elR.top  - pageR.top)  / sc;
-    const w = elR.width  / sc;
-    const h = elR.height / sc;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    if (w < 1 || h < 1) return false;  // not laid out yet (display:none?)
 
-    // Sanity guard: if we got zero/negative dimensions somehow, refuse.
-    if (w < 1 || h < 1) return false;
+    // Account for inline transform:translate used on cover-page elements
+    // (left:50%; transform:translate(-50%,-50%)). offsetLeft doesn't see
+    // that — translate is a paint-time shift, not a layout one. Read it
+    // once from computed transform, apply, then strip.
+    const cs = getComputedStyle(el);
+    const mtx = new DOMMatrixReadOnly(cs.transform);
+    // mtx.e = translate X (px), mtx.f = translate Y (px). For a plain
+    // translate(-50%,-50%) on a 200×80 element, these will be -100 and -40.
+    if (mtx.e) x += mtx.e;
+    if (mtx.f) y += mtx.f;
 
-    // Freeze geometry.
+    // Freeze geometry in native coords.
     el.style.position   = 'absolute';
     el.style.margin     = '0';
     el.style.inset      = '';
-    el.style.flexShrink = '0';  // keep flex parents from squeezing us after absolute
-    // Strip any translate() used for CSS centering (left:50%; translate(-50%))
-    // so positioning is purely via the left/top we just computed.
+    el.style.flexShrink = '0';
+    // Remove any translate() from inline transform — we've folded it into x/y.
     const cur = el.style.transform || '';
     const cleaned = cur.replace(/translate[XY]?\([^)]*\)/g, '').trim();
     el.style.transform = cleaned || '';

@@ -789,6 +789,11 @@ const BlockEditor = (() => {
     el.style.position   = 'absolute';
     el.style.margin     = '0';
     el.style.inset      = '';
+    // Belt-and-suspenders: explicitly clear right/bottom. Some elements
+    // carry inline right/bottom from the original template (cover-page
+    // footers) and `inset=''` doesn't always wipe those in every browser.
+    el.style.right      = 'auto';
+    el.style.bottom     = 'auto';
     el.style.flexShrink = '0';
     // Remove any translate() from inline transform — we've folded it into x/y.
     const cur = el.style.transform || '';
@@ -797,6 +802,15 @@ const BlockEditor = (() => {
 
     applyState(el, { x, y, w, h });
     el.dataset.bePosInit = '1';
+
+    // Debug: one-time log so we can diagnose any jump. Toggle window.__beDbg = false to silence.
+    if (window.__beDbg !== false) {
+      console.log('[BE snapshot]', el.id || el.className, {
+        x, y, w, h,
+        offsetParent: el.offsetParent?.id || el.offsetParent?.className,
+        translateX: mtx.e, translateY: mtx.f,
+      });
+    }
     return true;
   }
 

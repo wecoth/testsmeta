@@ -728,15 +728,15 @@ const BlockEditor = (() => {
       z-index: 10001;
       pointer-events: all;
     }
-    .be-h-corner[data-c="nw"] { top: -5px; left: -5px; cursor: nw-resize; }
-    .be-h-corner[data-c="ne"] { top: -5px; right: -5px; cursor: ne-resize; }
-    .be-h-corner[data-c="se"] { bottom: -5px; right: -5px; cursor: se-resize; }
-    .be-h-corner[data-c="sw"] { bottom: -5px; left: -5px; cursor: sw-resize; }
+    .be-h-corner[data-c="nw"] { top: 2px; left: 2px; cursor: nw-resize; }
+    .be-h-corner[data-c="ne"] { top: 2px; right: 2px; cursor: ne-resize; }
+    .be-h-corner[data-c="se"] { bottom: 2px; right: 2px; cursor: se-resize; }
+    .be-h-corner[data-c="sw"] { bottom: 2px; left: 2px; cursor: sw-resize; }
 
     /* === Rotate handle === */
     .be-h-rot {
       position: absolute;
-      top: -30px; left: 50%; transform: translateX(-50%);
+      top: 4px; left: 50%; transform: translateX(-50%);
       width: 16px; height: 16px;
       background: #fff;
       border: 2px solid #4a9eff;
@@ -749,10 +749,9 @@ const BlockEditor = (() => {
     }
     .be-h-rot::after { content: '↻'; }
     .be-h-rot:active { cursor: grabbing; }
-    /* Vertical line from rotate handle to element */
+    /* Vertical line — hidden when handle is inside block */
     .be-h-rot-line {
-      position: absolute;
-      top: -22px; left: 50%;
+      display: none !important;
       width: 1px; height: 18px;
       background: rgba(74,159,255,0.5);
       pointer-events: none;
@@ -763,7 +762,7 @@ const BlockEditor = (() => {
     .be-toolbar {
       display: none;
       position: absolute;
-      top: -52px; left: 50%; transform: translateX(-50%);
+      bottom: 100%; margin-bottom: 6px; left: 50%; transform: translateX(-50%);
       z-index: 10002;
       background: #1a1a2e;
       border-radius: 8px;
@@ -866,6 +865,9 @@ const BlockEditor = (() => {
     if (_sel && _sel !== el) deselect(_sel);
     _sel = el;
     el.classList.add('be-selected');
+    // Allow toolbar/handles to overflow the page boundary while editing
+    const page = el.closest('.spp-a4');
+    if (page) page.style.overflow = 'visible';
     // show handles
     el.querySelectorAll('.be-h-corner, .be-h-rot, .be-h-rot-line').forEach(h => h.style.display = '');
   }
@@ -875,6 +877,9 @@ const BlockEditor = (() => {
     el.classList.remove('be-selected', 'be-editing');
     if (el.contentEditable === 'true') el.contentEditable = 'false';
     el.querySelectorAll('.be-h-corner, .be-h-rot, .be-h-rot-line').forEach(h => h.style.display = 'none');
+    // Restore page clipping
+    const page = el.closest('.spp-a4');
+    if (page) page.style.overflow = 'hidden';
     _sel = null;
   }
 
@@ -946,11 +951,40 @@ const BlockEditor = (() => {
         const dx = (mv.clientX - sx) / sc;
         const dy = (mv.clientY - sy) / sc;
         let { x, y, w, h } = st0;
+        const ratio = st0.w / st0.h; // aspect ratio для пропорц. масштаба
 
-        if (c === 'se') { w = Math.max(40, w + dx); h = Math.max(20, h + dy); }
-        if (c === 'sw') { x += dx; w = Math.max(40, w - dx); h = Math.max(20, h + dy); }
-        if (c === 'ne') { y += dy; w = Math.max(40, w + dx); h = Math.max(20, h - dy); }
-        if (c === 'nw') { x += dx; y += dy; w = Math.max(40, w - dx); h = Math.max(20, h - dy); }
+        // По умолчанию — пропорциональный масштаб (как scale).
+        // Shift зажат — свободное изменение размера.
+        const free = mv.shiftKey;
+
+        if (c === 'se') {
+          // Ведущая ось — та что изменилась сильнее
+          const dominant = Math.abs(dx) >= Math.abs(dy) ? 'w' : 'h';
+          w = Math.max(40, w + dx);
+          h = Math.max(20, h + dy);
+          if (!free) { if (dominant === 'w') h = w / ratio; else w = h * ratio; }
+        }
+        if (c === 'sw') {
+          const dw = -dx;
+          const dominant = Math.abs(dx) >= Math.abs(dy) ? 'w' : 'h';
+          w = Math.max(40, w + dw); h = Math.max(20, h + dy);
+          if (!free) { if (dominant === 'w') h = w / ratio; else w = h * ratio; }
+          x = st0.x + st0.w - w;
+        }
+        if (c === 'ne') {
+          const dominant = Math.abs(dx) >= Math.abs(dy) ? 'w' : 'h';
+          w = Math.max(40, w + dx); h = Math.max(20, h - dy);
+          if (!free) { if (dominant === 'w') h = w / ratio; else w = h * ratio; }
+          y = st0.y + st0.h - h;
+        }
+        if (c === 'nw') {
+          const dw = -dx, dh = -dy;
+          const dominant = Math.abs(dx) >= Math.abs(dy) ? 'w' : 'h';
+          w = Math.max(40, w + dw); h = Math.max(20, h + dh);
+          if (!free) { if (dominant === 'w') h = w / ratio; else w = h * ratio; }
+          x = st0.x + st0.w - w;
+          y = st0.y + st0.h - h;
+        }
 
         applyState(el, { ...getState(el), x, y, w, h });
       };

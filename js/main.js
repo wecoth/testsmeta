@@ -8,8 +8,7 @@ import {
   initSmeta, addRoom, recalcRooms, getRooms, handleLogo, handlePlan,
   handleSmr, initSmrManual, addSmrRow, recalcSmr,
   handleMat, initMatManual, addMatRow, recalcMat, renumRows,
-  openPreview, closePreview, closePreviewOnBg, generatePDF,
-  liveUpdate, updateSummary, syncEditorToDoc, importRoomsFromPlanner,
+  generatePDF, liveUpdate, updateSummary, importRoomsFromPlanner,
   captureCanvas,
 } from './smeta.js';
 import { autosaveToLocalStorage, loadFromLocalStorage, downloadProject, uploadProject } from './storage.js';
@@ -18,11 +17,10 @@ import { clearHistory } from './commands/CommandHistory.js';
 // ── Expose smeta module globally (for inline oninput/onclick) ──────
 window._smetaModule = {
   addRoom, recalcRooms, handleLogo, handlePlan,
-  handleSmr, initSmrManual, addSmrRow, recalcSmr, collectSmrRows: () => {},
+  handleSmr, initSmrManual, addSmrRow, recalcSmr,
   handleMat, initMatManual, addMatRow, recalcMat, renumRows,
   liveUpdate, updateSummary, importRoomsFromPlanner,
-  openPreview, closePreview, closePreviewOnBg, generatePDF,
-  captureCanvas,
+  generatePDF, captureCanvas,
 };
 
 // Expose appState and viewport for captureCanvas

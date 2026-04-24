@@ -560,6 +560,7 @@ html, body {
 .cov-foot .cfc { width: 24px; height: 24px; border: 1.5px solid #aaa; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 500; color: #aaa; font-family: 'Merriweather', serif; }
 .cov-foot .cfn { font-size: 8px; font-weight: 400; letter-spacing: 2px; color: #aaa; font-family: 'Merriweather', serif; }
 .pg { padding: 14mm 20mm 16mm; min-height: 210mm; display: flex; flex-direction: column; }
+.spp-a4 .pg { padding: 76px; min-height: 0; }
 .pg-title { font-size: 20px; font-weight: 400; text-align: center; margin-bottom: 8mm; letter-spacing: 1px; font-family: 'Merriweather', serif; }
 .pg-foot { margin-top: auto; padding-top: 5mm; display: flex; justify-content: flex-end; align-items: center; gap: 7px; }
 .pg-foot .pfc { width: 22px; height: 22px; border: 1.5px solid #bbb; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 7px; font-weight: 500; color: #bbb; font-family: 'Merriweather', serif; }

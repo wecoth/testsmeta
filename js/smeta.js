@@ -911,6 +911,9 @@ const BlockEditor = (() => {
     el.addEventListener('mousedown', e => {
       if (e.target.closest('.be-toolbar, .be-h-corner, .be-h-rot')) return;
       if (e.button !== 0) return;
+      // Если клик попал на вложенный be-block — не перехватываем, он сам разберётся
+      const innerBlock = e.target.closest('.be-block');
+      if (innerBlock && innerBlock !== el) return;
       e.preventDefault(); e.stopPropagation();
       select(el);
       snapshotToDom(el, page);
@@ -1091,6 +1094,9 @@ const BlockEditor = (() => {
     // Click → select
     el.addEventListener('mousedown', e => {
       if (e.target.closest('.be-toolbar, .be-h-corner, .be-h-rot')) return;
+      // Если клик на вложенный be-block — не перехватываем
+      const innerBlock = e.target.closest('.be-block');
+      if (innerBlock && innerBlock !== el) return;
       e.stopPropagation();
       select(el);
     });
@@ -1159,19 +1165,15 @@ const BlockEditor = (() => {
 
     selectors.forEach(sel => {
       page.querySelectorAll(sel).forEach(el => {
-        // Не цепляем если уже внутри другого be-block на этой странице
-        if (el.closest('.be-block')) return;
-        attach(el, page);
+        attach(el, page); // attach() сам защищён от двойного вызова через dataset.beInit
       });
     });
 
-    // Прямые дети страницы — только если они НЕ являются layout-контейнерами
-    // и НЕ содержат других редактируемых блоков внутри себя.
-    // Используем data-be-block="true" как явный маркер в HTML для opt-in.
+    // Прямые дети страницы — цепляем всех, кроме margin-guide.
+    // Вложенные конфликты разрешаются в setupBodyDrag через проверку innerBlock !== el.
     Array.from(page.children).forEach(child => {
       if (child.classList.contains('be-margin-guide')) return;
-      if (child.dataset.beBlock !== 'true') return; // только явно помеченные
-      if (!child.dataset.beInit) attach(child, page);
+      attach(child, page);
     });
   }
 

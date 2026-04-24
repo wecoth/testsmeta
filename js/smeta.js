@@ -389,16 +389,7 @@ function _syncRightPanel({ cn, cl, sl, on, client, ex, dt, rooms, tf, tw, tp, sm
     } else { if (me2) me2.style.display = 'flex'; mb2.innerHTML = ''; }
   }
 
-  // Final
-  const smrV = getSmrTotal(), matV = getMatTotal();
-  const pfb2 = document.getElementById('prevFinBody2'), pfv2 = document.getElementById('prevFinVal2');
-  if (pfb2) {
-    let rows2 = '', num2 = 0;
-    if (smrV > 0) { num2++; rows2 += `<tr><td style="border:1px solid #e0e0e0;padding:7px 10px;text-align:center">${num2}</td><td style="border:1px solid #e0e0e0;padding:7px 10px">Строительно-монтажные работы</td><td style="border:1px solid #e0e0e0;padding:7px 10px;text-align:center">м²</td><td style="border:1px solid #e0e0e0;padding:7px 10px;text-align:center">${tf.toFixed(2)}</td><td style="border:1px solid #e0e0e0;padding:7px 10px;text-align:right">${tf>0?fmt(smrV/tf):'—'}</td><td style="border:1px solid #e0e0e0;padding:7px 10px;text-align:right;font-weight:600">${fmt(smrV)}</td><td style="border:1px solid #e0e0e0;padding:7px 10px"></td></tr>`; }
-    if (matV > 0) { num2++; rows2 += `<tr><td style="border:1px solid #e0e0e0;padding:7px 10px;text-align:center">${num2}</td><td style="border:1px solid #e0e0e0;padding:7px 10px">Строительные и отделочные материалы</td><td style="border:1px solid #e0e0e0;padding:7px 10px;text-align:center">м²</td><td style="border:1px solid #e0e0e0;padding:7px 10px;text-align:center">${tf.toFixed(2)}</td><td style="border:1px solid #e0e0e0;padding:7px 10px;text-align:right">${tf>0?fmt(matV/tf):'—'}</td><td style="border:1px solid #e0e0e0;padding:7px 10px;text-align:right;font-weight:600">${fmt(matV)}</td><td style="border:1px solid #e0e0e0;padding:7px 10px"></td></tr>`; }
-    pfb2.innerHTML = rows2;
-  }
-  if (pfv2) pfv2.textContent = fmt(smrV + matV);
+  // (Final / "Итого по разделам" page removed — not part of the deliverable.)
 }
 
 // ── Preview modal ─────────────────────────────────────────────────
@@ -568,7 +559,7 @@ export function initSmeta() {
 
 
 // ══════════════════════════════════════════════════════════════════
-// BLOCK EDITOR v4 — Figma-style: drag body, corner resize, toolbar
+// BLOCK EDITOR v5 — Figma-style: drag body, corner resize, toolbar
 // ══════════════════════════════════════════════════════════════════
 //
 // Controls per selected element:
@@ -578,25 +569,34 @@ export function initSmeta() {
 //   • Toolbar: A− A+ | 👁/✕ (hide/show)
 //
 // A4 landscape: 297mm × 210mm at 96dpi = 1122.5 × 793.7px (native)
-// Preview panel scales the .spp-a4 via CSS transform: scale(panelW/1123).
+// Preview panel scales the .spp-a4 via CSS transform: scale(panelW/1123);
 // transform-origin is 'top center' on .spp-a4.
 // All internal coordinates are in native A4 pixels (1123×794).
 //
-// Key architectural fix vs v3:
-// — snapshotToDom() теперь вызывается СРАЗУ в attach(), пока элемент
-//   ещё в нормальном потоке (flow). Это решает «прыжок на первом клике»:
-//   раньше элемент был position:absolute через CSS .be-block, без
-//   left/top — из-за shrink-to-fit его ширина коллапсировала до ширины
-//   контента и первый клик фиксировал неверные w/h.
-// — handles и toolbar получают обратный scale (1/sc), чтобы на
-//   любом зуме оставаться визуально одного экранного размера.
+// Why v5 exists (vs v3/v4):
+// v3 made .be-block { position:absolute } in CSS from the start. Without
+//   explicit width, absolute elements shrink-to-fit — flow elements that
+//   were 1123px wide collapsed to their text width. First click snapshotted
+//   these collapsed dimensions → big jump + broken aspect ratio.
+// v4 tried to fix this by calling snapshotToDom() eagerly in attach().
+//   But attach() runs at page init time, when:
+//     (a) the preview panel may still be display:none (wrong tab)  → rect 0×0
+//     (b) .spp-body width may not yet be measured  → wrong page scale
+//     (c) web fonts (Merriweather) may not be loaded  → wrong text heights
+//   Any of these fossilises elements in garbage positions — the "flying off
+//   the page" bug in the exported PDF.
+// v5: snapshot is LAZY. Elements stay in their natural flow (or inline
+//   position:absolute for cover page) until the user actually interacts
+//   with one. At first mousedown/click we capture geometry from the LIVE
+//   DOM — which is guaranteed visible (user can see it), guaranteed sized
+//   correctly (it's being rendered), and guaranteed post-font-load.
+//   .be-block carries NO layout-breaking styles of its own.
 
 const BlockEditor = (() => {
 
   // ── Constants ────────────────────────────────────────────────
   const NATIVE_W = 1123;
   const NATIVE_H = 794;
-  const MARGIN_PX = 76;       // 20mm guide
   const MIN_W = 40;
   const MIN_H = 24;
 
@@ -606,8 +606,8 @@ const BlockEditor = (() => {
   // ── CSS ──────────────────────────────────────────────────────
   const CSS = `
     /* === .be-block wrapper ===
-       Intentionally NOT position:absolute by default — snapshotToDom
-       switches it to absolute once, after capturing flow geometry. */
+       Deliberately layout-neutral. Becomes position:absolute lazily,
+       inside snapshotToDom(), only after the first user interaction. */
     .be-block {
       box-sizing: border-box;
       cursor: default;
@@ -634,8 +634,8 @@ const BlockEditor = (() => {
     .be-block.be-hidden:hover { opacity: 0.25; }
 
     /* === Corner resize handles ===
-       Positioned in block-local coords (scaled with the page).
-       Inverse-scaled via inline style so their ON-SCREEN size stays 10px. */
+       Pinned to block corners in block-local coords. Inverse-scaled at
+       select() time so the visible square stays ~10px on screen at any zoom. */
     .be-h-corner {
       position: absolute;
       width: 10px; height: 10px;
@@ -651,9 +651,7 @@ const BlockEditor = (() => {
     .be-h-corner[data-c="se"] { bottom: 0; right: 0; transform-origin: bottom right; cursor: se-resize; }
     .be-h-corner[data-c="sw"] { bottom: 0; left: 0; transform-origin: bottom left;   cursor: sw-resize; }
 
-    /* === Toolbar ===
-       Anchored above the block. Inverse-scaled so it stays readable
-       regardless of page zoom. */
+    /* === Toolbar === */
     .be-toolbar {
       display: none;
       position: absolute;
@@ -691,24 +689,31 @@ const BlockEditor = (() => {
   `;
 
   function injectStyle() {
-    if (document.getElementById('be-style-v4')) return;
-    // Remove old v3 style if present (hot-reload safety)
+    if (document.getElementById('be-style-v5')) return;
+    // Clean up older versions on hot-reload.
     document.getElementById('be-style-v3')?.remove();
+    document.getElementById('be-style-v4')?.remove();
     const s = document.createElement('style');
-    s.id = 'be-style-v4'; s.textContent = CSS;
+    s.id = 'be-style-v5'; s.textContent = CSS;
     document.head.appendChild(s);
   }
 
   // ── Helpers ──────────────────────────────────────────────────
 
-  // Live CSS scale of the .spp-a4 page wrapper (screen px ↔ native page px).
+  // Live CSS scale of the .spp-a4 page wrapper.
+  // Returns 0 when the page is invisible/untransformed-yet; callers must
+  // bail out on 0 rather than snapshot with garbage coordinates.
   function getPageScale(page) {
-    if (!page) return 1;
+    if (!page) return 0;
+    const rect = page.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) return 0; // display:none or detached
     const matrix = new DOMMatrixReadOnly(getComputedStyle(page).transform);
-    return matrix.m11 || 1;
+    const m = matrix.m11;
+    return (m && m > 0) ? m : 1; // matrix might be 'none' → 1:1
   }
 
-  // Read transform state from data attrs (set by snapshotToDom / applyState).
+  function isSnapshotted(el) { return el.dataset.bePosInit === '1'; }
+
   function getState(el) {
     return {
       x: parseFloat(el.dataset.beX || '0'),
@@ -729,57 +734,56 @@ const BlockEditor = (() => {
     el.style.height = st.h + 'px';
   }
 
-  // Snapshot natural (pre-absolute) size+position from DOM.
-  // Called ONCE per element, ideally in attach() while element is still in flow.
-  // After this the element is position:absolute with frozen left/top/width/height
-  // in native page coordinates.
+  // Lazy snapshot — convert a flow/inline-positioned element to frozen
+  // position:absolute in native page coordinates. Returns true on success,
+  // false if the page isn't visible/ready yet (caller should retry later).
+  //
+  // Safe to call repeatedly: if already snapshotted, this is a no-op.
   function snapshotToDom(el, page) {
-    if (el.dataset.bePosInit) return;
+    if (isSnapshotted(el)) return true;
 
     const sc = getPageScale(page);
-    // Measure BEFORE any style mutation — element is in its natural flow/inline-style place.
+    if (!sc) return false; // page not rendered yet — don't fossilise
+
     const pageR = page.getBoundingClientRect();
     const elR   = el.getBoundingClientRect();
-
-    // pageR and elR are both post-transform (screen) rects, so dividing by sc
-    // converts the delta back to native-page pixels. transform-origin of the
-    // page doesn't matter here: both points share the same transform, so the
-    // delta is preserved under scale around any origin.
+    // Both rects are post-transform (screen px). Dividing the delta by sc
+    // converts back to native-page px. transform-origin doesn't matter:
+    // both points share the same transform, so their delta is preserved.
     const x = (elR.left - pageR.left) / sc;
     const y = (elR.top  - pageR.top)  / sc;
     const w = elR.width  / sc;
     const h = elR.height / sc;
 
-    // Now freeze geometry in absolute coordinates.
+    // Sanity guard: if we got zero/negative dimensions somehow, refuse.
+    if (w < 1 || h < 1) return false;
+
+    // Freeze geometry.
     el.style.position   = 'absolute';
     el.style.margin     = '0';
     el.style.inset      = '';
-    el.style.flexShrink = '0';   // protect against flex parent squeezing
-    // Strip any translate() on inline style (used for centering via left:50%; translate(-50%)).
-    // We keep geometry purely via left/top/width/height now.
+    el.style.flexShrink = '0';  // keep flex parents from squeezing us after absolute
+    // Strip any translate() used for CSS centering (left:50%; translate(-50%))
+    // so positioning is purely via the left/top we just computed.
     const cur = el.style.transform || '';
     const cleaned = cur.replace(/translate[XY]?\([^)]*\)/g, '').trim();
     el.style.transform = cleaned || '';
 
     applyState(el, { x, y, w, h });
     el.dataset.bePosInit = '1';
+    return true;
   }
 
-  // Update inverse-scale on handles/toolbar so they keep screen size constant.
   function updateHandleScale(el, page) {
-    const sc = getPageScale(page);
-    const inv = sc ? (1 / sc) : 1;
+    const sc = getPageScale(page) || 1;
+    const inv = 1 / sc;
     el.querySelectorAll('.be-h-corner').forEach(h => {
-      // Keep corner-specific transform-origin via CSS, just apply inverse scale here.
       h.style.transform = `scale(${inv})`;
     });
     const tb = el.querySelector(':scope > .be-toolbar');
-    if (tb) {
-      tb.style.transform = `translateX(-50%) scale(${inv})`;
-    }
+    if (tb) tb.style.transform = `translateX(-50%) scale(${inv})`;
   }
 
-  // Clamp block within page bounds (soft: only position, not size).
   function clampIntoPage(st) {
     const maxX = NATIVE_W - Math.min(st.w, NATIVE_W);
     const maxY = NATIVE_H - Math.min(st.h, NATIVE_H);
@@ -799,7 +803,7 @@ const BlockEditor = (() => {
     el.classList.add('be-selected');
     const page = el.closest('.spp-a4');
     if (page) {
-      page.style.overflow = 'visible'; // let handles/toolbar peek outside
+      page.style.overflow = 'visible';
       updateHandleScale(el, page);
     }
     el.querySelectorAll('.be-h-corner').forEach(h => h.style.display = '');
@@ -815,7 +819,6 @@ const BlockEditor = (() => {
     _sel = null;
   }
 
-  // Deselect on clicks outside any block (page bg, panel bg).
   function setupGlobalDeselect() {
     if (document.body.dataset.beGlobalDesel) return;
     document.body.dataset.beGlobalDesel = '1';
@@ -832,15 +835,24 @@ const BlockEditor = (() => {
     el.addEventListener('mousedown', e => {
       if (e.target.closest('.be-toolbar, .be-h-corner')) return;
       if (e.button !== 0) return;
-      // Clicks on a nested be-block belong to that nested block.
+      // Clicks on nested be-blocks belong to them.
       const innerBlock = e.target.closest('.be-block');
       if (innerBlock && innerBlock !== el) return;
 
       e.preventDefault();
       e.stopPropagation();
+
+      // LAZY SNAPSHOT — the page is definitely visible now (user clicked on
+      // something inside it), so measurements are trustworthy.
+      if (!snapshotToDom(el, page)) {
+        // Very unlikely: page reports 0 size right when user clicked.
+        // Just select without dragging.
+        select(el);
+        return;
+      }
       select(el);
 
-      const sc = getPageScale(page);
+      const sc = getPageScale(page) || 1;
       const st = getState(el);
       const ox = st.x, oy = st.y;
       const sx = e.clientX, sy = e.clientY;
@@ -861,26 +873,23 @@ const BlockEditor = (() => {
   }
 
   // ── Corner resize ────────────────────────────────────────────
-  // Default: proportional (aspect-locked) resize along the drag diagonal.
-  // Shift held: free resize (independent w/h).
+  // Default = proportional (aspect-locked). Shift = free.
 
   function setupCornerResize(corner, el, page) {
     corner.addEventListener('mousedown', e => {
       e.preventDefault();
       e.stopPropagation();
+
+      if (!snapshotToDom(el, page)) return; // no-op if page invisible
       select(el);
 
-      const sc  = getPageScale(page);
+      const sc  = getPageScale(page) || 1;
       const c   = corner.dataset.c;   // nw | ne | se | sw
       const st0 = { ...getState(el) };
-      const ratio = st0.w / st0.h;    // aspect ratio
+      const ratio = st0.w / Math.max(1, st0.h);
       const sx  = e.clientX, sy = e.clientY;
 
-      // Diagonal sign relative to the moving corner:
-      //   se:  +x/+y both grow,
-      //   nw:  -x/-y both grow,
-      //   ne:  +x/-y,
-      //   sw:  -x/+y.
+      // Per-corner growth signs along x/y.
       const sgnX = (c === 'se' || c === 'ne') ? +1 : -1;
       const sgnY = (c === 'se' || c === 'sw') ? +1 : -1;
 
@@ -889,29 +898,24 @@ const BlockEditor = (() => {
         const dy = (mv.clientY - sy) / sc;
         const free = mv.shiftKey;
 
-        // Candidate new width/height driven by this corner's signs.
-        let w = st0.w + sgnX * dx;
-        let h = st0.h + sgnY * dy;
-        w = Math.max(MIN_W, w);
-        h = Math.max(MIN_H, h);
+        let w = Math.max(MIN_W, st0.w + sgnX * dx);
+        let h = Math.max(MIN_H, st0.h + sgnY * dy);
 
         if (!free) {
-          // Proportional: use the axis that grew MORE (relative to original),
-          // so diagonal drag feels natural.
+          // Lock aspect ratio — pick the axis that grew more proportionally.
           const rw = w / st0.w;
           const rh = h / st0.h;
-          if (rw >= rh) { h = w / ratio; } else { w = h * ratio; }
-          // Re-clamp after aspect coupling
+          if (rw >= rh) h = w / ratio; else w = h * ratio;
           if (h < MIN_H) { h = MIN_H; w = h * ratio; }
           if (w < MIN_W) { w = MIN_W; h = w / ratio; }
         }
 
-        // Compute new top-left so the OPPOSITE corner stays pinned.
+        // Pin the OPPOSITE corner by adjusting x/y.
         let x = st0.x, y = st0.y;
         if (c === 'nw') { x = st0.x + (st0.w - w); y = st0.y + (st0.h - h); }
         if (c === 'ne') {                         y = st0.y + (st0.h - h); }
         if (c === 'sw') { x = st0.x + (st0.w - w);                         }
-        // 'se' keeps st0.x / st0.y.
+        // 'se' anchored at its top-left by definition.
 
         applyState(el, { x, y, w, h });
       };
@@ -957,22 +961,22 @@ const BlockEditor = (() => {
   }
 
   // ── Attach controls to one element ───────────────────────────
+  // No geometry mutation here — element keeps its natural position until
+  // the user actually interacts with it (lazy snapshot inside the handlers).
 
   function attach(el, page) {
     if (!el || el.dataset.beInit) return;
     el.dataset.beInit = '1';
     el.classList.add('be-block');
 
-    // Freeze flow geometry into absolute coords IMMEDIATELY.
-    // This is the key fix: we capture real width/height while the element
-    // is still laid out by its parent, BEFORE any handle/toolbar chrome
-    // gets added (they'd distort measurements).
-    snapshotToDom(el, page);
-
-    // Toolbar (must be child so it's positioned relative to block).
+    // Attach toolbar + handles as children (positioned relative to element
+    // once element becomes position:absolute on first interaction).
+    // Before snapshot, element is position:static — absolute children would
+    // escape to the nearest positioned ancestor (.spp-a4). That's fine:
+    // they're display:none until the element is selected anyway, so they're
+    // invisible during the pre-snapshot phase.
     el.appendChild(mkToolbar(el));
 
-    // Corner resize handles.
     ['nw','ne','se','sw'].forEach(c => {
       const h = document.createElement('div');
       h.className = 'be-h-corner';
@@ -982,14 +986,14 @@ const BlockEditor = (() => {
       setupCornerResize(h, el, page);
     });
 
-    // Body drag — attached to element mousedown; the handler itself
-    // filters out clicks on handles/toolbar/nested blocks.
     setupBodyDrag(el, page);
 
-    // Double-click to edit text (skip if block contains table or img).
+    // Inline text edit (only for leaf text blocks).
     if (!el.querySelector('table') && !el.querySelector('img')) {
       el.addEventListener('dblclick', e => {
         if (e.target.closest('.be-toolbar, .be-h-corner')) return;
+        // Snapshot first (same reason as drag/resize).
+        snapshotToDom(el, page);
         select(el);
         el.contentEditable = 'true';
         el.spellcheck = false;
@@ -1020,8 +1024,8 @@ const BlockEditor = (() => {
     page.dataset.bePageInit = '1';
     page.style.position = 'relative';
 
-    // Explicit allowlist per page. NEVER pick up layout wrappers
-    // (.be-plan-grid, .be-plan-left, …) — they're containers, not blocks.
+    // Explicit allowlist per page. No layout wrappers (.be-plan-grid etc.)
+    // — they're containers, not editable blocks.
     const pageId = page.id || '';
     const commonSelectors = ['.be-editable-title'];
     const pageSelectors = {
@@ -1030,7 +1034,6 @@ const BlockEditor = (() => {
       'prevBlueprint2':['#prevBpAddress2'],
       'prevSmr2':      [],
       'prevMat2':      [],
-      'prevFinal2':    [],
     };
 
     const selectors = [
@@ -1038,27 +1041,17 @@ const BlockEditor = (() => {
       ...(pageSelectors[pageId] || []),
     ];
 
-    // Collect first, attach second — avoids re-measuring elements whose
-    // earlier siblings have already been absolute-ified.
-    //
-    // IMPORTANT ORDERING:
-    // We attach elements in DOM order. When an earlier sibling becomes
-    // position:absolute, it leaves the flex flow and later siblings shift.
-    // That's fine: each later sibling is still measured in its OWN natural
-    // flow position at the moment of its own snapshot. The block that
-    // already snapshotted is anchored by explicit left/top and won't move.
     const targets = [];
     selectors.forEach(sel => {
       page.querySelectorAll(sel).forEach(el => targets.push(el));
     });
-    // Dedupe (different selectors may match the same element).
     const seen = new Set();
     targets
       .filter(el => { if (seen.has(el)) return false; seen.add(el); return true; })
       .forEach(el => attach(el, page));
   }
 
-  // Re-apply inverse scale to selected block's handles/toolbar on zoom.
+  // Re-apply inverse scale to current selection's handles on zoom change.
   function _onPageScaleChanged() {
     if (!_sel) return;
     const page = _sel.closest('.spp-a4');
@@ -1071,7 +1064,6 @@ const BlockEditor = (() => {
     injectStyle();
     setupGlobalDeselect();
     document.querySelectorAll('.spp-a4').forEach(initPage);
-    // Keep handle scale correct when panel resizes (setA4Scale rAFs often).
     window.addEventListener('resize', _onPageScaleChanged);
   }
 

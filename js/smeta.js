@@ -1199,11 +1199,11 @@ export function loadLayoutSnapshot(jsonOrFile) {
 
         // Применяем позицию/размер
         const state = {
-          x:   st.x   ?? 0,
-          y:   st.y   ?? 0,
-          w:   st.w   ?? parseFloat(el.dataset.beW || '0') || 200,
-          h:   st.h   ?? parseFloat(el.dataset.beH || '0') || 60,
-          rot: st.rot ?? 0,
+          x:   (st.x   != null) ? st.x   : 0,
+          y:   (st.y   != null) ? st.y   : 0,
+          w:   (st.w   != null) ? st.w   : (parseFloat(el.dataset.beW || '0') || 200),
+          h:   (st.h   != null) ? st.h   : (parseFloat(el.dataset.beH || '0') || 60),
+          rot: (st.rot != null) ? st.rot : 0,
         };
 
         el.dataset.beX   = state.x;
@@ -1273,3 +1273,15 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 export { BlockEditor };
+
+// Expose all exports globally so inline onclick handlers work
+// even if main.js hasn't assigned window._smetaModule yet.
+if (!window._smetaModule) {
+  window._smetaModule = {
+    generatePDF, handleLogo, handlePlan, captureCanvas,
+    liveUpdate, addRoom, recalcRooms,
+    handleSmr, initSmrManual, addSmrRow, recalcSmr,
+    handleMat, initMatManual, addMatRow, recalcMat,
+    renumRows, saveLayoutSnapshot, loadLayoutSnapshot,
+  };
+}

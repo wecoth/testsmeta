@@ -322,8 +322,9 @@ export function liveUpdate() {
   const cn = cName(), cl = cLetter();
   const sl = (document.getElementById('companySlogan')?.value || 'КАЧЕСТВО ПОД КЛЮЧ').toUpperCase();
   const on = document.getElementById('objectName')?.value || '—';
-  const client = document.getElementById('clientName')?.value || '—';
-  const ex = document.getElementById('executorName')?.value || '—';
+  const ex = document.getElementById('executorName')?.value || '';
+  const phone = document.getElementById('companyPhone')?.value || '';
+  const ogrn = document.getElementById('companyOgrn')?.value || '';
   const dt = fmtDate(document.getElementById('inspDate')?.value);
   const rooms = getRooms();
   let tf = 0, tw = 0, tp = 0;
@@ -332,16 +333,13 @@ export function liveUpdate() {
   const matRows = collectMatRows(), matTot = getMatTotal();
 
   // Sync right panel preview
-  _syncRightPanel({ cn, cl, sl, on, client, ex, dt, rooms, tf, tw, tp, smrRows, smrTot, matRows, matTot });
+  _syncRightPanel({ cn, cl, sl, on, ex, phone, ogrn, dt, rooms, tf, tw, tp, smrRows, smrTot, matRows, matTot });
 }
 
-function _syncRightPanel({ cn, cl, sl, on, client, ex, dt, rooms, tf, tw, tp, smrRows, smrTot, matRows, matTot }) {
-  // ── Cover ──────────────────────────────────────────────────────
-  const hasLogo   = !!appState.logoData;
-  const hasName   = cn && cn !== 'КОМПАНИЯ' || true; // always show name field
-  const hasSlogan = sl && sl.trim().length > 0;
+function _syncRightPanel({ cn, cl, sl, on, ex, phone, ogrn, dt, rooms, tf, tw, tp, smrRows, smrTot, matRows, matTot }) {
+  const hasLogo = !!appState.logoData;
 
-  // Central: logo image vs letter circle
+  // ── Cover ──────────────────────────────────────────────────────
   const pli2 = document.getElementById('prevLogoImg2');
   const pc2  = document.getElementById('prevCircle2');
   if (hasLogo) {
@@ -352,18 +350,16 @@ function _syncRightPanel({ cn, cl, sl, on, client, ex, dt, rooms, tf, tw, tp, sm
     if (pc2)  { pc2.style.display = 'flex'; pc2.textContent = cl; }
   }
 
-  // Central: name
   const pcn2 = document.getElementById('prevCovName2');
   if (pcn2 && !pcn2.dataset.userEdited) pcn2.textContent = cn.toUpperCase();
 
-  // Central: slogan — hide element entirely if empty
   const pcs2 = document.getElementById('prevCovSlogan2');
   if (pcs2 && !pcs2.dataset.userEdited) {
     pcs2.textContent = sl;
-    pcs2.style.display = hasSlogan ? '' : 'none';
+    pcs2.style.display = sl.trim() ? '' : 'none';
   }
 
-  // Footer bottom-right: logo thumbnail if logo exists, else circle + name
+  // Cover footer
   const footLogo   = document.getElementById('prevFootLogoImg2');
   const footCircle = document.getElementById('prevFootCircle2');
   const footName   = document.getElementById('prevFootName2');
@@ -377,50 +373,126 @@ function _syncRightPanel({ cn, cl, sl, on, client, ex, dt, rooms, tf, tw, tp, sm
     if (footName)   { footName.style.display = ''; footName.textContent = cn.toUpperCase(); }
   }
 
-  // Plan
-  const ppi2 = document.getElementById('prevPlanImg2'), pph2 = document.getElementById('prevPlanPh2');
-  if (appState.planData) { if (ppi2) { ppi2.src = appState.planData; ppi2.style.display = 'block'; } if (pph2) pph2.style.display = 'none'; }
-  else { if (ppi2) ppi2.style.display = 'none'; if (pph2) pph2.style.display = 'block'; }
-  const poi2 = document.getElementById('prevObjInfo2');
-  if (poi2) poi2.innerHTML = `<strong>Объект:</strong> ${esc(on)}<br><strong>Дата осмотра:</strong> ${dt}<br><strong>Заказчик:</strong> ${esc(client)}<br><strong>Исполнитель:</strong> ${esc(ex)}`;
-
-  // Blueprint page (Обмерный план)
-  const bpImg2 = document.getElementById('prevBpImg2'), bpPh2 = document.getElementById('prevBpPh2');
-  const bpImgSrc = appState.planDataFull || appState.planData || null;
-  if (bpImgSrc) { if (bpImg2) { bpImg2.src = bpImgSrc; bpImg2.style.display = 'block'; } if (bpPh2) bpPh2.style.display = 'none'; }
-  else { if (bpImg2) bpImg2.style.display = 'none'; if (bpPh2) bpPh2.style.display = 'flex'; }
-  const bpAddr2 = document.getElementById('prevBpAddress2'); if (bpAddr2) bpAddr2.textContent = on !== '—' ? on : '';
-  const bpFtC2 = document.getElementById('prevBpFtC2'); if (bpFtC2) bpFtC2.textContent = cl;
-  const bpFtN2 = document.getElementById('prevBpFtN2'); if (bpFtN2) bpFtN2.textContent = cn.toUpperCase();
-
-  // Rooms table in plan page
-  const rb2 = document.getElementById('prevRoomsBody2');
-  if (rb2) {
-    rb2.innerHTML = '';
-    rooms.forEach(r => { rb2.innerHTML += `<tr><td style="border:1px solid #e0e0e0;padding:5px 7px">${esc(r.name)}</td><td style="border:1px solid #e0e0e0;padding:5px 7px;text-align:center">${r.floor}</td><td style="border:1px solid #e0e0e0;padding:5px 7px;text-align:center">${r.walls}</td><td style="border:1px solid #e0e0e0;padding:5px 7px;text-align:center">${r.perim}</td></tr>`; });
+  // ── Helper: update any footer (logo img + circle fallback) ──
+  function syncFooter(imgId, circleId, nameId) {
+    const img = document.getElementById(imgId);
+    const cir = document.getElementById(circleId);
+    const nm  = document.getElementById(nameId);
+    if (hasLogo) {
+      if (img) { img.src = appState.logoData; img.style.display = 'block'; }
+      if (cir) cir.style.display = 'none';
+      if (nm)  nm.style.display = 'none';
+    } else {
+      if (img) img.style.display = 'none';
+      if (cir) { cir.style.display = 'flex'; cir.textContent = cl; }
+      if (nm)  { nm.style.display = ''; nm.textContent = cn.toUpperCase(); }
+    }
   }
 
-  // SMR
+  syncFooter('prevPlanFootLogoImg2', 'prevPlanFootCircle2', 'prevPlanFootName2');
+  syncFooter('prevBpFtLogoImg2',     'prevBpFtC2',          'prevBpFtN2');
+  syncFooter('prevSmrFtLogoImg2',    'prevSmrFtC2',         'prevSmrFtN2');
+  syncFooter('prevMatFtLogoImg2',    'prevMatFtC2',         'prevMatFtN2');
+
+  // ── Plan page ──────────────────────────────────────────────────
+  const ppi2 = document.getElementById('prevPlanImg2'), pph2 = document.getElementById('prevPlanPh2');
+  if (appState.planData) {
+    if (ppi2) { ppi2.src = appState.planData; ppi2.style.display = 'block'; }
+    if (pph2) pph2.style.display = 'none';
+  } else {
+    if (ppi2) ppi2.style.display = 'none';
+    if (pph2) pph2.style.display = 'block';
+  }
+
+  // Object info block — new structure: Объект / Дата / Исполнитель / Телефон / ОГРН
+  const poi2 = document.getElementById('prevObjInfo2');
+  if (poi2) {
+    const lines = [];
+    if (on && on !== '—') lines.push(`<strong>Объект:</strong> ${esc(on)}`);
+    if (dt && dt !== '—') lines.push(`<strong>Дата осмотра:</strong> ${dt}`);
+    if (ex)               lines.push(`<strong>Исполнитель:</strong> ${esc(ex)}`);
+    if (phone)            lines.push(`<strong>Телефон:</strong> ${esc(phone)}`);
+    if (ogrn)             lines.push(`<strong>${esc(ogrn)}`);
+    poi2.innerHTML = lines.join('<br>');
+  }
+
+  // Blueprint page
+  const bpImg2 = document.getElementById('prevBpImg2'), bpPh2 = document.getElementById('prevBpPh2');
+  const bpImgSrc = appState.planDataFull || appState.planData || null;
+  if (bpImgSrc) {
+    if (bpImg2) { bpImg2.src = bpImgSrc; bpImg2.style.display = 'block'; }
+    if (bpPh2)  bpPh2.style.display = 'none';
+  } else {
+    if (bpImg2) bpImg2.style.display = 'none';
+    if (bpPh2)  bpPh2.style.display = 'flex';
+  }
+  const bpAddr2 = document.getElementById('prevBpAddress2');
+  if (bpAddr2) bpAddr2.textContent = on !== '—' ? on : '';
+
+  // Rooms table
+  const rb2 = document.getElementById('prevRoomsBody2');
+  const rf2 = document.getElementById('prevRoomsFoot2');
+  if (rb2) {
+    rb2.innerHTML = '';
+    rooms.forEach(r => {
+      rb2.innerHTML += `<tr><td style="border:1px solid #e0e0e0;padding:5px 7px">${esc(r.name)}</td><td style="border:1px solid #e0e0e0;padding:5px 7px;text-align:center">${r.floor}</td><td style="border:1px solid #e0e0e0;padding:5px 7px;text-align:center">${r.walls}</td><td style="border:1px solid #e0e0e0;padding:5px 7px;text-align:center">${r.perim}</td></tr>`;
+    });
+  }
+  if (rf2 && rooms.length > 0) {
+    rf2.innerHTML = `<tr style="font-weight:600;border-top:1px solid #bbb"><td style="border:1px solid #e0e0e0;padding:5px 7px;text-align:right">ИТОГО:</td><td style="border:1px solid #e0e0e0;padding:5px 7px;text-align:center">${tf.toFixed(2)}</td><td style="border:1px solid #e0e0e0;padding:5px 7px;text-align:center">${tw.toFixed(2)}</td><td style="border:1px solid #e0e0e0;padding:5px 7px;text-align:center">${tp.toFixed(2)}</td></tr>`;
+  } else if (rf2) {
+    rf2.innerHTML = '';
+  }
+
+  // ── SMR table ──────────────────────────────────────────────────
   const sb2 = document.getElementById('prevSmrBody2'), se2 = document.getElementById('prevSmrEmpty2');
   if (sb2) {
     if (smrRows.length > 0) {
       if (se2) se2.style.display = 'none';
-      sb2.innerHTML = smrRows.slice(0,25).map((r, i) => `<tr><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:10px">${i+1}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;font-size:10px">${esc(r.name)}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:10px">${esc(r.unit)}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:10px">${r.qty}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:right;font-size:10px;font-weight:500">${fmt(r.total)}</td></tr>`).join('') +
+      sb2.innerHTML = smrRows.map((r, i) =>
+        `<tr><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:10px">${i+1}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;font-size:10px">${esc(r.name)}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:10px">${esc(r.unit)}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:10px">${r.qty}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:right;font-size:10px;font-weight:500">${fmt(r.total)}</td></tr>`
+      ).join('') +
         `<tr><td colspan="4" style="border:1px solid #ccc;padding:6px;text-align:right;font-weight:700;background:#f5f5f2;font-size:10px">Итого:</td><td style="border:1px solid #ccc;padding:6px;text-align:right;font-weight:700;background:#f5f5f2;font-size:11px">${fmt(smrTot)}</td></tr>`;
-    } else { if (se2) se2.style.display = 'flex'; sb2.innerHTML = ''; }
+    } else {
+      if (se2) se2.style.display = 'flex';
+      sb2.innerHTML = '';
+    }
   }
 
-  // Mat
+  // ── Mat table + итоговый блок ─────────────────────────────────
   const mb2 = document.getElementById('prevMatBody2'), me2 = document.getElementById('prevMatEmpty2');
   if (mb2) {
     if (matRows.length > 0) {
       if (me2) me2.style.display = 'none';
-      mb2.innerHTML = matRows.slice(0,25).map((r, i) => `<tr><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:10px">${i+1}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;font-size:10px">${esc(r.name)}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:10px">${esc(r.unit)}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:10px">${r.qty}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:right;font-size:10px;font-weight:500">${fmt(r.total)}</td></tr>`).join('') +
+      mb2.innerHTML = matRows.map((r, i) =>
+        `<tr><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:10px">${i+1}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;font-size:10px">${esc(r.name)}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:10px">${esc(r.unit)}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:10px">${r.qty}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:right;font-size:10px;font-weight:500">${fmt(r.total)}</td></tr>`
+      ).join('') +
         `<tr><td colspan="4" style="border:1px solid #ccc;padding:6px;text-align:right;font-weight:700;background:#f5f5f2;font-size:10px">Итого:</td><td style="border:1px solid #ccc;padding:6px;text-align:right;font-weight:700;background:#f5f5f2;font-size:11px">${fmt(matTot)}</td></tr>`;
-    } else { if (me2) me2.style.display = 'flex'; mb2.innerHTML = ''; }
+    } else {
+      if (me2) me2.style.display = 'flex';
+      mb2.innerHTML = '';
+    }
   }
 
-  // (Final / "Итого по разделам" page removed — not part of the deliverable.)
+  // Итоговый блок — после таблицы материалов
+  let totalsBlock = document.getElementById('prevProjectTotals2');
+  if (!totalsBlock) {
+    totalsBlock = document.createElement('div');
+    totalsBlock.id = 'prevProjectTotals2';
+    totalsBlock.style.cssText = 'margin-top:16px;text-align:right;font-size:11px;line-height:2;color:#2a2a2a;padding-right:2px';
+    const matWrap = document.getElementById('prevMatTableWrap');
+    if (matWrap) matWrap.after(totalsBlock);
+  }
+  if (smrTot > 0 || matTot > 0) {
+    const rows2 = [];
+    if (smrTot > 0) rows2.push(`Итого СМР: <strong>${fmt(smrTot)}</strong>`);
+    if (matTot > 0) rows2.push(`Итого материалы: <strong>${fmt(matTot)}</strong>`);
+    rows2.push(`<span style="font-size:13px;font-weight:700;border-top:1px solid #ccc;display:inline-block;padding-top:4px;margin-top:2px">Итого по проекту: ${fmt(smrTot + matTot)}</span>`);
+    totalsBlock.innerHTML = rows2.join('<br>');
+    totalsBlock.style.display = '';
+  } else {
+    totalsBlock.style.display = 'none';
+  }
 }
 
 // ── Preview modal ─────────────────────────────────────────────────

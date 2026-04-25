@@ -591,7 +591,7 @@
         <div id="prevCovSlogan2" style="position:absolute;left:50%;top:61%;transform:translate(-50%,-50%);font-size:15px;letter-spacing:6px;color:#888;text-transform:uppercase;white-space:nowrap">КАЧЕСТВО ПОД КЛЮЧ</div>
 
         <!-- Footer logo — bottom right -->
-        <div style="position:absolute;bottom:46px;right:76px;display:flex;align-items:center;gap:8px">
+        <div id="prevCovFoot2" style="position:absolute;bottom:46px;right:76px;display:flex;align-items:center;gap:8px">
           <div id="prevFootCircle2" style="width:24px;height:24px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:400;color:#aaa;font-family:'Merriweather',serif">К</div>
           <div id="prevFootName2" style="font-size:13px;font-weight:400;letter-spacing:3px;color:#aaa">КОМПАНИЯ</div>
         </div>
@@ -603,9 +603,7 @@
       <div class="preview-page spp-a4" id="prevPlanning2" data-be-page="plan" style="display:flex;flex-direction:column">
 
         <!-- Title — editable block -->
-        <div style="padding:56px 96px 28px;flex-shrink:0;text-align:center">
-          <div class="be-plan-title be-editable-title" style="font-size:30px;font-weight:400;display:inline-block;letter-spacing:.5px;color:#1c1c1c">Планирование работ:</div>
-        </div>
+        <div class="be-plan-title be-editable-title" style="font-size:30px;font-weight:400;text-align:center;padding:56px 96px 28px;letter-spacing:.5px;color:#1c1c1c;flex-shrink:0">Планирование работ:</div>
 
         <!-- Main grid: 50/50 -->
         <div class="be-plan-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:32px;padding:0 96px 40px;flex:1;min-height:0">
@@ -620,8 +618,8 @@
 
           <!-- RIGHT: info + rooms table -->
           <div class="be-plan-right" style="display:flex;flex-direction:column;gap:18px;min-width:0">
-            <div id="prevObjInfo2" style="font-size:13px;line-height:1.9;color:#3a3a3a;display:inline-block;width:100%"></div>
-            <div class="be-plan-docs" style="font-size:12px;color:#555;line-height:1.85;display:inline-block;width:100%">
+            <div id="prevObjInfo2" style="font-size:13px;line-height:1.9;color:#3a3a3a"></div>
+            <div class="be-plan-docs" style="font-size:12px;color:#555;line-height:1.85">
               На основании осмотра объекта подготовлены следующие документы:<br>
               – Обмерный план.<br>
               – Смета строительно-монтажных работ (СМР).<br>
@@ -645,7 +643,7 @@
         </div><!-- /be-plan-grid -->
 
         <!-- Footer logo -->
-        <div style="position:absolute;bottom:40px;right:76px;display:flex;align-items:center;gap:8px">
+        <div id="prevPlanFoot2" style="position:absolute;bottom:40px;right:76px;display:flex;align-items:center;gap:8px">
           <div style="width:22px;height:22px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa;font-family:'Merriweather',serif">К</div>
           <div style="font-size:11px;letter-spacing:2.5px;color:#aaa">КОМПАНИЯ</div>
         </div>
@@ -673,12 +671,11 @@
     <!-- 4. SMR page -->
     <div class="spp-page" data-page="smr">
       <div class="preview-page spp-a4" id="prevSmr2" data-be-page="smr">
-        <div style="padding:44px 76px 22px;text-align:center;flex-shrink:0">
-          <div class="be-editable-title" style="font-size:26px;font-weight:400;display:inline-block;color:#1c1c1c;letter-spacing:.3px">Смета строительно-монтажных работ</div>
-        </div>
-        <div style="padding:0 76px 28px;display:flex;flex-direction:column;flex:1;box-sizing:border-box">
-          <table style="width:100%;border-collapse:collapse;font-size:11px;color:#2a2a2a">
-            <thead><tr>
+        <div style="padding:44px 76px 28px;display:flex;flex-direction:column;height:100%;box-sizing:border-box">
+          <div class="be-editable-title" style="font-size:26px;font-weight:400;text-align:center;margin-bottom:22px;color:#1c1c1c;letter-spacing:.3px">Смета строительно-монтажных работ</div>
+          <div id="prevSmrTableWrap" style="width:100%">
+            <table style="width:100%;border-collapse:collapse;font-size:11px;color:#2a2a2a">
+              <thead><tr>
               <th style="border:1px solid #c9b86a;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#fcebb0;width:32px">№<br>п/п</th>
               <th style="border:1px solid #c9b86a;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#fcebb0">СМР</th>
               <th style="border:1px solid #c9b86a;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#fcebb0;width:66px">Ед. изм.</th>
@@ -690,9 +687,9 @@
             <tbody id="prevSmrBody2"></tbody>
           </table>
           <div id="prevSmrEmpty2" style="padding:80px 0;text-align:center;color:#ccc;font-size:14px">Загрузите файл СМР или введите вручную</div>
-        </div>
+          </div>
         <!-- Footer logo -->
-        <div style="position:absolute;bottom:36px;right:76px;display:flex;align-items:center;gap:8px">
+        <div id="prevSmrFoot2" style="position:absolute;bottom:36px;right:76px;display:flex;align-items:center;gap:8px">
           <div style="width:22px;height:22px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa;font-family:'Merriweather',serif">К</div>
           <div style="font-size:11px;letter-spacing:2.5px;color:#aaa">КОМПАНИЯ</div>
         </div>
@@ -706,6 +703,7 @@
           <div class="be-editable-title" style="font-size:26px;font-weight:400;display:inline-block;color:#1c1c1c;letter-spacing:.3px">Смета на строительные и отделочные материалы</div>
         </div>
         <div style="padding:0 76px 28px;display:flex;flex-direction:column;flex:1;box-sizing:border-box">
+          <div id="prevMatTableWrap" style="width:100%">
           <table style="width:100%;border-collapse:collapse;font-size:11px;color:#2a2a2a">
             <thead><tr>
               <th style="border:1px solid #9fb8d9;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#d8e4f2;width:32px">№<br>п/п</th>
@@ -719,8 +717,9 @@
             <tbody id="prevMatBody2"></tbody>
           </table>
           <div id="prevMatEmpty2" style="padding:80px 0;text-align:center;color:#ccc;font-size:14px">Загрузите файл материалов или введите вручную</div>
+          </div>
         </div>
-        <div style="position:absolute;bottom:36px;right:76px;display:flex;align-items:center;gap:8px">
+        <div id="prevMatFoot2" style="position:absolute;bottom:36px;right:76px;display:flex;align-items:center;gap:8px">
           <div style="width:22px;height:22px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa;font-family:'Merriweather',serif">К</div>
           <div style="font-size:11px;letter-spacing:2.5px;color:#aaa">КОМПАНИЯ</div>
         </div>

@@ -615,14 +615,11 @@ function _applyA4Scale() {
     page.style.transformOrigin = 'top center';
   });
 
-  // ВАЖНО: высота .spp-page = scaledH, чтобы страницы шли строго друг за другом
-  // transform:scale не влияет на layout box, поэтому задаём высоту вручную
+  // Высота .spp-page = scaledH, чтобы страницы шли строго друг за другом.
+  // transform:scale не влияет на layout box, поэтому задаём высоту вручную.
   document.querySelectorAll('.spp-page').forEach(wrap => {
     wrap.style.height = scaledH + 'px';
     wrap.style.minHeight = scaledH + 'px';
-    wrap.style.display = wrap.classList.contains('spp-hidden') ? 'none' : 'flex';
-    wrap.style.flexDirection = 'column';
-    wrap.style.width = '100%';
   });
 }
 // Also expose globally for inline scripts
@@ -971,11 +968,13 @@ const BlockEditor = (() => {
   }
 
   function clampIntoPage(st) {
-    const maxX = NATIVE_W - Math.min(st.w, NATIVE_W);
-    const maxY = NATIVE_H - Math.min(st.h, NATIVE_H);
+    // Разрешаем выходить за границы страницы (нужно для футера-логотипа).
+    // Ограничиваем только снизу и слева с большим запасом чтобы элемент
+    // не улетал совсем за пределы досягаемости.
+    const MARGIN = 200; // px в нативных координатах — можно уйти за край на 200px
     return {
-      x: Math.max(0, Math.min(maxX, st.x)),
-      y: Math.max(0, Math.min(maxY, st.y)),
+      x: Math.max(-MARGIN, Math.min(NATIVE_W + MARGIN - 10, st.x)),
+      y: Math.max(-MARGIN, Math.min(NATIVE_H + MARGIN - 10, st.y)),
       w: st.w,
       h: st.h,
     };

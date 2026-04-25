@@ -37,7 +37,7 @@ html, body {
   background: var(--bg);
   color: var(--ink);
   -webkit-font-smoothing: antialiased;
-  font-size: 13px;
+  font-size: 18px;
   line-height: 1.4;
   user-select: none;
 }
@@ -744,7 +744,7 @@ html, body {
   top: 50px !important;
   left: 50% !important;
   transform: translateX(-50%) !important;
-  font-size: 16px !important;
+  font-size: 24px !important;
   font-weight: 400 !important;
   color: #1c1c1c !important;
   letter-spacing: .5px !important;
@@ -755,26 +755,8 @@ html, body {
 }
 
 /* Table font sizes */
-/* ═══════════════════════════════════════════════════════════════
-   РАЗМЕР ШРИФТА В PDF — меняй только одну переменную
-   --pdf-fs = размер для таблиц, текста объекта, футеров
-   Перекрывает все inline style="font-size:..." в превью
-═══════════════════════════════════════════════════════════════ */
-:root { --pdf-fs: 14px; }
-
-/* Таблицы смет и экспликации */
-.spp-a4 table,
-.spp-a4 td,
-.spp-a4 th { font-size: var(--pdf-fs) !important; }
-
-/* Текст объекта и экспликация */
-.spp-a4 #prevObjInfo2,
-.spp-a4 #prevExplBox2 > div { font-size: var(--pdf-fs) !important; }
-
-/* Футеры компании */
-.spp-a4 [id$="FtN2"],
-.spp-a4 #prevFootName2,
-.spp-a4 #prevPlanFootName2 { font-size: var(--pdf-fs) !important; }
+.spp-a4 table { font-size: 18px; }
+.spp-a4 th    { font-size: 18px; }
 
 /* Hide old modal preview button */
 .btn-preview { display: none !important; }

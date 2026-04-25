@@ -603,7 +603,9 @@
       <div class="preview-page spp-a4" id="prevPlanning2" data-be-page="plan" style="display:flex;flex-direction:column">
 
         <!-- Title — editable block -->
-        <div class="be-plan-title be-editable-title" style="font-size:30px;font-weight:400;text-align:center;padding:56px 96px 28px;letter-spacing:.5px;color:#1c1c1c;flex-shrink:0">Планирование работ:</div>
+        <div style="padding:56px 96px 28px;flex-shrink:0;text-align:center">
+          <div class="be-plan-title be-editable-title" style="font-size:30px;font-weight:400;display:inline-block;letter-spacing:.5px;color:#1c1c1c">Планирование работ:</div>
+        </div>
 
         <!-- Main grid: 50/50 -->
         <div class="be-plan-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:32px;padding:0 96px 40px;flex:1;min-height:0">
@@ -618,8 +620,8 @@
 
           <!-- RIGHT: info + rooms table -->
           <div class="be-plan-right" style="display:flex;flex-direction:column;gap:18px;min-width:0">
-            <div id="prevObjInfo2" style="font-size:13px;line-height:1.9;color:#3a3a3a"></div>
-            <div class="be-plan-docs" style="font-size:12px;color:#555;line-height:1.85">
+            <div id="prevObjInfo2" style="font-size:13px;line-height:1.9;color:#3a3a3a;display:inline-block;width:100%"></div>
+            <div class="be-plan-docs" style="font-size:12px;color:#555;line-height:1.85;display:inline-block;width:100%">
               На основании осмотра объекта подготовлены следующие документы:<br>
               – Обмерный план.<br>
               – Смета строительно-монтажных работ (СМР).<br>
@@ -671,8 +673,10 @@
     <!-- 4. SMR page -->
     <div class="spp-page" data-page="smr">
       <div class="preview-page spp-a4" id="prevSmr2" data-be-page="smr">
-        <div style="padding:44px 76px 28px;display:flex;flex-direction:column;height:100%;box-sizing:border-box">
-          <div class="be-editable-title" style="font-size:26px;font-weight:400;text-align:center;margin-bottom:22px;color:#1c1c1c;letter-spacing:.3px">Смета строительно-монтажных работ</div>
+        <div style="padding:44px 76px 22px;text-align:center;flex-shrink:0">
+          <div class="be-editable-title" style="font-size:26px;font-weight:400;display:inline-block;color:#1c1c1c;letter-spacing:.3px">Смета строительно-монтажных работ</div>
+        </div>
+        <div style="padding:0 76px 28px;display:flex;flex-direction:column;flex:1;box-sizing:border-box">
           <table style="width:100%;border-collapse:collapse;font-size:11px;color:#2a2a2a">
             <thead><tr>
               <th style="border:1px solid #c9b86a;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#fcebb0;width:32px">№<br>п/п</th>
@@ -698,8 +702,10 @@
     <!-- 5. Mat page -->
     <div class="spp-page" data-page="mat">
       <div class="preview-page spp-a4" id="prevMat2" data-be-page="mat">
-        <div style="padding:44px 76px 28px;display:flex;flex-direction:column;height:100%;box-sizing:border-box">
-          <div class="be-editable-title" style="font-size:26px;font-weight:400;text-align:center;margin-bottom:22px;color:#1c1c1c;letter-spacing:.3px">Смета на строительные и отделочные материалы</div>
+        <div style="padding:44px 76px 22px;text-align:center;flex-shrink:0">
+          <div class="be-editable-title" style="font-size:26px;font-weight:400;display:inline-block;color:#1c1c1c;letter-spacing:.3px">Смета на строительные и отделочные материалы</div>
+        </div>
+        <div style="padding:0 76px 28px;display:flex;flex-direction:column;flex:1;box-sizing:border-box">
           <table style="width:100%;border-collapse:collapse;font-size:11px;color:#2a2a2a">
             <thead><tr>
               <th style="border:1px solid #9fb8d9;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#d8e4f2;width:32px">№<br>п/п</th>

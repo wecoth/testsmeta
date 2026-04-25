@@ -200,7 +200,6 @@ function smartParse(json) {
   }
   return rows;
 }
-}
 
 // ── SMR table ─────────────────────────────────────────────────────
 

@@ -1085,11 +1085,31 @@ const BlockEditor = (() => {
     const pageId = page.id || '';
     const commonSelectors = ['.be-editable-title'];
     const pageSelectors = {
-      'prevCover2':    ['#prevCovType2', '#prevCovLogo2', '#prevCovName2', '#prevCovSlogan2'],
-      'prevPlanning2': ['#prevPlanBox2', '#prevObjInfo2', '.be-plan-docs', '#prevExplBox2'],
-      'prevBlueprint2':['#prevBpAddress2'],
-      'prevSmr2':      [],
-      'prevMat2':      [],
+      'prevCover2':    [
+        '#prevCovType2',
+        '#prevCovLogo2',
+        '#prevCovName2',
+        '#prevCovSlogan2',
+        '#prevCovFoot2',
+      ],
+      'prevPlanning2': [
+        '#prevPlanBox2',
+        '#prevObjInfo2',
+        '.be-plan-docs',
+        '#prevExplBox2',
+        '#prevPlanFoot2',
+      ],
+      'prevBlueprint2':[
+        '#prevBpAddress2',
+      ],
+      'prevSmr2':      [
+        '#prevSmrTableWrap',
+        '#prevSmrFoot2',
+      ],
+      'prevMat2':      [
+        '#prevMatTableWrap',
+        '#prevMatFoot2',
+      ],
     };
 
     const selectors = [

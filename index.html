@@ -433,7 +433,13 @@
         </div>
         <div class="field">
           <label>Телефон</label>
-          <input type="text" id="companyPhone" placeholder="+7 (000) 000-00-00">
+          <input type="text" id="companyPhone" placeholder="+7 (000) 000-00-00" oninput="window._smetaModule.liveUpdate()">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>ОГРН / ИНН <span style="font-weight:300;font-size:10px">(опц.)</span></label>
+          <input type="text" id="companyOgrn" placeholder="ОГРН 123456789012" oninput="window._smetaModule.liveUpdate()">
         </div>
       </div>
     </div>
@@ -445,15 +451,9 @@
         <label>Адрес / название объекта</label>
         <input type="text" id="objectName" placeholder="ул. Красная, 176, кв. 34" oninput="window._smetaModule.liveUpdate()">
       </div>
-      <div class="field-row">
-        <div class="field">
-          <label>Заказчик (ФИО)</label>
-          <input type="text" id="clientName" placeholder="Иванов И.И." oninput="window._smetaModule.liveUpdate()">
-        </div>
-        <div class="field">
-          <label>Дата осмотра</label>
-          <input type="date" id="inspDate" oninput="window._smetaModule.liveUpdate()">
-        </div>
+      <div class="field">
+        <label>Дата осмотра</label>
+        <input type="date" id="inspDate" oninput="window._smetaModule.liveUpdate()">
       </div>
     </div>
 
@@ -633,24 +633,18 @@
 
           <!-- RIGHT: info + rooms table -->
           <div class="be-plan-right" style="display:flex;flex-direction:column;gap:18px;min-width:0">
-            <div id="prevObjInfo2" style="font-size:13px;line-height:1.9;color:#3a3a3a"></div>
-            <div class="be-plan-docs" style="font-size:12px;color:#555;line-height:1.85">
-              На основании осмотра объекта подготовлены следующие документы:<br>
-              – Обмерный план.<br>
-              – Смета строительно-монтажных работ (СМР).<br>
-              – Смета на строительные и отделочные материалы.<br>
-              – Календарный график производства работ.
-            </div>
+            <div id="prevObjInfo2" style="font-size:11px;line-height:2.1;color:#3a3a3a"></div>
             <div id="prevExplBox2">
-              <div style="font-size:13px;font-weight:400;text-align:center;margin-bottom:8px;letter-spacing:.3px;color:#3a3a3a">Экспликация помещений</div>
+              <div style="font-size:11px;font-weight:400;text-align:center;margin-bottom:8px;letter-spacing:.3px;color:#3a3a3a">Экспликация помещений</div>
               <table style="width:100%;border-collapse:collapse;font-size:11px">
                 <thead><tr>
-                  <th style="border:1px solid #bbb;padding:6px 8px;text-align:left;font-weight:400;font-size:11px;background:#f5f5f2;color:#3a3a3a">Помещение</th>
-                  <th style="border:1px solid #bbb;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#f5f5f2;color:#3a3a3a">Пол м²</th>
-                  <th style="border:1px solid #bbb;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#f5f5f2;color:#3a3a3a">Стены м²</th>
-                  <th style="border:1px solid #bbb;padding:6px 8px;text-align:center;font-weight:400;font-size:11px;background:#f5f5f2;color:#3a3a3a">Периметр</th>
+                  <th style="border:1px solid #bbb;padding:5px 7px;text-align:left;font-weight:400;font-size:11px;background:#f5f5f2;color:#3a3a3a">Помещение</th>
+                  <th style="border:1px solid #bbb;padding:5px 7px;text-align:center;font-weight:400;font-size:11px;background:#f5f5f2;color:#3a3a3a">Пол м²</th>
+                  <th style="border:1px solid #bbb;padding:5px 7px;text-align:center;font-weight:400;font-size:11px;background:#f5f5f2;color:#3a3a3a">Стены м²</th>
+                  <th style="border:1px solid #bbb;padding:5px 7px;text-align:center;font-weight:400;font-size:11px;background:#f5f5f2;color:#3a3a3a">Периметр</th>
                 </tr></thead>
                 <tbody id="prevRoomsBody2"></tbody>
+                <tfoot id="prevRoomsFoot2"></tfoot>
               </table>
             </div>
           </div>
@@ -658,9 +652,10 @@
         </div><!-- /be-plan-grid -->
 
         <!-- Footer logo -->
-        <div id="prevPlanFoot2" style="position:absolute;bottom:40px;right:76px;display:flex;align-items:center;gap:8px">
-          <div style="width:22px;height:22px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa;font-family:'Merriweather',serif">К</div>
-          <div style="font-size:11px;letter-spacing:2.5px;color:#aaa">КОМПАНИЯ</div>
+        <div id="prevPlanFoot2" style="position:absolute;bottom:25px;right:50px;display:flex;align-items:center;gap:8px">
+          <img id="prevPlanFootLogoImg2" alt="" style="height:28px;max-width:80px;object-fit:contain;display:none">
+          <div id="prevPlanFootCircle2" style="width:22px;height:22px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa;font-family:'Merriweather',serif">К</div>
+          <div id="prevPlanFootName2" style="font-size:11px;letter-spacing:2.5px;color:#aaa">КОМПАНИЯ</div>
         </div>
       </div>
     </div>
@@ -676,7 +671,8 @@
           <img id="prevBpImg2" alt="" style="max-width:100%;max-height:100%;object-fit:contain;display:none">
           <div id="prevBpPh2" style="color:#ccc;font-size:48px;text-align:center;line-height:1.4">⬚<br><span style="font-size:14px;letter-spacing:0;color:#aaa">Используйте «Захватить чертёж»</span></div>
         </div>
-        <div style="padding:0 76px 40px;display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-shrink:0">
+        <div style="padding:0 50px 25px;display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-shrink:0">
+          <img id="prevBpFtLogoImg2" alt="" style="height:28px;max-width:80px;object-fit:contain;display:none">
           <div id="prevBpFtC2" style="width:22px;height:22px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa;font-family:'Merriweather',serif">К</div>
           <div id="prevBpFtN2" style="font-size:11px;letter-spacing:2.5px;color:#aaa">КОМПАНИЯ</div>
         </div>
@@ -704,9 +700,10 @@
           <div id="prevSmrEmpty2" style="padding:80px 0;text-align:center;color:#ccc;font-size:14px">Загрузите файл СМР или введите вручную</div>
           </div>
         <!-- Footer logo -->
-        <div id="prevSmrFoot2" style="position:absolute;bottom:36px;right:76px;display:flex;align-items:center;gap:8px">
-          <div style="width:22px;height:22px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa;font-family:'Merriweather',serif">К</div>
-          <div style="font-size:11px;letter-spacing:2.5px;color:#aaa">КОМПАНИЯ</div>
+        <div id="prevSmrFoot2" style="position:absolute;bottom:25px;right:50px;display:flex;align-items:center;gap:8px">
+          <img id="prevSmrFtLogoImg2" alt="" style="height:28px;max-width:80px;object-fit:contain;display:none">
+          <div id="prevSmrFtC2" style="width:22px;height:22px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa;font-family:'Merriweather',serif">К</div>
+          <div id="prevSmrFtN2" style="font-size:11px;letter-spacing:2.5px;color:#aaa">КОМПАНИЯ</div>
         </div>
       </div>
     </div>
@@ -734,9 +731,10 @@
           <div id="prevMatEmpty2" style="padding:80px 0;text-align:center;color:#ccc;font-size:14px">Загрузите файл материалов или введите вручную</div>
           </div>
         </div>
-        <div id="prevMatFoot2" style="position:absolute;bottom:36px;right:76px;display:flex;align-items:center;gap:8px">
-          <div style="width:22px;height:22px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa;font-family:'Merriweather',serif">К</div>
-          <div style="font-size:11px;letter-spacing:2.5px;color:#aaa">КОМПАНИЯ</div>
+        <div id="prevMatFoot2" style="position:absolute;bottom:25px;right:50px;display:flex;align-items:center;gap:8px">
+          <img id="prevMatFtLogoImg2" alt="" style="height:28px;max-width:80px;object-fit:contain;display:none">
+          <div id="prevMatFtC2" style="width:22px;height:22px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa;font-family:'Merriweather',serif">К</div>
+          <div id="prevMatFtN2" style="font-size:11px;letter-spacing:2.5px;color:#aaa">КОМПАНИЯ</div>
         </div>
       </div>
     </div>

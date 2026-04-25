@@ -720,7 +720,7 @@ html, body {
 .spp-a4::before {
   content: '';
   position: absolute;
-  top: 76px; left: 76px; right: 76px; bottom: 76px;
+  top: 20px; left: 20px; right: 20px; bottom: 20px;
   border: 1px dashed rgba(180,180,180,0.45);
   pointer-events: none;
   z-index: 0;

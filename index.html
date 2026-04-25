@@ -617,11 +617,11 @@
     <div class="spp-page" data-page="plan">
       <div class="preview-page spp-a4" id="prevPlanning2" data-be-page="plan" style="display:flex;flex-direction:column">
 
-        <!-- Title — editable block -->
-        <div class="be-plan-title be-editable-title" style="font-size:30px;font-weight:400;text-align:center;padding:56px 96px 28px;letter-spacing:.5px;color:#1c1c1c;flex-shrink:0">Планирование работ:</div>
+        <!-- Title — fixed at top, not interactive -->
+        <div class="spp-section-title">Планирование работ:</div>
 
-        <!-- Main grid: 50/50 -->
-        <div class="be-plan-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:32px;padding:0 96px 40px;flex:1;min-height:0">
+        <!-- Main grid: 50/50, padded below title -->
+        <div class="be-plan-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:32px;padding:90px 96px 40px;flex:1;min-height:0">
 
           <!-- LEFT: drawing/plan image -->
           <div class="be-plan-left" style="display:flex;flex-direction:column;min-width:0">
@@ -663,17 +663,15 @@
     <!-- 3. Обмерный план -->
     <div class="spp-page" data-page="blueprint">
       <div class="preview-page spp-a4 spp-blueprint" id="prevBlueprint2" data-be-page="blueprint">
-        <div style="padding:40px 96px 16px;display:flex;align-items:baseline;justify-content:center;gap:14px;flex-shrink:0">
-          <span style="font:400 28px/1.2 'Merriweather',serif;color:#1c1c1c;letter-spacing:.5px">Обмерный план</span>
-          <span style="font-size:13px;color:#888" id="prevBpAddress2"></span>
-        </div>
-        <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fafafa;margin:0 76px 40px;border:1px solid #e8e8e8;border-radius:3px">
+        <!-- Title fixed at top, not interactive -->
+        <div class="spp-section-title">Обмерный план</div>
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fafafa;margin:90px 50px 60px;border:1px solid #e8e8e8;border-radius:3px">
           <img id="prevBpImg2" alt="" style="max-width:100%;max-height:100%;object-fit:contain;display:none">
           <div id="prevBpPh2" style="color:#ccc;font-size:48px;text-align:center;line-height:1.4">⬚<br><span style="font-size:14px;letter-spacing:0;color:#aaa">Используйте «Захватить чертёж»</span></div>
         </div>
-        <div style="padding:0 50px 25px;display:flex;justify-content:flex-end;align-items:center;gap:8px;flex-shrink:0">
+        <div style="position:absolute;bottom:25px;right:50px;display:flex;align-items:center;gap:8px">
           <img id="prevBpFtLogoImg2" alt="" style="height:28px;max-width:80px;object-fit:contain;display:none">
-          <div id="prevBpFtC2" style="width:22px;height:22px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa;font-family:'Merriweather',serif">К</div>
+          <div id="prevBpFtC2" style="width:22px;height:22px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa">К</div>
           <div id="prevBpFtN2" style="font-size:11px;letter-spacing:2.5px;color:#aaa">КОМПАНИЯ</div>
         </div>
       </div>
@@ -682,8 +680,9 @@
     <!-- 4. SMR page -->
     <div class="spp-page" data-page="smr">
       <div class="preview-page spp-a4" id="prevSmr2" data-be-page="smr">
-        <div style="padding:44px 76px 28px;display:flex;flex-direction:column;height:100%;box-sizing:border-box">
-          <div class="be-editable-title" style="font-size:26px;font-weight:400;text-align:center;margin-bottom:22px;color:#1c1c1c;letter-spacing:.3px">Смета строительно-монтажных работ</div>
+        <!-- Title fixed at top -->
+        <div class="spp-section-title">Смета строительно-монтажных работ</div>
+        <div style="padding:90px 50px 28px;display:flex;flex-direction:column;height:100%;box-sizing:border-box">
           <div id="prevSmrTableWrap" style="width:100%">
             <table style="width:100%;border-collapse:collapse;font-size:11px;color:#2a2a2a">
               <thead><tr>
@@ -711,10 +710,9 @@
     <!-- 5. Mat page -->
     <div class="spp-page" data-page="mat">
       <div class="preview-page spp-a4" id="prevMat2" data-be-page="mat">
-        <div style="padding:44px 76px 22px;text-align:center;flex-shrink:0">
-          <div class="be-editable-title" style="font-size:26px;font-weight:400;display:inline-block;color:#1c1c1c;letter-spacing:.3px">Смета на строительные и отделочные материалы</div>
-        </div>
-        <div style="padding:0 76px 28px;display:flex;flex-direction:column;flex:1;box-sizing:border-box">
+        <!-- Title fixed at top -->
+        <div class="spp-section-title">Смета на строительные и отделочные материалы</div>
+        <div style="padding:90px 50px 28px;display:flex;flex-direction:column;flex:1;box-sizing:border-box">
           <div id="prevMatTableWrap" style="width:100%">
           <table style="width:100%;border-collapse:collapse;font-size:11px;color:#2a2a2a">
             <thead><tr>

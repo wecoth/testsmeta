@@ -643,20 +643,22 @@ const BlockEditor = (() => {
       box-sizing: border-box;
       cursor: default;
       user-select: none;
+      position: relative; /* needed for ::after on inline-block spans */
     }
     .be-block:not(.be-selected):hover::after {
       content: '';
-      position: absolute; inset: -2px;
-      border: 1.5px dashed rgba(74,159,255,0.4);
+      position: absolute; inset: 0;
+      border: 1.5px dashed rgba(74,159,255,0.5);
       border-radius: 2px;
       pointer-events: none;
     }
     .be-block.be-selected {
       outline: 2px solid #4a9eff;
-      outline-offset: 1px;
+      outline-offset: 0px;
     }
     .be-block.be-editing {
       outline: 2px solid #2171e0;
+      outline-offset: 0px;
     }
     .be-block.be-hidden {
       opacity: 0.08;
@@ -761,8 +763,22 @@ const BlockEditor = (() => {
     el.dataset.beH = st.h;
     el.style.left   = st.x + 'px';
     el.style.top    = st.y + 'px';
-    el.style.width  = st.w + 'px';
-    el.style.height = st.h + 'px';
+
+    // Scale content to fill the new dimensions.
+    // Original (snapshot) size stored in data-be-orig-w/h on first resize.
+    const ow = parseFloat(el.dataset.beOrigW) || 0;
+    const oh = parseFloat(el.dataset.beOrigH) || 0;
+    if (ow > 0 && oh > 0) {
+      // Keep DOM box at original size, scale visually.
+      const sc = Math.min(st.w / ow, st.h / oh);
+      el.style.width  = ow + 'px';
+      el.style.height = oh + 'px';
+      el.style.transformOrigin = 'top left';
+      el.style.transform = `scale(${sc})`;
+    } else {
+      el.style.width  = st.w + 'px';
+      el.style.height = st.h + 'px';
+    }
   }
 
   // Lazy snapshot — convert an element to frozen position:absolute in
@@ -849,6 +865,9 @@ const BlockEditor = (() => {
 
     applyState(el, { x, y, w, h });
     el.dataset.bePosInit = '1';
+    // Store original dimensions so applyState can scale content correctly.
+    el.dataset.beOrigW = w;
+    el.dataset.beOrigH = h;
 
     // Debug: one-time log so we can diagnose any jump. Toggle window.__beDbg = false to silence.
     if (window.__beDbg !== false) {
@@ -914,6 +933,18 @@ const BlockEditor = (() => {
       if (e.target.closest('.be-block, .be-toolbar, .be-h-corner')) return;
       deselect(_sel);
     }, true);
+
+    // Delete / Backspace — remove selected block from page entirely.
+    document.addEventListener('keydown', e => {
+      if (!_sel) return;
+      if (_sel.contentEditable === 'true') return; // don't interfere with text edit
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        const el = _sel;
+        deselect(el);
+        el.remove();
+      }
+    });
   }
 
   // ── Drag (body) ──────────────────────────────────────────────

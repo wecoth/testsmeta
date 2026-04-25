@@ -417,8 +417,8 @@ function makeSmrOverflowPage(rows, isLast, grandTotal) {
     if (r.isSection) return `<tr><td colspan="7" style="padding:6px 8px;font-size:15px;font-weight:700;color:#1a1a1a;border-bottom:1px solid #e0e0e0">${esc(r.name)}</td></tr>`;
     return `<tr><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:center;font-size:15px">${r._idx}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;font-size:15px">${esc(r.name)}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:center;font-size:15px">${esc(r.unit)}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:center;font-size:15px">${r.qty}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:right;font-size:15px">${r.price ? fmt(r.price) : ''}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:right;font-size:15px;font-weight:500">${fmt(r.total)}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;font-size:15px"></td></tr>`;
   }).join('');
-  const foot = isLast ? `<tr><td colspan="5" style="border:1px solid #ccc;padding:5px;text-align:right;font-weight:700;font-size:15px">Итого:</td><td style="border:1px solid #ccc;padding:5px;text-align:right;font-weight:700;font-size:15px">${fmt(grandTotal)}</td><td style="border:1px solid #ccc;padding:5px"></td></tr>` : '';
-  page.innerHTML = `<div class="preview-page spp-a4"><div class="spp-section-title">Смета строительно-монтажных работ</div><div style="padding:90px 50px 60px;max-height:794px;box-sizing:border-box;overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:15px;color:#2a2a2a"><thead><tr><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:50px">№<br>п/п</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0">СМР</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:66px">Ед. изм.</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:66px">Кол-во</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:108px">За ед. ₽</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:120px">Всего ₽</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:100px">Примечание</th></tr></thead><tbody>${tbody}${foot}</tbody></table></div></div>`;
+  const foot = '';
+  page.innerHTML = `<div class="preview-page spp-a4"><div style="padding:90px 50px 60px;max-height:794px;box-sizing:border-box;overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:15px;color:#2a2a2a"><thead><tr><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:50px">№<br>п/п</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0">СМР</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:66px">Ед. изм.</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:66px">Кол-во</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:108px">За ед. ₽</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:120px">Всего ₽</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:100px">Примечание</th></tr></thead><tbody>${tbody}${foot}</tbody></table></div></div>`;
   return page;
 }
 
@@ -431,8 +431,8 @@ function makeMatOverflowPage(rows, isLast, grandTotal) {
     if (r.isSection) return `<tr><td colspan="7" style="padding:6px 8px;font-size:15px;font-weight:700;color:#1a1a1a;border-bottom:1px solid #e0e0e0">${esc(r.name)}</td></tr>`;
     return `<tr><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:center;font-size:15px">${r._idx}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;font-size:15px">${esc(r.name)}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:center;font-size:15px">${esc(r.unit)}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:center;font-size:15px">${r.qty}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:right;font-size:15px">${r.price ? fmt(r.price) : ''}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:right;font-size:15px;font-weight:500">${fmt(r.total)}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;font-size:15px"></td></tr>`;
   }).join('');
-  const foot = isLast ? `<tr><td colspan="5" style="border:1px solid #ccc;padding:5px;text-align:right;font-weight:700;font-size:15px">Итого:</td><td style="border:1px solid #ccc;padding:5px;text-align:right;font-weight:700;font-size:15px">${fmt(grandTotal)}</td><td style="border:1px solid #ccc;padding:5px"></td></tr>` : '';
-  page.innerHTML = `<div class="preview-page spp-a4"><div class="spp-section-title">Смета на строительные и отделочные материалы</div><div style="padding:90px 50px 60px;max-height:794px;box-sizing:border-box;overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:15px;color:#2a2a2a"><thead><tr><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:50px">№<br>п/п</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2">Строительные материалы</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:66px">Ед. изм.</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:66px">Кол-во</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:108px">За ед. ₽</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:120px">Всего ₽</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:100px">Примечание</th></tr></thead><tbody>${tbody}${foot}</tbody></table></div></div>`;
+  const foot = '';
+  page.innerHTML = `<div class="preview-page spp-a4"><div style="padding:90px 50px 60px;max-height:794px;box-sizing:border-box;overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:15px;color:#2a2a2a"><thead><tr><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:50px">№<br>п/п</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2">Строительные материалы</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:66px">Ед. изм.</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:66px">Кол-во</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:108px">За ед. ₽</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:120px">Всего ₽</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:100px">Примечание</th></tr></thead><tbody>${tbody}${foot}</tbody></table></div></div>`;
   return page;
 }
 
@@ -572,8 +572,7 @@ function _syncRightPanel({ cn, cl, sl, on, ex, phone, ogrn, dt, rooms, tf, tw, t
         }
         smrIdx++;
         return `<tr><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:center;font-size:15px">${smrIdx}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;font-size:15px">${esc(r.name)}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:center;font-size:15px">${esc(r.unit)}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:center;font-size:15px">${r.qty}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:right;font-size:15px">${r.price ? fmt(r.price) : ''}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:right;font-size:15px;font-weight:500">${fmt(r.total)}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;font-size:15px"></td></tr>`;
-      }).join('') +
-        `<tr><td colspan="5" style="border:1px solid #ccc;padding:5px;text-align:right;font-weight:700;font-size:15px">Итого:</td><td style="border:1px solid #ccc;padding:5px;text-align:right;font-weight:700;font-size:15px">${fmt(smrTot)}</td><td style="border:1px solid #ccc;padding:5px"></td></tr>`;
+      }).join('');
     } else {
       if (se2) se2.style.display = 'flex';
       sb2.innerHTML = '';
@@ -592,49 +591,14 @@ function _syncRightPanel({ cn, cl, sl, on, ex, phone, ogrn, dt, rooms, tf, tw, t
         }
         matIdx++;
         return `<tr><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:center;font-size:15px">${matIdx}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;font-size:15px">${esc(r.name)}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:center;font-size:15px">${esc(r.unit)}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:center;font-size:15px">${r.qty}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:right;font-size:15px">${r.price ? fmt(r.price) : ''}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:right;font-size:15px;font-weight:500">${fmt(r.total)}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;font-size:15px"></td></tr>`;
-      }).join('') +
-        `<tr><td colspan="5" style="border:1px solid #ccc;padding:5px;text-align:right;font-weight:700;font-size:15px">Итого:</td><td style="border:1px solid #ccc;padding:5px;text-align:right;font-weight:700;font-size:15px">${fmt(matTot)}</td><td style="border:1px solid #ccc;padding:5px"></td></tr>`;
+      }).join('');
     } else {
       if (me2) me2.style.display = 'flex';
       mb2.innerHTML = '';
     }
   }
 
-  // Итоговый блок — после таблицы материалов
-  let totalsBlock = document.getElementById('prevProjectTotals2');
-  if (!totalsBlock) {
-    totalsBlock = document.createElement('div');
-    totalsBlock.id = 'prevProjectTotals2';
-    totalsBlock.style.cssText = 'margin-top:16px;text-align:right;font-size:11px;line-height:2;color:#2a2a2a;padding-right:2px';
-    const matWrap = document.getElementById('prevMatTableWrap');
-    if (matWrap) matWrap.after(totalsBlock);
-  }
-  if (smrTot > 0 || matTot > 0) {
-    const rows2 = [];
-    if (smrTot > 0) rows2.push(`Итого СМР: <strong>${fmt(smrTot)}</strong>`);
-    if (matTot > 0) rows2.push(`Итого материалы: <strong>${fmt(matTot)}</strong>`);
-    rows2.push(`<span style="font-size:13px;font-weight:700;border-top:1px solid #ccc;display:inline-block;padding-top:4px;margin-top:2px">Итого по проекту: ${fmt(smrTot + matTot)}</span>`);
-    totalsBlock.innerHTML = rows2.join('<br>');
-    totalsBlock.style.display = '';
-  } else {
-    totalsBlock.style.display = 'none';
-  }
 
-  // ── Planning page totals ───────────────────────────────────────
-  const planTotals = document.getElementById('prevPlanTotals2');
-  if (planTotals) {
-    if (smrTot > 0 || matTot > 0) {
-      planTotals.style.display = '';
-      const smrEl = document.getElementById('prevPlanSmrTot2');
-      const matEl = document.getElementById('prevPlanMatTot2');
-      const totEl = document.getElementById('prevPlanTotalTot2');
-      if (smrEl) smrEl.textContent = smrTot > 0 ? fmt(smrTot) : '—';
-      if (matEl) matEl.textContent = matTot > 0 ? fmt(matTot) : '—';
-      if (totEl) totEl.textContent = fmt(smrTot + matTot);
-    } else {
-      planTotals.style.display = 'none';
-    }
-  }
 
   // ── Paginate SMR rows onto overflow pages ──────────────────────
   const SECTION_H = 34;

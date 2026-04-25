@@ -377,7 +377,7 @@ export function updateSummary() {
 // ── Live preview update ───────────────────────────────────────────
 
 // ── Page overflow: split rows across multiple A4 pages ────────────
-const ROW_H = 26;        // px per data row at native A4 scale
+const ROW_H = 28;        // px per data row at native A4 scale
 const HEADER_H = 90;     // padding-top (title area)
 const FOOTER_H = 60;     // bottom padding (50px margin + footer logo area)
 const A4_H = 794;        // native A4 landscape height in px (297×210mm at 96dpi)

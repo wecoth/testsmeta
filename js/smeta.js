@@ -215,6 +215,7 @@ function addSmrRowData(name, unit, qty, price, total) {
     <input value="${esc(name)}" placeholder="Наименование" oninput="window._smetaModule.recalcSmr()">
     <input value="${esc(unit)}" placeholder="м2" style="text-align:center">
     <input value="${qty}" placeholder="0" style="text-align:center">
+    <input value="${price || ''}" placeholder="0.00" style="text-align:right">
     <input value="${total || ''}" placeholder="0.00" style="text-align:right" oninput="window._smetaModule.recalcSmr()">
     <button class="btn-del-row" onclick="this.closest('.work-row-item').remove();window._smetaModule.renumRows('smrBody');window._smetaModule.recalcSmr()">×</button>`;
   wrap.appendChild(d);
@@ -275,6 +276,7 @@ function addMatRowData(name, unit, qty, price, total) {
     <input value="${esc(name)}" placeholder="Материал" oninput="window._smetaModule.recalcMat()">
     <input value="${esc(unit)}" placeholder="шт" style="text-align:center">
     <input value="${qty}" placeholder="0" style="text-align:center">
+    <input value="${price || ''}" placeholder="0.00" style="text-align:right">
     <input value="${total || ''}" placeholder="0.00" style="text-align:right" oninput="window._smetaModule.recalcMat()">
     <button class="btn-del-row" onclick="this.closest('.work-row-item').remove();window._smetaModule.renumRows('matBody');window._smetaModule.recalcMat()">×</button>`;
   wrap.appendChild(d);
@@ -317,6 +319,62 @@ export function updateSummary() {
 }
 
 // ── Live preview update ───────────────────────────────────────────
+
+// ── Page overflow: split rows across multiple A4 pages ────────────
+const ROW_H = 34;        // px per data row at native A4 scale (15px font + 7px padding top+bottom + border)
+const HEADER_H = 90;     // padding-top (title area)
+const FOOTER_H = 60;     // bottom reserved for footer logo
+const A4_H = 1122;       // native A4 height in px
+const USABLE_H = A4_H - HEADER_H - FOOTER_H; // ~972px usable per page
+const THEAD_H = 40;      // table header row
+
+function paginateRows(rows, bodyId, pageContainerId, makePageFn) {
+  const container = document.getElementById(pageContainerId);
+  if (!container) return;
+
+  // Remove previously generated overflow pages
+  container.querySelectorAll('.spp-page[data-overflow="1"]').forEach(p => p.remove());
+
+  if (!rows || rows.length === 0) return;
+
+  const rowsPerPage = Math.floor((USABLE_H - THEAD_H) / ROW_H);
+  if (rows.length <= rowsPerPage) return; // fits on one page — nothing to do
+
+  // Chunks after the first page
+  for (let start = rowsPerPage; start < rows.length; start += rowsPerPage) {
+    const chunk = rows.slice(start, start + rowsPerPage);
+    const isLast = (start + rowsPerPage) >= rows.length;
+    const pageEl = makePageFn(chunk, isLast);
+    pageEl.dataset.overflow = '1';
+    container.after(pageEl);
+    // move container ref so next overflow page inserts after this one
+    container.parentNode.insertBefore(pageEl, container.nextSibling);
+  }
+}
+
+function makeSmrOverflowPage(rows, isLast) {
+  const page = document.createElement('div');
+  page.className = 'spp-page';
+  page.dataset.page = 'smr';
+  const tbody = rows.map((r, i) =>
+    `<tr><td style="border:1px solid #e0e0e0;padding:7px 6px;text-align:center;font-size:15px">${r._idx}</td><td style="border:1px solid #e0e0e0;padding:7px 6px;font-size:15px">${esc(r.name)}</td><td style="border:1px solid #e0e0e0;padding:7px 6px;text-align:center;font-size:15px">${esc(r.unit)}</td><td style="border:1px solid #e0e0e0;padding:7px 6px;text-align:center;font-size:15px">${r.qty}</td><td style="border:1px solid #e0e0e0;padding:7px 6px;text-align:right;font-size:15px">${r.price ? fmt(r.price) : ''}</td><td style="border:1px solid #e0e0e0;padding:7px 6px;text-align:right;font-size:15px;font-weight:500">${fmt(r.total)}</td></tr>`
+  ).join('');
+  const foot = isLast ? `<tr><td colspan="5" style="border:1px solid #ccc;padding:7px;text-align:right;font-weight:700;background:#f5f5f2;font-size:15px">Итого:</td><td style="border:1px solid #ccc;padding:7px;text-align:right;font-weight:700;background:#f5f5f2;font-size:15px">${fmt(rows.reduce((s,r)=>s+r.total,0))}</td></tr>` : '';
+  page.innerHTML = `<div class="preview-page spp-a4"><div class="spp-section-title">Смета строительно-монтажных работ</div><div style="padding:90px 50px 28px;box-sizing:border-box"><table style="width:100%;border-collapse:collapse;font-size:15px;color:#2a2a2a"><thead><tr><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:50px">№<br>п/п</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0">СМР</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:66px">Ед. изм.</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:66px">Кол-во</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:108px">За ед. ₽</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:120px">Всего ₽</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:100px">Примечание</th></tr></thead><tbody>${tbody}${foot}</tbody></table></div></div>`;
+  return page;
+}
+
+function makeMatOverflowPage(rows, isLast) {
+  const page = document.createElement('div');
+  page.className = 'spp-page';
+  page.dataset.page = 'mat';
+  const tbody = rows.map((r, i) =>
+    `<tr><td style="border:1px solid #e0e0e0;padding:7px 6px;text-align:center;font-size:15px">${r._idx}</td><td style="border:1px solid #e0e0e0;padding:7px 6px;font-size:15px">${esc(r.name)}</td><td style="border:1px solid #e0e0e0;padding:7px 6px;text-align:center;font-size:15px">${esc(r.unit)}</td><td style="border:1px solid #e0e0e0;padding:7px 6px;text-align:center;font-size:15px">${r.qty}</td><td style="border:1px solid #e0e0e0;padding:7px 6px;text-align:right;font-size:15px">${r.price ? fmt(r.price) : ''}</td><td style="border:1px solid #e0e0e0;padding:7px 6px;text-align:right;font-size:15px;font-weight:500">${fmt(r.total)}</td></tr>`
+  ).join('');
+  const foot = isLast ? `<tr><td colspan="5" style="border:1px solid #ccc;padding:7px;text-align:right;font-weight:700;background:#f5f5f2;font-size:15px">Итого:</td><td style="border:1px solid #ccc;padding:7px;text-align:right;font-weight:700;background:#f5f5f2;font-size:15px">${fmt(rows.reduce((s,r)=>s+r.total,0))}</td></tr>` : '';
+  page.innerHTML = `<div class="preview-page spp-a4"><div class="spp-section-title">Смета на строительные и отделочные материалы</div><div style="padding:90px 50px 28px;box-sizing:border-box"><table style="width:100%;border-collapse:collapse;font-size:15px;color:#2a2a2a"><thead><tr><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:50px">№<br>п/п</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2">Строительные материалы</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:66px">Ед. изм.</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:66px">Кол-во</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:108px">За ед. ₽</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:120px">Всего ₽</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:100px">Примечание</th></tr></thead><tbody>${tbody}${foot}</tbody></table></div></div>`;
+  return page;
+}
 
 export function liveUpdate() {
   const cn = cName(), cl = cLetter();
@@ -448,9 +506,9 @@ function _syncRightPanel({ cn, cl, sl, on, ex, phone, ogrn, dt, rooms, tf, tw, t
     if (smrRows.length > 0) {
       if (se2) se2.style.display = 'none';
       sb2.innerHTML = smrRows.map((r, i) =>
-        `<tr><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:14px">${i+1}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;font-size:14px">${esc(r.name)}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:14px">${esc(r.unit)}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:14px">${r.qty}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:right;font-size:14px;font-weight:500">${fmt(r.total)}</td></tr>`
+        `<tr><td style="border:1px solid #e0e0e0;padding:7px 6px;text-align:center;font-size:15px">${i+1}</td><td style="border:1px solid #e0e0e0;padding:7px 6px;font-size:15px">${esc(r.name)}</td><td style="border:1px solid #e0e0e0;padding:7px 6px;text-align:center;font-size:15px">${esc(r.unit)}</td><td style="border:1px solid #e0e0e0;padding:7px 6px;text-align:center;font-size:15px">${r.qty}</td><td style="border:1px solid #e0e0e0;padding:7px 6px;text-align:right;font-size:15px">${r.price ? fmt(r.price) : ''}</td><td style="border:1px solid #e0e0e0;padding:7px 6px;text-align:right;font-size:15px;font-weight:500">${fmt(r.total)}</td></tr>`
       ).join('') +
-        `<tr><td colspan="4" style="border:1px solid #ccc;padding:6px;text-align:right;font-weight:700;background:#f5f5f2;font-size:14px">Итого:</td><td style="border:1px solid #ccc;padding:6px;text-align:right;font-weight:700;background:#f5f5f2;font-size:11px">${fmt(smrTot)}</td></tr>`;
+        `<tr><td colspan="5" style="border:1px solid #ccc;padding:7px;text-align:right;font-weight:700;background:#f5f5f2;font-size:15px">Итого:</td><td style="border:1px solid #ccc;padding:7px;text-align:right;font-weight:700;background:#f5f5f2;font-size:15px">${fmt(smrTot)}</td></tr>`;
     } else {
       if (se2) se2.style.display = 'flex';
       sb2.innerHTML = '';
@@ -463,9 +521,9 @@ function _syncRightPanel({ cn, cl, sl, on, ex, phone, ogrn, dt, rooms, tf, tw, t
     if (matRows.length > 0) {
       if (me2) me2.style.display = 'none';
       mb2.innerHTML = matRows.map((r, i) =>
-        `<tr><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:10px">${i+1}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;font-size:10px">${esc(r.name)}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:10px">${esc(r.unit)}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:10px">${r.qty}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:right;font-size:10px;font-weight:500">${fmt(r.total)}</td></tr>`
+        `<tr><td style="border:1px solid #e0e0e0;padding:7px 6px;text-align:center;font-size:15px">${i+1}</td><td style="border:1px solid #e0e0e0;padding:7px 6px;font-size:15px">${esc(r.name)}</td><td style="border:1px solid #e0e0e0;padding:7px 6px;text-align:center;font-size:15px">${esc(r.unit)}</td><td style="border:1px solid #e0e0e0;padding:7px 6px;text-align:center;font-size:15px">${r.qty}</td><td style="border:1px solid #e0e0e0;padding:7px 6px;text-align:right;font-size:15px">${r.price ? fmt(r.price) : ''}</td><td style="border:1px solid #e0e0e0;padding:7px 6px;text-align:right;font-size:15px;font-weight:500">${fmt(r.total)}</td></tr>`
       ).join('') +
-        `<tr><td colspan="4" style="border:1px solid #ccc;padding:6px;text-align:right;font-weight:700;background:#f5f5f2;font-size:10px">Итого:</td><td style="border:1px solid #ccc;padding:6px;text-align:right;font-weight:700;background:#f5f5f2;font-size:11px">${fmt(matTot)}</td></tr>`;
+        `<tr><td colspan="5" style="border:1px solid #ccc;padding:7px;text-align:right;font-weight:700;background:#f5f5f2;font-size:15px">Итого:</td><td style="border:1px solid #ccc;padding:7px;text-align:right;font-weight:700;background:#f5f5f2;font-size:15px">${fmt(matTot)}</td></tr>`;
     } else {
       if (me2) me2.style.display = 'flex';
       mb2.innerHTML = '';
@@ -491,6 +549,46 @@ function _syncRightPanel({ cn, cl, sl, on, ex, phone, ogrn, dt, rooms, tf, tw, t
   } else {
     totalsBlock.style.display = 'none';
   }
+
+  // ── Paginate SMR rows onto overflow pages ──────────────────────
+  const smrPageContainer = document.querySelector('.spp-page[data-page="smr"]:not([data-overflow])');
+  if (smrPageContainer) {
+    // Remove old overflow pages first
+    document.querySelectorAll('.spp-page[data-page="smr"][data-overflow="1"]').forEach(p => p.remove());
+    const rowsPerPage = Math.floor((A4_H - HEADER_H - FOOTER_H - THEAD_H) / ROW_H);
+    if (smrRows.length > rowsPerPage) {
+      const indexed = smrRows.map((r, i) => ({ ...r, _idx: i + 1 }));
+      let prev = smrPageContainer;
+      for (let start = rowsPerPage; start < indexed.length; start += rowsPerPage) {
+        const chunk = indexed.slice(start, start + rowsPerPage);
+        const isLast = (start + rowsPerPage) >= indexed.length;
+        const pageEl = makeSmrOverflowPage(chunk, isLast);
+        prev.after(pageEl);
+        prev = pageEl;
+      }
+    }
+  }
+
+  // ── Paginate MAT rows onto overflow pages ──────────────────────
+  const matPageContainer = document.querySelector('.spp-page[data-page="mat"]:not([data-overflow])');
+  if (matPageContainer) {
+    document.querySelectorAll('.spp-page[data-page="mat"][data-overflow="1"]').forEach(p => p.remove());
+    const rowsPerPage = Math.floor((A4_H - HEADER_H - FOOTER_H - THEAD_H) / ROW_H);
+    if (matRows.length > rowsPerPage) {
+      const indexed = matRows.map((r, i) => ({ ...r, _idx: i + 1 }));
+      let prev = matPageContainer;
+      for (let start = rowsPerPage; start < indexed.length; start += rowsPerPage) {
+        const chunk = indexed.slice(start, start + rowsPerPage);
+        const isLast = (start + rowsPerPage) >= indexed.length;
+        const pageEl = makeMatOverflowPage(chunk, isLast);
+        prev.after(pageEl);
+        prev = pageEl;
+      }
+    }
+  }
+
+  // Recalculate A4 scale after pagination (new pages may have appeared)
+  if (typeof setA4Scale === 'function') setA4Scale();
 }
 
 // ── Preview modal ─────────────────────────────────────────────────

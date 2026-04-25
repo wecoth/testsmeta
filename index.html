@@ -579,22 +579,37 @@
     <!-- 1. Cover page -->
     <div class="spp-page" data-page="cover">
       <div class="preview-page cover-pg spp-a4" data-be-page="cover" id="prevCover2">
-        <!-- Top small "Проектно-сметная документация" caption -->
-        <div id="prevCovType2" style="position:absolute;left:50%;top:52px;transform:translateX(-50%);font-size:16px;font-weight:400;color:#3a3a3a;letter-spacing:1px;white-space:nowrap">Проектно-сметная документация</div>
 
-        <!-- Main logo + name block, vertically centered -->
-        <div id="prevCovLogo2" style="position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);display:flex;flex-direction:row;align-items:center;gap:18px">
-          <img id="prevLogoImg2" alt="" style="max-height:96px;max-width:220px;display:none">
+        <!-- Central group: logo + name + slogan — JS centers this vertically -->
+        <div id="prevCovCenter2" style="position:absolute;left:0;right:0;top:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:80px 60px">
+
+          <!-- Logo image (shown when logo uploaded) -->
+          <img id="prevLogoImg2" alt="" style="max-height:120px;max-width:260px;display:none;object-fit:contain">
+
+          <!-- Letter circle (shown when no logo) -->
           <div id="prevCircle2" style="width:88px;height:88px;border:2px solid #1c1c1c;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:400;font-family:'Merriweather',serif">К</div>
-        </div>
-        <div id="prevCovName2" style="position:absolute;left:50%;top:54%;transform:translate(-50%,-50%);font-size:38px;font-weight:400;letter-spacing:3px;text-transform:uppercase;white-space:nowrap;color:#1c1c1c">КОМПАНИЯ</div>
-        <div id="prevCovSlogan2" style="position:absolute;left:50%;top:61%;transform:translate(-50%,-50%);font-size:15px;letter-spacing:6px;color:#888;text-transform:uppercase;white-space:nowrap">КАЧЕСТВО ПОД КЛЮЧ</div>
 
-        <!-- Footer logo — bottom right -->
-        <div id="prevCovFoot2" style="position:absolute;bottom:46px;right:76px;display:flex;align-items:center;gap:8px">
-          <div id="prevFootCircle2" style="width:24px;height:24px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:400;color:#aaa;font-family:'Merriweather',serif">К</div>
-          <div id="prevFootName2" style="font-size:13px;font-weight:400;letter-spacing:3px;color:#aaa">КОМПАНИЯ</div>
+          <!-- Company name -->
+          <div id="prevCovName2" style="font-size:38px;font-weight:400;letter-spacing:3px;text-transform:uppercase;white-space:nowrap;color:#1c1c1c;text-align:center">КОМПАНИЯ</div>
+
+          <!-- Slogan -->
+          <div id="prevCovSlogan2" style="font-size:15px;letter-spacing:6px;color:#888;text-transform:uppercase;white-space:nowrap;text-align:center">КАЧЕСТВО ПОД КЛЮЧ</div>
+
         </div>
+
+        <!-- Bottom caption — sits ON the lower dashed line (50px from bottom) -->
+        <div id="prevCovType2" style="position:absolute;bottom:50px;left:50%;transform:translateX(-50%);font-size:13px;font-weight:400;color:#888;letter-spacing:1.5px;white-space:nowrap">Проектно-сметная документация</div>
+
+        <!-- Footer — bottom-right corner, 25px from each edge -->
+        <div id="prevCovFoot2" style="position:absolute;bottom:25px;right:25px;display:flex;align-items:center;gap:8px">
+          <!-- Logo thumbnail (shown when logo uploaded) -->
+          <img id="prevFootLogoImg2" alt="" style="height:28px;max-width:80px;object-fit:contain;display:none">
+          <!-- Letter circle (shown when no logo) -->
+          <div id="prevFootCircle2" style="width:22px;height:22px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa;font-family:'Merriweather',serif">К</div>
+          <!-- Name (shown when no logo) -->
+          <div id="prevFootName2" style="font-size:11px;font-weight:400;letter-spacing:2.5px;color:#aaa">КОМПАНИЯ</div>
+        </div>
+
       </div>
     </div>
 
@@ -603,9 +618,7 @@
       <div class="preview-page spp-a4" id="prevPlanning2" data-be-page="plan" style="display:flex;flex-direction:column">
 
         <!-- Title — editable block -->
-        <div style="padding:56px 96px 28px;text-align:center;flex-shrink:0">
-          <span class="be-plan-title be-editable-title" style="font-size:30px;font-weight:400;letter-spacing:.5px;color:#1c1c1c">Планирование работ:</span>
-        </div>
+        <div class="be-plan-title be-editable-title" style="font-size:30px;font-weight:400;text-align:center;padding:56px 96px 28px;letter-spacing:.5px;color:#1c1c1c;flex-shrink:0">Планирование работ:</div>
 
         <!-- Main grid: 50/50 -->
         <div class="be-plan-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:32px;padding:0 96px 40px;flex:1;min-height:0">
@@ -673,10 +686,8 @@
     <!-- 4. SMR page -->
     <div class="spp-page" data-page="smr">
       <div class="preview-page spp-a4" id="prevSmr2" data-be-page="smr">
-        <div style="padding:44px 76px 22px;text-align:center;flex-shrink:0">
-          <span class="be-editable-title" style="font-size:26px;font-weight:400;color:#1c1c1c;letter-spacing:.3px">Смета строительно-монтажных работ</span>
-        </div>
-        <div style="padding:0 76px 28px;display:flex;flex-direction:column;flex:1;min-height:0;box-sizing:border-box">
+        <div style="padding:44px 76px 28px;display:flex;flex-direction:column;height:100%;box-sizing:border-box">
+          <div class="be-editable-title" style="font-size:26px;font-weight:400;text-align:center;margin-bottom:22px;color:#1c1c1c;letter-spacing:.3px">Смета строительно-монтажных работ</div>
           <div id="prevSmrTableWrap" style="width:100%">
             <table style="width:100%;border-collapse:collapse;font-size:11px;color:#2a2a2a">
               <thead><tr>
@@ -692,7 +703,6 @@
           </table>
           <div id="prevSmrEmpty2" style="padding:80px 0;text-align:center;color:#ccc;font-size:14px">Загрузите файл СМР или введите вручную</div>
           </div>
-        </div><!-- /content wrapper -->
         <!-- Footer logo -->
         <div id="prevSmrFoot2" style="position:absolute;bottom:36px;right:76px;display:flex;align-items:center;gap:8px">
           <div style="width:22px;height:22px;border:1.5px solid #aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:#aaa;font-family:'Merriweather',serif">К</div>
@@ -705,7 +715,7 @@
     <div class="spp-page" data-page="mat">
       <div class="preview-page spp-a4" id="prevMat2" data-be-page="mat">
         <div style="padding:44px 76px 22px;text-align:center;flex-shrink:0">
-          <span class="be-editable-title" style="font-size:26px;font-weight:400;color:#1c1c1c;letter-spacing:.3px">Смета на строительные и отделочные материалы</span>
+          <div class="be-editable-title" style="font-size:26px;font-weight:400;display:inline-block;color:#1c1c1c;letter-spacing:.3px">Смета на строительные и отделочные материалы</div>
         </div>
         <div style="padding:0 76px 28px;display:flex;flex-direction:column;flex:1;box-sizing:border-box">
           <div id="prevMatTableWrap" style="width:100%">

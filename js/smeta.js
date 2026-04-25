@@ -152,32 +152,54 @@ function parseFile(file, cb) {
 
 function smartParse(json) {
   if (!json || json.length < 2) return [];
+  // Find header row — first row with 3+ non-empty cells
   let hi = 0;
-  for (let i = 0; i < Math.min(json.length, 10); i++) {
-    if (json[i].filter(c => String(c || '').trim()).length >= 4) { hi = i; break; }
+  for (let i = 0; i < Math.min(json.length, 15); i++) {
+    if (json[i].filter(c => String(c || '').trim()).length >= 3) { hi = i; break; }
   }
-  const h = json[hi].map(c => String(c || '').toLowerCase());
+  const h = json[hi].map(c => String(c || '').toLowerCase().trim());
   const fi = (...kw) => { for (const k of kw) { const i = h.findIndex(x => x.includes(k)); if (i >= 0) return i; } return -1; };
   const cols = {
-    name:  fi('наименование', 'работ', 'материал', 'name', 'смр', 'description'),
-    unit:  fi('ед', 'unit', 'единиц'),
-    qty:   fi('кол', 'qty', 'объём', 'объем', 'count'),
-    price: fi('за ед', 'цена', 'price', 'стоимость за', 'rate'),
-    total: fi('всего', 'итого', 'total', 'сумма', 'amount'),
+    num:   fi('№', 'номер', 'num', 'п/п', 'n/n'),
+    name:  fi('наименование', 'работ', 'материал', 'name', 'смр', 'description', 'позиция', 'вид работ'),
+    unit:  fi('ед', 'unit', 'единиц', 'измер'),
+    qty:   fi('кол', 'qty', 'объём', 'объем', 'count', 'кол-во', 'количество'),
+    price: fi('за ед', 'цена', 'price', 'стоимость за', 'rate', 'расценка', 'тариф'),
+    total: fi('всего', 'итого', 'total', 'сумма', 'amount', 'стоимость работ', 'стоимость'),
+    note:  fi('примечание', 'note', 'коммент', 'comment', 'remarks'),
   };
+
+  // Positional fallback if header not found: assume №, name, unit, qty, price, total
+  if (cols.name < 0) {
+    const nonEmpty = h.map((_, i) => i).filter(i => h[i]);
+    if (nonEmpty.length >= 2) {
+      cols.name  = nonEmpty[1] ?? nonEmpty[0];
+      cols.unit  = cols.unit  >= 0 ? cols.unit  : (nonEmpty[2] ?? -1);
+      cols.qty   = cols.qty   >= 0 ? cols.qty   : (nonEmpty[3] ?? -1);
+      cols.price = cols.price >= 0 ? cols.price : (nonEmpty[4] ?? -1);
+      cols.total = cols.total >= 0 ? cols.total : (nonEmpty[5] ?? -1);
+    }
+  }
+
   const rows = [];
+  const n = v => parseFloat(String(v || '').replace(/[^0-9.,\-]/g, '').replace(',', '.')) || 0;
+
   for (let i = hi + 1; i < json.length; i++) {
     const row = json[i];
     const name = String(row[cols.name] || '').trim();
-    if (!name || /^итого|^всего/i.test(name)) continue;
-    const n = v => parseFloat(String(v || '').replace(/[^0-9.,]/g, '').replace(',', '.')) || 0;
-    const qty = cols.qty >= 0 ? n(row[cols.qty]) : 0;
+    if (!name) continue;
+    // Skip summary/total rows and section headers (no qty/price/total)
+    if (/^итого|^всего|^total/i.test(name)) continue;
+    const qty   = cols.qty   >= 0 ? n(row[cols.qty])   : 0;
     const price = cols.price >= 0 ? n(row[cols.price]) : 0;
-    let total = cols.total >= 0 ? n(row[cols.total]) : 0;
+    let   total = cols.total >= 0 ? n(row[cols.total]) : 0;
     if (!total && qty && price) total = qty * price;
-    rows.push({ name, unit: cols.unit >= 0 ? String(row[cols.unit] || '').trim() : '', qty: qty || '', price: price || '', total: total || 0 });
+    const note  = cols.note  >= 0 ? String(row[cols.note] || '').trim() : '';
+    const unit  = cols.unit  >= 0 ? String(row[cols.unit]  || '').trim() : '';
+    rows.push({ name, unit, qty: qty || '', price: price || '', total: total || 0, note });
   }
   return rows;
+}
 }
 
 // ── SMR table ─────────────────────────────────────────────────────
@@ -550,6 +572,22 @@ function _syncRightPanel({ cn, cl, sl, on, ex, phone, ogrn, dt, rooms, tf, tw, t
     totalsBlock.style.display = 'none';
   }
 
+  // ── Planning page totals ───────────────────────────────────────
+  const planTotals = document.getElementById('prevPlanTotals2');
+  if (planTotals) {
+    if (smrTot > 0 || matTot > 0) {
+      planTotals.style.display = '';
+      const smrEl = document.getElementById('prevPlanSmrTot2');
+      const matEl = document.getElementById('prevPlanMatTot2');
+      const totEl = document.getElementById('prevPlanTotalTot2');
+      if (smrEl) smrEl.textContent = smrTot > 0 ? fmt(smrTot) : '—';
+      if (matEl) matEl.textContent = matTot > 0 ? fmt(matTot) : '—';
+      if (totEl) totEl.textContent = fmt(smrTot + matTot);
+    } else {
+      planTotals.style.display = 'none';
+    }
+  }
+
   // ── Paginate SMR rows onto overflow pages ──────────────────────
   const smrPageContainer = document.querySelector('.spp-page[data-page="smr"]:not([data-overflow])');
   if (smrPageContainer) {
@@ -655,6 +693,9 @@ export async function generatePDF() {
     }
     /* GOST font everywhere */
     .spp-a4 * { font-family: 'Merriweather', serif !important; }
+    /* Hide margin guide pseudo-element in PDF */
+    .spp-a4::before { display: none !important; }
+    .be-margin-guide { display: none !important; }
     ${sheetCss}
   `;
 

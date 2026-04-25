@@ -639,13 +639,23 @@ function _syncRightPanel({ cn, cl, sl, on, ex, phone, ogrn, dt, rooms, tf, tw, t
   }
 
   // ── Paginate SMR rows onto overflow pages ──────────────────────
-  const SECTION_H = 32;
-  const USABLE_PX = A4_H - HEADER_H - FOOTER_H - THEAD_H;
+  const SECTION_H = 34;
+  const USABLE_PX = A4_H - HEADER_H - FOOTER_H - THEAD_H - 10; // 10px safety buffer
   function splitByHeight(rows) {
     const pages = []; let cur = [], used = 0;
-    for (const r of rows) {
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
       const h = r.isSection ? SECTION_H : ROW_H;
-      if (used + h > USABLE_PX && cur.length > 0) { pages.push(cur); cur = []; used = 0; }
+      // Don't start a page with only a section header if it won't fit with next row
+      const nextH = (i + 1 < rows.length) ? (rows[i+1].isSection ? SECTION_H : ROW_H) : 0;
+      if (used + h > USABLE_PX && cur.length > 0) {
+        pages.push(cur); cur = []; used = 0;
+      }
+      // If this is a section header and it's the last item that fits, push page now
+      // so next page starts with the section header
+      if (r.isSection && used + h + nextH > USABLE_PX && cur.length > 0) {
+        pages.push(cur); cur = []; used = 0;
+      }
       cur.push(r); used += h;
     }
     if (cur.length > 0) pages.push(cur);

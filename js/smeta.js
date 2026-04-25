@@ -152,24 +152,36 @@ function parseFile(file, cb) {
 
 function smartParse(json) {
   if (!json || json.length < 2) return [];
+
   // Find header row — first row with 3+ non-empty cells
   let hi = 0;
   for (let i = 0; i < Math.min(json.length, 15); i++) {
     if (json[i].filter(c => String(c || '').trim()).length >= 3) { hi = i; break; }
   }
-  const h = json[hi].map(c => String(c || '').toLowerCase().trim());
+
+  // Merge up to 2 header rows to handle multi-row headers (e.g. "Стоимость" / "За ед. | Всего")
+  const mergeRows = Math.min(hi + 2, json.length);
+  const h = json[hi].map((c, ci) => {
+    let val = String(c || '').toLowerCase().trim();
+    for (let r = hi + 1; r < mergeRows; r++) {
+      const sub = String(json[r][ci] || '').toLowerCase().trim();
+      if (sub) val = val ? val + ' ' + sub : sub;
+    }
+    return val;
+  });
+
   const fi = (...kw) => { for (const k of kw) { const i = h.findIndex(x => x.includes(k)); if (i >= 0) return i; } return -1; };
   const cols = {
-    num:   fi('№', 'номер', 'num', 'п/п', 'n/n'),
-    name:  fi('наименование', 'работ', 'материал', 'name', 'смр', 'description', 'позиция', 'вид работ'),
-    unit:  fi('ед', 'unit', 'единиц', 'измер'),
-    qty:   fi('кол', 'qty', 'объём', 'объем', 'count', 'кол-во', 'количество'),
-    price: fi('за ед', 'цена', 'price', 'стоимость за', 'rate', 'расценка', 'тариф'),
-    total: fi('всего', 'итого', 'total', 'сумма', 'amount', 'стоимость работ', 'стоимость'),
-    note:  fi('примечание', 'note', 'коммент', 'comment', 'remarks'),
+    num:   fi('№', 'п/п', 'n/n', 'номер', 'num'),
+    name:  fi('наименование', 'вид работ', 'позиция', 'работ', 'материал', 'смр', 'name', 'description'),
+    unit:  fi('ед. изм', 'ед.изм', 'единиц', 'ед ', 'unit', 'измер'),
+    qty:   fi('кол-во', 'количество', 'объём', 'объем', 'кол ', 'qty', 'count'),
+    price: fi('за ед', 'за единиц', 'цена за', 'расценка', 'тариф', 'rate', 'price'),
+    total: fi('всего', 'итого', 'сумма', 'стоимость работ', 'amount', 'total'),
+    note:  fi('примечание', 'коммент', 'note', 'comment', 'remarks'),
   };
 
-  // Positional fallback if header not found: assume №, name, unit, qty, price, total
+  // Positional fallback if name not found
   if (cols.name < 0) {
     const nonEmpty = h.map((_, i) => i).filter(i => h[i]);
     if (nonEmpty.length >= 2) {
@@ -181,14 +193,15 @@ function smartParse(json) {
     }
   }
 
+  // Data starts after merged header rows
+  const dataStart = mergeRows;
   const rows = [];
   const n = v => parseFloat(String(v || '').replace(/[^0-9.,\-]/g, '').replace(',', '.')) || 0;
 
-  for (let i = hi + 1; i < json.length; i++) {
+  for (let i = dataStart; i < json.length; i++) {
     const row = json[i];
     const name = String(row[cols.name] || '').trim();
     if (!name) continue;
-    // Skip summary/total rows and section headers (no qty/price/total)
     if (/^итого|^всего|^total/i.test(name)) continue;
     const qty   = cols.qty   >= 0 ? n(row[cols.qty])   : 0;
     const price = cols.price >= 0 ? n(row[cols.price]) : 0;

@@ -643,14 +643,21 @@ const BlockEditor = (() => {
       box-sizing: border-box;
       cursor: default;
       user-select: none;
-      position: relative; /* needed for ::after on inline-block spans */
+      overflow: visible;
     }
-    .be-block:not(.be-selected):hover::after {
-      content: '';
-      position: absolute; inset: 0;
-      border: 1.5px dashed rgba(74,159,255,0.5);
-      border-radius: 2px;
-      pointer-events: none;
+    /* Content wrapper — scales on resize, toolbar/handles stay outside */
+    .be-content-wrap {
+      position: absolute;
+      top: 0; left: 0;
+      overflow: hidden;
+      transform-origin: top left;
+      box-sizing: border-box;
+      pointer-events: auto;
+    }
+    /* Hover/selected borders sit on the block box — always 1:1 size, never scaled */
+    .be-block:not(.be-selected):hover {
+      outline: 1.5px dashed rgba(74,159,255,0.5);
+      outline-offset: 0;
     }
     .be-block.be-selected {
       outline: 2px solid #4a9eff;
@@ -763,21 +770,19 @@ const BlockEditor = (() => {
     el.dataset.beH = st.h;
     el.style.left   = st.x + 'px';
     el.style.top    = st.y + 'px';
+    el.style.width  = st.w + 'px';
+    el.style.height = st.h + 'px';
 
-    // Scale content to fill the new dimensions.
-    // Original (snapshot) size stored in data-be-orig-w/h on first resize.
-    const ow = parseFloat(el.dataset.beOrigW) || 0;
-    const oh = parseFloat(el.dataset.beOrigH) || 0;
-    if (ow > 0 && oh > 0) {
-      // Keep DOM box at original size, scale visually.
+    // Scale content wrapper (not toolbar/handles) to fill new dimensions.
+    const cw = el.querySelector(':scope > .be-content-wrap');
+    if (cw) {
+      const ow = parseFloat(el.dataset.beOrigW) || st.w;
+      const oh = parseFloat(el.dataset.beOrigH) || st.h;
       const sc = Math.min(st.w / ow, st.h / oh);
-      el.style.width  = ow + 'px';
-      el.style.height = oh + 'px';
-      el.style.transformOrigin = 'top left';
-      el.style.transform = `scale(${sc})`;
-    } else {
-      el.style.width  = st.w + 'px';
-      el.style.height = st.h + 'px';
+      cw.style.width  = ow + 'px';
+      cw.style.height = oh + 'px';
+      cw.style.transform = `scale(${sc})`;
+      cw.style.transformOrigin = 'top left';
     }
   }
 
@@ -865,17 +870,23 @@ const BlockEditor = (() => {
 
     applyState(el, { x, y, w, h });
     el.dataset.bePosInit = '1';
-    // Store original dimensions so applyState can scale content correctly.
-    el.dataset.beOrigW = w;
-    el.dataset.beOrigH = h;
+    el.dataset.beOrigW   = w;
+    el.dataset.beOrigH   = h;
 
-    // Debug: one-time log so we can diagnose any jump. Toggle window.__beDbg = false to silence.
-    if (window.__beDbg !== false) {
-      console.log('[BE snapshot]', el.id || el.className, {
-        x, y, w, h,
-        offsetParent: el.offsetParent?.id || el.offsetParent?.className,
-        translateX: mtx.e, translateY: mtx.f,
+    // Wrap all real content (not toolbar/handles) in .be-content-wrap
+    // so applyState can scale only content, leaving UI chrome unaffected.
+    if (!el.querySelector(':scope > .be-content-wrap')) {
+      const wrap = document.createElement('div');
+      wrap.className = 'be-content-wrap';
+      wrap.style.cssText = `position:absolute;top:0;left:0;width:${w}px;height:${h}px;overflow:hidden;pointer-events:none;`;
+      // Move all children except toolbar and handles into the wrap.
+      Array.from(el.childNodes).forEach(child => {
+        if (child.classList && (child.classList.contains('be-toolbar') || child.classList.contains('be-h-corner'))) return;
+        wrap.appendChild(child);
       });
+      // Re-enable pointer events on content so clicks still work.
+      wrap.style.pointerEvents = 'auto';
+      el.insertBefore(wrap, el.firstChild);
     }
     return true;
   }
@@ -933,18 +944,6 @@ const BlockEditor = (() => {
       if (e.target.closest('.be-block, .be-toolbar, .be-h-corner')) return;
       deselect(_sel);
     }, true);
-
-    // Delete / Backspace — remove selected block from page entirely.
-    document.addEventListener('keydown', e => {
-      if (!_sel) return;
-      if (_sel.contentEditable === 'true') return; // don't interfere with text edit
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        e.preventDefault();
-        const el = _sel;
-        deselect(el);
-        el.remove();
-      }
-    });
   }
 
   // ── Drag (body) ──────────────────────────────────────────────

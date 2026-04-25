@@ -754,10 +754,12 @@ html, body {
   font-family: 'Merriweather', serif !important;
 }
 
-/* Clip content inside A4 page to page bounds — table cannot overflow */
+/* Clip content inside A4 page — table cannot overflow bottom edge */
 .spp-a4 > div[style*="padding:90px"] {
   overflow: hidden !important;
   max-height: 794px !important;
+  height: 794px !important;
+  box-sizing: border-box !important;
 }
 
 /* Table font sizes */

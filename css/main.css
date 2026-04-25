@@ -755,7 +755,7 @@ html, body {
 }
 
 /* Table font sizes */
-.spp-a4 table { font-size: 11px; }
+.spp-a4 table { font-size: 18px; }
 .spp-a4 th    { font-size: 11px; }
 
 /* Hide old modal preview button */

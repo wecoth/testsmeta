@@ -418,7 +418,7 @@ function makeSmrOverflowPage(rows, isLast, grandTotal) {
     return `<tr><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:center;font-size:15px">${r._idx}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;font-size:15px">${esc(r.name)}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:center;font-size:15px">${esc(r.unit)}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:center;font-size:15px">${r.qty}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:right;font-size:15px">${r.price ? fmt(r.price) : ''}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:right;font-size:15px;font-weight:500">${fmt(r.total)}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;font-size:15px"></td></tr>`;
   }).join('');
   const foot = '';
-  page.innerHTML = `<div class="preview-page spp-a4"><div style="padding:90px 50px 60px;max-height:794px;box-sizing:border-box;overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:15px;color:#2a2a2a"><thead><tr><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:50px">№<br>п/п</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0">СМР</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:66px">Ед. изм.</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:66px">Кол-во</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:108px">За ед. ₽</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:120px">Всего ₽</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:100px">Примечание</th></tr></thead><tbody>${tbody}${foot}</tbody></table></div></div>`;
+  page.innerHTML = `<div class="preview-page spp-a4"><div style="padding:50px;max-height:794px;box-sizing:border-box;overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:15px;color:#2a2a2a"><thead><tr><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:50px">№<br>п/п</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0">СМР</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:66px">Ед. изм.</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:66px">Кол-во</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:108px">За ед. ₽</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:120px">Всего ₽</th><th style="border:1px solid #c9b86a;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#fcebb0;width:100px">Примечание</th></tr></thead><tbody>${tbody}${foot}</tbody></table></div></div>`;
   return page;
 }
 
@@ -432,7 +432,7 @@ function makeMatOverflowPage(rows, isLast, grandTotal) {
     return `<tr><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:center;font-size:15px">${r._idx}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;font-size:15px">${esc(r.name)}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:center;font-size:15px">${esc(r.unit)}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:center;font-size:15px">${r.qty}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:right;font-size:15px">${r.price ? fmt(r.price) : ''}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;text-align:right;font-size:15px;font-weight:500">${fmt(r.total)}</td><td style="border:1px solid #e0e0e0;padding:2px 6px;font-size:15px"></td></tr>`;
   }).join('');
   const foot = '';
-  page.innerHTML = `<div class="preview-page spp-a4"><div style="padding:90px 50px 60px;max-height:794px;box-sizing:border-box;overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:15px;color:#2a2a2a"><thead><tr><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:50px">№<br>п/п</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2">Строительные материалы</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:66px">Ед. изм.</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:66px">Кол-во</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:108px">За ед. ₽</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:120px">Всего ₽</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:100px">Примечание</th></tr></thead><tbody>${tbody}${foot}</tbody></table></div></div>`;
+  page.innerHTML = `<div class="preview-page spp-a4"><div style="padding:50px;max-height:794px;box-sizing:border-box;overflow:hidden"><table style="width:100%;border-collapse:collapse;font-size:15px;color:#2a2a2a"><thead><tr><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:50px">№<br>п/п</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2">Строительные материалы</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:66px">Ед. изм.</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:66px">Кол-во</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:108px">За ед. ₽</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:120px">Всего ₽</th><th style="border:1px solid #9fb8d9;padding:2px 8px;text-align:center;font-weight:400;font-size:15px;background:#d8e4f2;width:100px">Примечание</th></tr></thead><tbody>${tbody}${foot}</tbody></table></div></div>`;
   return page;
 }
 
@@ -602,20 +602,20 @@ function _syncRightPanel({ cn, cl, sl, on, ex, phone, ogrn, dt, rooms, tf, tw, t
 
   // ── Paginate SMR rows onto overflow pages ──────────────────────
   const SECTION_H = 34;
-  const USABLE_PX = A4_H - HEADER_H - FOOTER_H - THEAD_H - 10; // 10px safety buffer
+  const USABLE_PX_FIRST = A4_H - HEADER_H - FOOTER_H - THEAD_H - 10; // first page: 90+60 padding
+  const USABLE_PX_OVF   = A4_H - 50 - 50 - THEAD_H - 10;             // overflow pages: 50+50 padding
   function splitByHeight(rows) {
     const pages = []; let cur = [], used = 0;
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
       const h = r.isSection ? SECTION_H : ROW_H;
-      // Don't start a page with only a section header if it won't fit with next row
+      const limit = pages.length === 0 ? USABLE_PX_FIRST : USABLE_PX_OVF;
       const nextH = (i + 1 < rows.length) ? (rows[i+1].isSection ? SECTION_H : ROW_H) : 0;
-      if (used + h > USABLE_PX && cur.length > 0) {
+      if (used + h > limit && cur.length > 0) {
         pages.push(cur); cur = []; used = 0;
       }
-      // If this is a section header and it's the last item that fits, push page now
-      // so next page starts with the section header
-      if (r.isSection && used + h + nextH > USABLE_PX && cur.length > 0) {
+      const nextLimit = pages.length === 0 ? USABLE_PX_FIRST : USABLE_PX_OVF;
+      if (r.isSection && used + h + nextH > nextLimit && cur.length > 0) {
         pages.push(cur); cur = []; used = 0;
       }
       cur.push(r); used += h;

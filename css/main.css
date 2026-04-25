@@ -655,32 +655,27 @@ html, body {
    Scale to fit panel width via JS setA4Scale().
 ═══════════════════════════════════════════════════════════════ */
 
-/* spp-body: vertical scroll, dark background, pages centred */
+/* spp-body: вертикальный скролл, блочный layout — листы всегда идут друг за другом */
 .spp-body {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  display: block;
   padding: 24px 0 60px;
-  gap: 24px;
   background: #cbc8c2;
 }
 
-/* Each page slot: full width, centred, height set by JS to scaledH+gap */
+/* Каждый лист — блочный элемент, отступ снизу между листами */
 .spp-page {
   width: 100%;
-  display: flex !important;
-  justify-content: center;
-  align-items: flex-start;
+  display: block;
+  overflow: hidden;
+  margin-bottom: 24px;
   flex-shrink: 0;
-  /* Fallback height so pages don't collapse before JS runs */
-  min-height: 400px;
 }
 .spp-page.spp-hidden { display: none !important; }
 
-/* A4 page — native 1123×794px, JS scales it to fit panel. */
+/* A4 page — центрируется через margin auto */
 .spp-a4 {
   width: 1123px !important;
   height: 794px !important;
@@ -688,7 +683,8 @@ html, body {
   min-height: 794px !important;
   max-width: none !important;
   max-height: none !important;
-  margin: 0 !important;
+  margin: 0 auto !important;
+  display: block;
   flex-shrink: 0;
   background: #fff;
   box-shadow: 0 4px 24px rgba(0,0,0,.22);
@@ -697,7 +693,7 @@ html, body {
   /* overflow visible — позволяет футеру выходить за границы листа */
   overflow: visible;
   font-family: 'Merriweather', serif;
-  font-size: 11px;
+  font-size: 13px;
   color: #1c1c1c;
   transform-origin: top center;
   box-sizing: border-box;

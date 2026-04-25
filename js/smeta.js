@@ -336,15 +336,46 @@ export function liveUpdate() {
 }
 
 function _syncRightPanel({ cn, cl, sl, on, client, ex, dt, rooms, tf, tw, tp, smrRows, smrTot, matRows, matTot }) {
-  // Cover
-  const pli2 = document.getElementById('prevLogoImg2'), pc2 = document.getElementById('prevCircle2');
-  if (appState.logoData) { if (pli2) { pli2.src = appState.logoData; pli2.style.display = 'block'; } if (pc2) pc2.style.display = 'none'; }
-  else { if (pli2) pli2.style.display = 'none'; if (pc2) { pc2.style.display = 'flex'; pc2.textContent = cl; } }
-  const pcn2 = document.getElementById('prevCovName2'); if (pcn2 && !pcn2.isContentEditable && !pcn2.dataset.userEdited) pcn2.textContent = cn.toUpperCase();
-  const pcs2 = document.getElementById('prevCovSlogan2'); if (pcs2 && !pcs2.dataset.userEdited) pcs2.textContent = sl;
-  const pfc2 = document.getElementById('prevFootCircle2'); if (pfc2 && !pfc2.dataset.userEdited) pfc2.textContent = cl;
-  const pfn2 = document.getElementById('prevFootName2'); if (pfn2 && !pfn2.dataset.userEdited) pfn2.textContent = cn.toUpperCase();
-  const pct2 = document.getElementById('prevCovType2'); // не трогаем если пользователь редактировал
+  // ── Cover ──────────────────────────────────────────────────────
+  const hasLogo   = !!appState.logoData;
+  const hasName   = cn && cn !== 'КОМПАНИЯ' || true; // always show name field
+  const hasSlogan = sl && sl.trim().length > 0;
+
+  // Central: logo image vs letter circle
+  const pli2 = document.getElementById('prevLogoImg2');
+  const pc2  = document.getElementById('prevCircle2');
+  if (hasLogo) {
+    if (pli2) { pli2.src = appState.logoData; pli2.style.display = 'block'; }
+    if (pc2)  pc2.style.display = 'none';
+  } else {
+    if (pli2) pli2.style.display = 'none';
+    if (pc2)  { pc2.style.display = 'flex'; pc2.textContent = cl; }
+  }
+
+  // Central: name
+  const pcn2 = document.getElementById('prevCovName2');
+  if (pcn2 && !pcn2.dataset.userEdited) pcn2.textContent = cn.toUpperCase();
+
+  // Central: slogan — hide element entirely if empty
+  const pcs2 = document.getElementById('prevCovSlogan2');
+  if (pcs2 && !pcs2.dataset.userEdited) {
+    pcs2.textContent = sl;
+    pcs2.style.display = hasSlogan ? '' : 'none';
+  }
+
+  // Footer bottom-right: logo thumbnail if logo exists, else circle + name
+  const footLogo   = document.getElementById('prevFootLogoImg2');
+  const footCircle = document.getElementById('prevFootCircle2');
+  const footName   = document.getElementById('prevFootName2');
+  if (hasLogo) {
+    if (footLogo)   { footLogo.src = appState.logoData; footLogo.style.display = 'block'; }
+    if (footCircle) footCircle.style.display = 'none';
+    if (footName)   footName.style.display = 'none';
+  } else {
+    if (footLogo)   footLogo.style.display = 'none';
+    if (footCircle) { footCircle.style.display = 'flex'; footCircle.textContent = cl; }
+    if (footName)   { footName.style.display = ''; footName.textContent = cn.toUpperCase(); }
+  }
 
   // Plan
   const ppi2 = document.getElementById('prevPlanImg2'), pph2 = document.getElementById('prevPlanPh2');

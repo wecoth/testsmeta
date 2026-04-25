@@ -426,8 +426,6 @@ function _syncRightPanel({ cn, cl, sl, on, ex, phone, ogrn, dt, rooms, tf, tw, t
     if (bpImg2) bpImg2.style.display = 'none';
     if (bpPh2)  bpPh2.style.display = 'flex';
   }
-  const bpAddr2 = document.getElementById('prevBpAddress2');
-  if (bpAddr2) bpAddr2.textContent = on !== '—' ? on : '';
 
   // Rooms table
   const rb2 = document.getElementById('prevRoomsBody2');
@@ -600,17 +598,12 @@ function _applyA4Scale() {
   const body = document.querySelector('.spp-body');
   if (!body) return;
 
-  // Measure the real content width available inside .spp-body
-  // (accounts for scrollbar, paddings). Fallback to clientWidth.
   const bodyRect = body.getBoundingClientRect();
-  // If panel is hidden (display:none) or zero-width, defer:
-  // applying scale now would lock page at minimum 0.25 forever.
   if (bodyRect.width < 50) return;
 
   const cs = getComputedStyle(body);
   const padL = parseFloat(cs.paddingLeft)  || 0;
   const padR = parseFloat(cs.paddingRight) || 0;
-  // small horizontal margin so page doesn't kiss the panel edges
   const SIDE_MARGIN = 16;
   const availW = Math.max(100, bodyRect.width - padL - padR - SIDE_MARGIN * 2);
 
@@ -622,10 +615,14 @@ function _applyA4Scale() {
     page.style.transformOrigin = 'top center';
   });
 
-  // .spp-page is the flex wrapper — set its height to the scaled A4 height
-  // so the next page starts below, not under the scaled one.
+  // ВАЖНО: высота .spp-page = scaledH, чтобы страницы шли строго друг за другом
+  // transform:scale не влияет на layout box, поэтому задаём высоту вручную
   document.querySelectorAll('.spp-page').forEach(wrap => {
     wrap.style.height = scaledH + 'px';
+    wrap.style.minHeight = scaledH + 'px';
+    wrap.style.display = wrap.classList.contains('spp-hidden') ? 'none' : 'flex';
+    wrap.style.flexDirection = 'column';
+    wrap.style.width = '100%';
   });
 }
 // Also expose globally for inline scripts
@@ -1219,7 +1216,6 @@ const BlockEditor = (() => {
     const commonSelectors = ['.be-editable-title'];
     const pageSelectors = {
       'prevCover2':    [
-        '#prevCovType2',
         '#prevCovLogo2',
         '#prevCovName2',
         '#prevCovSlogan2',
@@ -1228,13 +1224,10 @@ const BlockEditor = (() => {
       'prevPlanning2': [
         '#prevPlanBox2',
         '#prevObjInfo2',
-        '.be-plan-docs',
         '#prevExplBox2',
         '#prevPlanFoot2',
       ],
-      'prevBlueprint2':[
-        '#prevBpAddress2',
-      ],
+      'prevBlueprint2':[ ],
       'prevSmr2':      [
         '#prevSmrTableWrap',
         '#prevSmrFoot2',

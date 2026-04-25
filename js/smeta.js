@@ -615,11 +615,12 @@ function _applyA4Scale() {
     page.style.transformOrigin = 'top center';
   });
 
-  // Высота .spp-page = scaledH, чтобы страницы шли строго друг за другом.
-  // transform:scale не влияет на layout box, поэтому задаём высоту вручную.
-  document.querySelectorAll('.spp-page').forEach(wrap => {
+  // При transform:scale layout-box не меняется — .spp-a4 остаётся 794px высотой.
+  // Чтобы следующая страница начиналась ПОСЛЕ визуального конца текущей,
+  // задаём высоту .spp-page = scaledH (визуальная высота после scale).
+  // display:block на .spp-page — страницы всегда стакаются вертикально.
+  document.querySelectorAll('.spp-page:not(.spp-hidden)').forEach(wrap => {
     wrap.style.height = scaledH + 'px';
-    wrap.style.minHeight = scaledH + 'px';
   });
 }
 // Also expose globally for inline scripts

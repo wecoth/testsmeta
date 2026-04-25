@@ -5,7 +5,6 @@
 ──────────────────────────────────────────────────────────────────── */
 
 @import url('https://fonts.googleapis.com/css2?family=Onest:wght@300;400;500;600&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&display=swap');
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -676,12 +675,12 @@ html, body {
   justify-content: center;
   align-items: flex-start;
   flex-shrink: 0;
+  /* Fallback height so pages don't collapse before JS runs */
+  min-height: 400px;
 }
 .spp-page.spp-hidden { display: none !important; }
 
-/* A4 page — native 1123×794px, JS scales it to fit panel.
-   !important here intentional: blocks .preview-page and any
-   legacy/inline rules from re-sizing the landscape A4 sheet. */
+/* A4 page — native 1123×794px, JS scales it to fit panel. */
 .spp-a4 {
   width: 1123px !important;
   height: 794px !important;
@@ -695,12 +694,25 @@ html, body {
   box-shadow: 0 4px 24px rgba(0,0,0,.22);
   border-radius: 2px;
   position: relative;
-  overflow: hidden;
+  /* overflow visible — позволяет футеру выходить за границы листа */
+  overflow: visible;
   font-family: 'Merriweather', serif;
-  font-size: 13px;
+  font-size: 11px;
   color: #1c1c1c;
   transform-origin: top center;
   box-sizing: border-box;
+}
+
+/* White clip mask — обрезает содержимое страницы но не футер.
+   Футер (position:absolute bottom/right) рендерится поверх маски. */
+.spp-a4::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background: #fff;
+  border-radius: 2px;
 }
 
 /* Cover page — children are position:absolute */
@@ -712,11 +724,7 @@ html, body {
   flex-direction: column;
 }
 
-/* 20mm margin guide — design-time ruler only, not printed.
-   Renders as a very faint dashed frame inside the page so the
-   user sees the "safe" content area. BlockEditor also adds a
-   .be-margin-guide element; :has() hides the CSS one to avoid
-   duplicate lines. 20mm at 96dpi = 75.6px ≈ 76px native. */
+/* 20mm margin guide */
 .spp-a4::before {
   content: '';
   position: absolute;
@@ -726,17 +734,32 @@ html, body {
   z-index: 0;
   box-sizing: border-box;
 }
-/* When JS margin guide is injected, hide CSS one to avoid doubled dashed border */
 .spp-a4:has(.be-margin-guide)::before { display: none; }
 
 /* Force GOST font everywhere inside preview pages */
-.spp-a4 * { font-family: 'Merriweather', serif !important; }
+.spp-a4 * { font-family: 'Merriweather', serif !important; font-size: 11px; }
 /* Except editor UI */
 .spp-a4 .be-toolbar,
-.spp-a4 .be-tbtn { font-family: 'Onest', sans-serif !important; }
+.spp-a4 .be-tbtn { font-family: 'Onest', sans-serif !important; font-size: 11px; }
+
+/* Section titles — fixed at top 50px, centered, 16px, not interactive */
+.spp-section-title {
+  position: absolute !important;
+  top: 50px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  font-size: 16px !important;
+  font-weight: 400 !important;
+  color: #1c1c1c !important;
+  letter-spacing: .5px !important;
+  white-space: nowrap !important;
+  pointer-events: none !important;
+  z-index: 1 !important;
+  font-family: 'Merriweather', serif !important;
+}
 
 /* Table font sizes */
-.spp-a4 table { font-size: 12px; }
+.spp-a4 table { font-size: 11px; }
 .spp-a4 th    { font-size: 11px; }
 
 /* Hide old modal preview button */

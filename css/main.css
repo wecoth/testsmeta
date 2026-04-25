@@ -737,10 +737,10 @@ html, body {
 .spp-a4:has(.be-margin-guide)::before { display: none; }
 
 /* Force GOST font everywhere inside preview pages */
-.spp-a4 * { font-family: 'Merriweather', serif !important; font-size: 11px; }
+.spp-a4 * { font-family: 'Merriweather', serif !important; }
 /* Except editor UI */
 .spp-a4 .be-toolbar,
-.spp-a4 .be-tbtn { font-family: 'Onest', sans-serif !important; font-size: 11px; }
+.spp-a4 .be-tbtn { font-family: 'Onest', sans-serif !important; }
 
 /* Section titles — fixed at top 50px, centered, 16px, not interactive */
 .spp-section-title {

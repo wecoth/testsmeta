@@ -720,7 +720,7 @@ html, body {
 .spp-a4::before {
   content: '';
   position: absolute;
-  top: 50px; left: 50px; right: 50px; bottom: 50px;
+  top: 76px; left: 76px; right: 76px; bottom: 76px;
   border: 1px dashed rgba(180,180,180,0.45);
   pointer-events: none;
   z-index: 0;
@@ -795,11 +795,11 @@ html, body {
 }
 .be-block:hover {
   outline: 1.5px dashed rgba(74,159,255,0.3);
-  outline-offset: 2px;
+  outline-offset: 0px;
 }
 .be-block.be-selected {
   outline: 2px solid #4a9eff !important;
-  outline-offset: 2px;
+  outline-offset: 0px;
 }
 .be-block.be-editing {
   outline: 2px solid #2171e0 !important;

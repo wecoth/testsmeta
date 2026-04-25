@@ -448,9 +448,9 @@ function _syncRightPanel({ cn, cl, sl, on, ex, phone, ogrn, dt, rooms, tf, tw, t
     if (smrRows.length > 0) {
       if (se2) se2.style.display = 'none';
       sb2.innerHTML = smrRows.map((r, i) =>
-        `<tr><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:10px">${i+1}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;font-size:10px">${esc(r.name)}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:10px">${esc(r.unit)}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:10px">${r.qty}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:right;font-size:10px;font-weight:500">${fmt(r.total)}</td></tr>`
+        `<tr><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center">${i+1}</td><td style="border:1px solid #e0e0e0;padding:5px 6px">${esc(r.name)}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center">${esc(r.unit)}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center">${r.qty}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:right;font-weight:500">${fmt(r.total)}</td></tr>`
       ).join('') +
-        `<tr><td colspan="4" style="border:1px solid #ccc;padding:6px;text-align:right;font-weight:700;background:#f5f5f2;font-size:10px">Итого:</td><td style="border:1px solid #ccc;padding:6px;text-align:right;font-weight:700;background:#f5f5f2;font-size:11px">${fmt(smrTot)}</td></tr>`;
+        `<tr><td colspan="4" style="border:1px solid #ccc;padding:6px;text-align:right;font-weight:700;background:#f5f5f2">Итого:</td><td style="border:1px solid #ccc;padding:6px;text-align:right;font-weight:700;background:#f5f5f2">${fmt(smrTot)}</td></tr>`;
     } else {
       if (se2) se2.style.display = 'flex';
       sb2.innerHTML = '';
@@ -463,9 +463,9 @@ function _syncRightPanel({ cn, cl, sl, on, ex, phone, ogrn, dt, rooms, tf, tw, t
     if (matRows.length > 0) {
       if (me2) me2.style.display = 'none';
       mb2.innerHTML = matRows.map((r, i) =>
-        `<tr><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:10px">${i+1}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;font-size:10px">${esc(r.name)}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:10px">${esc(r.unit)}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center;font-size:10px">${r.qty}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:right;font-size:10px;font-weight:500">${fmt(r.total)}</td></tr>`
+        `<tr><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center">${i+1}</td><td style="border:1px solid #e0e0e0;padding:5px 6px">${esc(r.name)}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center">${esc(r.unit)}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:center">${r.qty}</td><td style="border:1px solid #e0e0e0;padding:5px 6px;text-align:right;font-weight:500">${fmt(r.total)}</td></tr>`
       ).join('') +
-        `<tr><td colspan="4" style="border:1px solid #ccc;padding:6px;text-align:right;font-weight:700;background:#f5f5f2;font-size:10px">Итого:</td><td style="border:1px solid #ccc;padding:6px;text-align:right;font-weight:700;background:#f5f5f2;font-size:11px">${fmt(matTot)}</td></tr>`;
+        `<tr><td colspan="4" style="border:1px solid #ccc;padding:6px;text-align:right;font-weight:700;background:#f5f5f2">Итого:</td><td style="border:1px solid #ccc;padding:6px;text-align:right;font-weight:700;background:#f5f5f2">${fmt(matTot)}</td></tr>`;
     } else {
       if (me2) me2.style.display = 'flex';
       mb2.innerHTML = '';

@@ -347,7 +347,9 @@ export function computeRooms(wallHeightFallback = 2700) {
     return;
   }
 
-  // 3. Внешний фейс — с максимальной площадью bbox (охватывает весь план)
+  // 3. Внешний фейс — с максимальной площадью bbox (охватывает весь план).
+  //    Используется только для отбраковки "внешнего" фейса из кандидатов в комнаты.
+  //    exteriorWallIds (стены, граничащие с улицей) определяется ниже по counter.
   let exteriorIndex = 0;
   let maxBboxArea = -Infinity;
   for (let i = 0; i < dedupedFaces.length; i++) {
@@ -355,21 +357,6 @@ export function computeRooms(wallHeightFallback = 2700) {
     if (bb > maxBboxArea) {
       maxBboxArea = bb;
       exteriorIndex = i;
-    }
-  }
-  const exteriorPoly = dedupedFaces[exteriorIndex].poly;
-
-  // Стены, лежащие на внешнем контуре
-  exteriorWallIds = new Set();
-  if (exteriorPoly) {
-    for (const edge of edges) {
-      const v1 = vertices[edge.v1], v2 = vertices[edge.v2];
-      const mid = { x: (v1.x + v2.x) / 2, y: (v1.y + v2.y) / 2 };
-      if (isPointOnPolygonBoundary(mid, exteriorPoly, 3.0)) {
-        for (const wid of (edge.wallIds || [edge.wallId])) {
-          if (typeof wid === 'number') exteriorWallIds.add(wid);
-        }
-      }
     }
   }
 
@@ -427,11 +414,13 @@ export function computeRooms(wallHeightFallback = 2700) {
     parentIndex[i] = bestParent;
   }
 
-  // 6. Создаём комнаты, считаем метрики
+  // 6. Первый проход: собираем все комнаты с их boundary-данными.
+  //    Окончательные метрики посчитаем во втором проходе, когда будем
+  //    знать сколько комнат граничит с каждой стеной (внешняя или нет).
+  const draftRooms = [];
   for (let i = 0; i < roomCandidates.length; i++) {
     const { poly, grossArea } = roomCandidates[i];
 
-    // Сбор граничных стен (тех, чьи оси лежат на рёбрах полигона)
     const boundaryWallIds = new Set();
     const boundaryWallsList = [];
     let hasDividers = false;
@@ -450,14 +439,9 @@ export function computeRooms(wallHeightFallback = 2700) {
       }
     }
 
-    // Внутренние стены (висящие или дочерние помещения) — те, что лежат
-    // ВНУТРИ полигона, но не на его границе. Они вычитают свой "след"
-    // из площади пола.
     const interiorWalls = [];
-    const center = polygonCentroid(poly);
     for (const w of walls) {
       if (boundaryWallIds.has(w.id)) continue;
-      // Берём фрагменты оси стены, попавшие внутрь полигона
       const clipped = clipWallAxisToPolygon(w, poly);
       let totalLen = 0;
       for (const seg of clipped) {
@@ -468,18 +452,69 @@ export function computeRooms(wallHeightFallback = 2700) {
       }
     }
 
-    // Чистая площадь пола = валовая − следы внутренних стен − площади дочерних
+    draftRooms.push({
+      candidateIndex: i,
+      poly, grossArea,
+      boundaryWallIds, boundaryWallsList,
+      interiorWalls, hasDividers,
+    });
+  }
+
+  // 7. Подсчёт: сколько комнат граничит с каждой стеной.
+  //    Стена с counter == 1 → внешняя (с другой стороны улица/пустота).
+  //    Стена с counter == 2 → межкомнатная (между двумя помещениями).
+  const wallRoomCounter = new Map(); // wallId → число помещений
+  for (const dr of draftRooms) {
+    for (const wid of dr.boundaryWallIds) {
+      wallRoomCounter.set(wid, (wallRoomCounter.get(wid) || 0) + 1);
+    }
+  }
+  // exteriorWallIds = стены, граничащие ровно с одной комнатой
+  exteriorWallIds = new Set();
+  for (const [wid, count] of wallRoomCounter) {
+    if (count === 1) exteriorWallIds.add(wid);
+  }
+
+  // 8. Второй проход: вычисляем окончательные метрики и создаём комнаты.
+  for (const dr of draftRooms) {
+    const { poly, grossArea, boundaryWallIds, boundaryWallsList,
+            interiorWalls, hasDividers } = dr;
+
+    // Чистая площадь пола = валовая
+    //   − следы внутренних стен (висящих)
+    //   − площади дочерних (вложенных) помещений
+    //   + 1/2 площади проёмов в МЕЖКОМНАТНЫХ стенах (там пол есть на полную толщину)
     let netAreaMm2 = grossArea;
     for (const { wall, lengthMm } of interiorWalls) {
       netAreaMm2 -= wallFootprintArea(wall, lengthMm);
     }
-    // Вычитаем площади дочерних помещений (по их валовой площади)
     for (let j = 0; j < roomCandidates.length; j++) {
-      if (parentIndex[j] === i) {
+      if (parentIndex[j] === dr.candidateIndex) {
         netAreaMm2 -= roomCandidates[j].grossArea;
       }
     }
-    if (netAreaMm2 < 10000) continue; // < 0.01 м² — игнорируем
+    // Доли проёмов в межкомнатных стенах: проём (ширина × толщина стены) — это
+    // площадь пола, которая физически принадлежит обеим комнатам поровну.
+    // На контур помещения (cx/cy) проём НЕ влияет, поэтому grossArea его не учитывает.
+    // Прибавляем 1/2 этой площади к каждой из двух комнат.
+    const roomOpenings = appState.openings.filter(op => boundaryWallIds.has(op.wallId));
+    for (const op of roomOpenings) {
+      if (op.type !== 'door') continue;
+      const wall = boundaryWallsList.find(w => w.id === op.wallId);
+      if (!wall) continue;
+      const isInterior = !exteriorWallIds.has(op.wallId);
+      if (isInterior) {
+        // Межкомнатная дверь → +1/2 (ширина × толщина)
+        netAreaMm2 += (op.width * (wall.thickness || 0)) / 2;
+      }
+      // Для входной двери (внешняя стена) — пол под проёмом считаем целиком
+      // принадлежащим этой комнате (с другой стороны улица).
+      else {
+        netAreaMm2 += op.width * (wall.thickness || 0);
+      }
+    }
+
+    if (netAreaMm2 < 10000) continue;
 
     // Высота помещения — взвешенная по длине граничных стен
     let totalLengthMm = 0;
@@ -492,7 +527,6 @@ export function computeRooms(wallHeightFallback = 2700) {
     }
     const heightMm = totalLengthMm > 0 ? weightedHeightSum / totalLengthMm : wallHeightFallback;
 
-    const roomOpenings = appState.openings.filter(op => boundaryWallIds.has(op.wallId));
     const entranceDoorId = detectEntranceDoor(roomOpenings, exteriorWallIds);
 
     const metrics = computeRoomMetrics({
@@ -504,11 +538,13 @@ export function computeRooms(wallHeightFallback = 2700) {
       entranceDoorId,
       hasDividers,
       netAreaMm2,
+      exteriorWallIds,
     });
 
     const key = generateRoomKey(poly);
     const defaultName = roomDefaultName(appState.rooms.length);
     const bbox = getBbox(poly);
+    const center = polygonCentroid(poly);
 
     appState.rooms.push({
       key,

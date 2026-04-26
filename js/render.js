@@ -1519,17 +1519,21 @@ export function renderToImage(outW, outH, withDimensions = false) {
   const vp   = window._plannerViewport ?? { scale: 0.12, panX: 200, panY: 150 };
   _setViewportFn(vp.scale, vp.panX, vp.panY);
 
-  // For clean plan: crop to actual drawing area, no whitespace
+  // For clean plan: crop to walls bbox only (tight, no whitespace), with small pixel pad
   if (!withDimensions) {
-    const cropX = Math.max(0, Math.floor(panX));
-    const cropY = Math.max(0, Math.floor(panY));
-    const cropW = Math.min(outW - cropX, Math.ceil(renderW));
-    const cropH = Math.min(outH - cropY, Math.ceil(renderH));
-    const cropped = document.createElement('canvas');
-    cropped.width  = cropW;
-    cropped.height = cropH;
-    cropped.getContext('2d').drawImage(oc, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
-    return cropped.toDataURL('image/png');
+    const PAD_PX = Math.round(PAD_MM * scale);
+    // Screen coords of wall-only bbox (without PAD_MM expansion)
+    const sx1 = Math.max(0, Math.floor((bbox.minX - 5) * scale + panX) - PAD_PX);
+    const sy1 = Math.max(0, Math.floor((bbox.minY - 5) * scale + panY) - PAD_PX);
+    const sx2 = Math.min(outW, Math.ceil((bbox.maxX + 5) * scale + panX) + PAD_PX);
+    const sy2 = Math.min(outH, Math.ceil((bbox.maxY + 5) * scale + panY) + PAD_PX);
+    const cropW = sx2 - sx1, cropH = sy2 - sy1;
+    if (cropW > 0 && cropH > 0) {
+      const cropped = document.createElement('canvas');
+      cropped.width = cropW; cropped.height = cropH;
+      cropped.getContext('2d').drawImage(oc, sx1, sy1, cropW, cropH, 0, 0, cropW, cropH);
+      return cropped.toDataURL('image/png');
+    }
   }
 
   return oc.toDataURL('image/png');

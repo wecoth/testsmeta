@@ -1095,54 +1095,59 @@ function drawWallDimensions() {
   if (scale < 0.07 || !appState.rooms?.length) return;
   _ctx.save();
 
-  const LINE_OFFSET_MM = 100;
-  const TEXT_OFFSET_MM = 200;
-  const GAP_MM = 10;
-  const MIN_SEG_MM = 25;
-  // Minimum segment length (in screen px) to fit label inline; below this → leader
-  const MIN_INLINE_PX = 60;
-  // Leader line params
-  const LEADER_DIAG_MM  = 250;  // diagonal leg length in world mm
-  const LEADER_SHELF_MM = 400;  // horizontal shelf length in world mm
+  // All distances in world mm
+  const LINE_OFF_MM  = 120;   // dimension line offset from wall face (inside room)
+  const TEXT_OFF_MM  = 230;   // text offset from wall face (inside room)
+  const GAP_MM       = 8;     // gap at ends of dimension line
+  const MIN_SEG_MM   = 20;    // skip segments shorter than this
+  const MIN_INLINE_PX = 55;   // min screen px to render label inline; below → leader
+  const LEADER_OUT_MM = 280;  // leader diagonal outward distance
+  const SHELF_MM      = 320;  // leader horizontal shelf length
 
-  // Collect all dimension label screen rects to detect overlaps
-  const placedRects = [];
-
-  function rectsOverlap(r1, r2) {
-    return !(r1.x2 < r2.x1 || r2.x2 < r1.x1 || r1.y2 < r2.y1 || r2.y2 < r1.y1);
-  }
-
-  function reserveRect(cx, cy, w, h) {
-    const half = { x: w / 2 + 4, y: h / 2 + 4 };
-    const r = { x1: cx - half.x, y1: cy - half.y, x2: cx + half.x, y2: cy + half.y };
-    const overlaps = placedRects.some(p => rectsOverlap(p, r));
-    if (!overlaps) placedRects.push(r);
-    return !overlaps;
-  }
-
-  // Estimate text width in screen pixels (rough: ~7px per char at 13px)
-  function estimateTextW(label) { return label.length * 7 * _fontScale; }
+  // Global seen-walls set so each wall is drawn once even if shared by two rooms
+  const drawnWalls = new Set();
 
   for (const room of appState.rooms) {
-    if (!room.boundarySegments?.length) continue;
-    const seenWalls = new Set();
+    if (!room.boundarySegments?.length || !room.polygon?.length) continue;
 
     for (const boundary of room.boundarySegments) {
       const wall = boundary.wall;
       if (!wall || wall.isDivider) continue;
-      if (seenWalls.has(wall.id)) continue;
-      seenWalls.add(wall.id);
+      if (drawnWalls.has(wall.id)) continue;
 
       const wlen = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1);
-      if (wlen < 100) continue;
+      if (wlen < 50) continue;
 
       const angle = Math.atan2(wall.y2 - wall.y1, wall.x2 - wall.x1);
       const ux = Math.cos(angle), uy = Math.sin(angle);
-      const nx = -uy, ny = ux;
+      const nx = -uy, ny = ux;   // left normal
       const halfT = wall.thickness / 2;
-      const mid = { x: (wall.x1 + wall.x2) / 2, y: (wall.y1 + wall.y2) / 2 };
-      const fallbackSign = ((room.center.x - mid.x) * nx + (room.center.y - mid.y) * ny) >= 0 ? 1 : -1;
 
+      // ── Determine which side is INSIDE the room ──────────────────
+      // Test both normals at wall midpoint; pick the one inside room polygon
+      const testDist = halfT + LINE_OFF_MM;
+      const midW = (seg) => wall.x1 + ux * ((seg ? (seg.from + seg.to) / 2 : wlen / 2));
+      const midH = (seg) => wall.y1 + uy * ((seg ? (seg.from + seg.to) / 2 : wlen / 2));
+      const mx = wall.x1 + ux * (wlen / 2);
+      const my = wall.y1 + uy * (wlen / 2);
+      const pPlus  = { x: mx + nx * testDist, y: my + ny * testDist };
+      const pMinus = { x: mx - nx * testDist, y: my - ny * testDist };
+      const plusIn  = isPointInPolygon(pPlus,  room.polygon);
+      const minusIn = isPointInPolygon(pMinus, room.polygon);
+
+      let sideSign;
+      if (plusIn && !minusIn)       sideSign =  1;
+      else if (minusIn && !plusIn)  sideSign = -1;
+      else {
+        // Both or neither inside — pick side closer to room center
+        const dPlus  = Math.hypot(pPlus.x  - room.center.x, pPlus.y  - room.center.y);
+        const dMinus = Math.hypot(pMinus.x - room.center.x, pMinus.y - room.center.y);
+        sideSign = dPlus <= dMinus ? 1 : -1;
+      }
+
+      drawnWalls.add(wall.id);
+
+      // ── Build wall segments (gaps between openings) ───────────────
       const wallOpenings = appState.openings
         .filter(op => op.wallId === wall.id)
         .map(op => ({
@@ -1151,119 +1156,74 @@ function drawWallDimensions() {
         }))
         .sort((a, b) => a.start - b.start);
 
-      // Build segments: gaps between openings + openings themselves
-      const allSegs = [];
+      const segments = [];
       let cursor = 0;
       for (const op of wallOpenings) {
-        if (op.start > cursor + 1) allSegs.push({ from: cursor, to: op.start, isOpening: false });
-        allSegs.push({ from: op.start, to: op.end, isOpening: true });
+        if (op.start > cursor + 1) segments.push({ from: cursor, to: op.start });
         cursor = Math.max(cursor, op.end);
       }
-      if (cursor < wlen - 1) allSegs.push({ from: cursor, to: wlen, isOpening: false });
+      if (cursor < wlen - 1) segments.push({ from: cursor, to: wlen });
 
-      // Filter to only wall segments (not openings)
-      const segments = allSegs.filter(s => !s.isOpening && (s.to - s.from) >= MIN_SEG_MM);
-
-      // Determine side for this wall
-      let sideSign = fallbackSign;
-      const segMidTest = wlen / 2;
-      const lineBase = halfT + LINE_OFFSET_MM;
-      const textBase = halfT + TEXT_OFFSET_MM;
-      if (Array.isArray(room.polygon) && room.polygon.length >= 3) {
-        const pls = {
-          x: wall.x1 + ux * segMidTest + nx * lineBase,
-          y: wall.y1 + uy * segMidTest + ny * lineBase,
-        };
-        const mls = {
-          x: wall.x1 + ux * segMidTest - nx * lineBase,
-          y: wall.y1 + uy * segMidTest - ny * lineBase,
-        };
-        const plusIn  = isPointInPolygon(pls, room.polygon);
-        const minusIn = isPointInPolygon(mls, room.polygon);
-        if (plusIn && !minusIn) sideSign = 1;
-        else if (minusIn && !plusIn) sideSign = -1;
-      }
-
-      const lineOff = sideSign * lineBase;
-      const textOff = sideSign * textBase;
-
+      // ── Draw each segment ─────────────────────────────────────────
       for (const seg of segments) {
         const segLen = seg.to - seg.from;
-        const label  = `${Math.round(segLen)} мм`;
+        if (segLen < MIN_SEG_MM) continue;
 
-        const worldA = {
-          x: wall.x1 + ux * (seg.from + GAP_MM) + nx * lineOff,
-          y: wall.y1 + uy * (seg.from + GAP_MM) + ny * lineOff,
-        };
-        const worldB = {
-          x: wall.x1 + ux * (seg.to - GAP_MM) + nx * lineOff,
-          y: wall.y1 + uy * (seg.to - GAP_MM) + ny * lineOff,
-        };
-        const a = toScreen(worldA.x, worldA.y);
-        const b = toScreen(worldB.x, worldB.y);
-        const segPx = Math.hypot(b.x - a.x, b.y - a.y);
+        const label = `${Math.round(segLen)} мм`;
+        const segCx  = (seg.from + seg.to) / 2;
 
-        const labelWorld = {
-          x: wall.x1 + ux * ((seg.from + seg.to) / 2) + nx * textOff,
-          y: wall.y1 + uy * ((seg.from + seg.to) / 2) + ny * textOff,
-        };
-        const labelPos = toScreen(labelWorld.x, labelWorld.y);
-        const tw = estimateTextW(label);
+        // Points on dimension line (offset inside room)
+        const lineOff = sideSign * (halfT + LINE_OFF_MM);
+        const textOff = sideSign * (halfT + TEXT_OFF_MM);
 
-        // Try inline placement first
-        const canInline = segPx >= MIN_INLINE_PX && reserveRect(labelPos.x, labelPos.y, tw, 14 * _fontScale);
+        const wA = { x: wall.x1 + ux * (seg.from + GAP_MM) + nx * lineOff,
+                     y: wall.y1 + uy * (seg.from + GAP_MM) + ny * lineOff };
+        const wB = { x: wall.x1 + ux * (seg.to   - GAP_MM) + nx * lineOff,
+                     y: wall.y1 + uy * (seg.to   - GAP_MM) + ny * lineOff };
+        const wL = { x: wall.x1 + ux * segCx + nx * textOff,
+                     y: wall.y1 + uy * segCx + ny * textOff };
 
-        if (canInline) {
-          // Draw dimension line with ticks
-          _ctx.strokeStyle = '#111111';
+        const sA = toScreen(wA.x, wA.y);
+        const sB = toScreen(wB.x, wB.y);
+        const sL = toScreen(wL.x, wL.y);
+        const segPx = Math.hypot(sB.x - sA.x, sB.y - sA.y);
+
+        if (segPx >= MIN_INLINE_PX) {
+          // ── Inline dimension ──────────────────────────────────────
+          _ctx.strokeStyle = '#111';
           _ctx.lineWidth = 1.0;
           _ctx.setLineDash([]);
           _ctx.beginPath();
-          _ctx.moveTo(a.x, a.y);
-          _ctx.lineTo(b.x, b.y);
-          drawTick45(a, angle);
-          drawTick45(b, angle);
+          _ctx.moveTo(sA.x, sA.y);
+          _ctx.lineTo(sB.x, sB.y);
+          drawTick45(sA, angle);
+          drawTick45(sB, angle);
           _ctx.stroke();
-
-          drawAlignedTextBox(label, labelPos, angle, {
+          drawAlignedTextBox(label, sL, angle, {
             font: '500 13px Merriweather, Onest, Inter, sans-serif',
-            background: 'rgba(255,255,255,0.97)',
-            textColor: '#111111',
+            background: 'rgba(255,255,255,0.95)',
+            textColor: '#111',
           });
         } else {
-          // Leader line: diagonal away from wall + horizontal shelf
-          const segCenterW = (seg.from + seg.to) / 2;
-          const attachWorld = {
-            x: wall.x1 + ux * segCenterW + nx * (halfT * sideSign),
-            y: wall.y1 + uy * segCenterW + ny * (halfT * sideSign),
-          };
-          // Diagonal goes outward (away from room) and slightly along wall
-          const leaderDirX = nx * sideSign * -1; // outward from wall exterior
-          const leaderDirY = ny * sideSign * -1;
-          const leaderDiagWorld = {
-            x: attachWorld.x + leaderDirX * LEADER_DIAG_MM + ux * LEADER_DIAG_MM * 0.5,
-            y: attachWorld.y + leaderDirY * LEADER_DIAG_MM + uy * LEADER_DIAG_MM * 0.5,
-          };
-          // Shelf goes along wall direction
-          const leaderEndWorld = {
-            x: leaderDiagWorld.x + ux * LEADER_SHELF_MM,
-            y: leaderDiagWorld.y + uy * LEADER_SHELF_MM,
-          };
-          const leaderMidWorld = {
-            x: (leaderDiagWorld.x + leaderEndWorld.x) / 2,
-            y: (leaderDiagWorld.y + leaderEndWorld.y) / 2,
-          };
+          // ── Leader line (elbow) inside room ───────────────────────
+          // Attach point: wall face on interior side
+          const attachW = { x: wall.x1 + ux * segCx + nx * sideSign * halfT,
+                            y: wall.y1 + uy * segCx + ny * sideSign * halfT };
+          // Diagonal leg: goes inward (into room) and perpendicular
+          const diagW = { x: attachW.x + nx * sideSign * LEADER_OUT_MM,
+                          y: attachW.y + ny * sideSign * LEADER_OUT_MM };
+          // Shelf: runs parallel to wall
+          const shelfW = { x: diagW.x + ux * SHELF_MM,
+                           y: diagW.y + uy * SHELF_MM };
+          const midShelfW = { x: (diagW.x + shelfW.x) / 2,
+                              y: (diagW.y + shelfW.y) / 2 };
 
-          const pA  = toScreen(attachWorld.x, attachWorld.y);
-          const pD  = toScreen(leaderDiagWorld.x, leaderDiagWorld.y);
-          const pE  = toScreen(leaderEndWorld.x, leaderEndWorld.y);
-          const pL  = toScreen(leaderMidWorld.x, leaderMidWorld.y);
+          const pA  = toScreen(attachW.x, attachW.y);
+          const pD  = toScreen(diagW.x,   diagW.y);
+          const pE  = toScreen(shelfW.x,  shelfW.y);
+          const pM  = toScreen(midShelfW.x, midShelfW.y);
 
-          // Check if leader label overlaps; skip drawing if still overlapping
-          const canLeader = reserveRect(pL.x, pL.y, tw, 14 * _fontScale);
-          if (!canLeader) continue;
-
-          _ctx.strokeStyle = '#444444';
+          _ctx.strokeStyle = '#444';
           _ctx.lineWidth = 0.8;
           _ctx.setLineDash([3, 3]);
           _ctx.beginPath();
@@ -1272,17 +1232,14 @@ function drawWallDimensions() {
           _ctx.lineTo(pE.x, pE.y);
           _ctx.stroke();
           _ctx.setLineDash([]);
-
-          // Small dot at attach point
           _ctx.beginPath();
-          _ctx.arc(pA.x, pA.y, 2 * _fontScale, 0, Math.PI * 2);
-          _ctx.fillStyle = '#444444';
+          _ctx.arc(pA.x, pA.y, 2, 0, Math.PI * 2);
+          _ctx.fillStyle = '#444';
           _ctx.fill();
-
-          drawAlignedTextBox(label, pL, angle, {
+          drawAlignedTextBox(label, pM, angle, {
             font: '500 13px Merriweather, Onest, Inter, sans-serif',
-            background: 'rgba(255,255,255,0.97)',
-            textColor: '#333333',
+            background: 'rgba(255,255,255,0.95)',
+            textColor: '#333',
           });
         }
       }

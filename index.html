@@ -7,6 +7,12 @@
 <link rel="stylesheet" href="css/main.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
+  @font-face {
+    font-family: 'Merriweather';
+    src: url('https://raw.githubusercontent.com/MishkinIN/Font_GOST_2.304/master/gost_2.304.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+  }
   .btn-use-drawing {
     display:block;width:100%;margin-top:8px;
     padding:9px 16px;border-radius:8px;
@@ -962,6 +968,8 @@
 </script>
 <script type="module" src="js/main.js?v=4"></script>
 <script type="module">
+  // Preload GOST font so canvas uses it immediately on first render
+  try { await document.fonts.load("16px Merriweather"); } catch(e) {}
   // Expose appState and viewport globally for captureCanvas in smeta.js
   import { appState } from './js/state.js';
   window._appState = appState;

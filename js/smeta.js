@@ -88,22 +88,6 @@ export function captureCanvas() {
   alert('Чертёж захвачен ✓');
 }
 
-// Переворачивает обмерный план и перерендерит с новой ориентацией
-export function rotateBlueprintCanvas() {
-  const walls = window._appState?.walls ?? appState?.walls ?? [];
-  if (!walls.length) return;
-  // Flip orientation
-  appState.bpPortrait = !appState.bpPortrait;
-  if (window._appState) window._appState.bpPortrait = appState.bpPortrait;
-  const isPortrait = appState.bpPortrait;
-  const fullImg = isPortrait
-    ? renderToImage(1754, 2480, true)
-    : renderToImage(2480, 1754, true);
-  appState.planDataFull = fullImg;
-  if (window._appState) window._appState.planDataFull = fullImg;
-  liveUpdate();
-}
-
 // ── Rooms (smeta side) ────────────────────────────────────────────
 
 let roomCnt = 0;

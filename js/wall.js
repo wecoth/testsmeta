@@ -478,12 +478,18 @@ function findReusableWall(start, end, thick) {
     }
 
     // Случай B: новая база отстоит от существующей на ~thickness → прилегает
-    // к внешней грани. Это значит пользователь рисует "вторую комнату" рядом
-    // с первой. Превращаем существующую стену в общую (offset='center').
+    // к ВНЕШНЕЙ грани. Это значит пользователь рисует "вторую комнату" рядом
+    // с первой.
     //
-    // Геометрический подход: контурные грани стены лежат на ±halfT от её
-    // СМЕЩЁННОЙ оси (x1/y1, x2/y2), а не от базы. Найдём знаковые расстояния
-    // обеих граней от базы по wN, выберем дальнюю как "внешнюю".
+    // НОВАЯ МОДЕЛЬ (Renga-style): стена остаётся на своём месте, никаких
+    // сдвигов и переключения в 'center' не происходит. Существующая стена
+    // переиспользуется как граничная для обеих комнат:
+    //   - её cx/cy = внутренняя грань первой (исходной) комнаты
+    //   - её противоположная грань (cx ± thickness по нормали) = внутренняя
+    //     грань второй (новой) комнаты
+    //
+    // В графе помещений это даст ОДНУ общую стену со списком wallIds,
+    // и обе комнаты получат свои корректные площади 3×3 = 9 м² каждая.
     const halfT = w.thickness / 2;
     // Знаковое расстояние от базы стены до её смещённой оси (по wN)
     const axisOffsetFromBase = (w.x1 - wStart.x) * wNx + (w.y1 - wStart.y) * wNy;
@@ -491,36 +497,20 @@ function findReusableWall(start, end, thick) {
     const face1 = axisOffsetFromBase + halfT;
     const face2 = axisOffsetFromBase - halfT;
     // Внешняя грань = та, что ДАЛЬШЕ от базы (по абсолютной величине).
-    // Для offset='right'/'left' одна из граней совпадает с базой (=0), другая = ±thickness.
-    // Для offset='center' обе грани в ±halfT, внешней нет в строгом смысле — берём ту,
-    // в сторону которой смотрит новая стена.
     let outerFaceOffset;
     if (Math.abs(face1) > Math.abs(face2) + 1) {
       outerFaceOffset = face1;
     } else if (Math.abs(face2) > Math.abs(face1) + 1) {
       outerFaceOffset = face2;
     } else {
-      // center: выбираем грань в сторону новой базы
+      // center (legacy): берём грань в сторону новой базы
       outerFaceOffset = perp > 0 ? Math.max(face1, face2) : Math.min(face1, face2);
     }
 
-    // Если новая база лежит примерно на внешней грани — это слияние
+    // Если новая база лежит примерно на внешней грани — переиспользуем
+    // существующую стену БЕЗ изменений
     if (Math.abs(perp - outerFaceOffset) < FACE_TOL) {
-      const prevState = {
-        offset: w.offset,
-        cx1: w.cx1, cy1: w.cy1, cx2: w.cx2, cy2: w.cy2,
-        x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2,
-      };
-      // Превращаем стену в общую: offset='center', база сдвигается к середине
-      // между старой базой и новой базой (== старая база + perp/2 по wN).
-      // Тогда обе грани контура окажутся в halfT от новой базы — стена станет
-      // симметричной относительно границы между двумя комнатами.
-      const shift = perp / 2;
-      w.cx1 += wNx * shift; w.cy1 += wNy * shift;
-      w.cx2 += wNx * shift; w.cy2 += wNy * shift;
-      w.offset = 'center';
-      recalculateContourFromBase(w);
-      return { mode: 'merge', wall: w, prevState };
+      return { mode: 'reuse', wall: w };
     }
   }
   return null;
@@ -531,37 +521,38 @@ function findReusableWall(start, end, thick) {
 export function addWall(start, end, thick, height, wallOffset) {
   // Stage 6: попытка переиспользовать существующую стену вместо создания дубликата.
   // Если новая стена совпадает с существующей или прилегает к её внешней грани —
-  // возвращаем существующую (возможно, с обновлённым offset='center').
+  // возвращаем существующую (без модификаций).
   const reuse = findReusableWall(start, end, thick);
   if (reuse) {
     invalidateJointCache();
-    // Для совместимости с Undo: помечаем стену как "переиспользованную в этой команде",
-    // CreateWallCommand при undo сможет восстановить prevState (если был merge).
-    if (reuse.mode === 'merge') {
-      reuse.wall._lastReuseSnapshot = reuse.prevState;
-    }
     return reuse.wall;
   }
   return _addWallRaw(start, end, thick, height, wallOffset);
 }
 
 function _addWallRaw(start, end, thick, height, wallOffset) {
+  // НОВАЯ МОДЕЛЬ: 'center' deprecated. Если на вход пришёл 'center' —
+  // считаем это ошибкой инструмента рисования и подменяем на 'left'.
+  // Это гарантирует что cx/cy всегда лежит на ВНУТРЕННЕЙ грани стены.
+  if (wallOffset !== 'left' && wallOffset !== 'right') {
+    wallOffset = 'left';
+  }
   const angle = Math.atan2(end.y - start.y, end.x - start.x);
   const s  = applyWallOffset(start.x, start.y, angle, wallOffset, thick);
   const e2 = applyWallOffset(end.x,   end.y,   angle, wallOffset, thick);
   const wall = {
     id: appState.idWall++,
-    // Смещённая ось (зависит от offset/thickness — пересчитывается recalculateContourFromBase)
+    // Смещённая ось (x/y) — отстоит от базовой линии на полтолщины
     x1: s.x,  y1: s.y,
     x2: e2.x, y2: e2.y,
-    // Базовая линия (то что рисовал пользователь — никогда не сдвигается)
+    // Базовая линия (cx/cy) — то, что рисовал пользователь.
+    // При offset='left' или 'right' = ВНУТРЕННЯЯ ГРАНЬ стены, по этой
+    // линии замыкается контур помещения.
     cx1: start.x, cy1: start.y,
     cx2: end.x,   cy2: end.y,
     thickness: thick, height, offset: wallOffset,
-    horizontalOffset: 0, // зарезервировано для будущего смещения по нормали (Stage 1+)
-    // Stage 4: приоритет сопряжения. Чем выше — тем «главнее» стена при T-стыке.
-    // Стены с равным приоритетом сопрягаются симметрично.
-    priority: appState.idWall - 1, // порядковый номер как начальный приоритет
+    horizontalOffset: 0,
+    priority: appState.idWall - 1,
   };
   appState.walls.push(wall);
   invalidateJointCache();

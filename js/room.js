@@ -3,7 +3,8 @@ import { appState, ROOM_STROKES } from './state.js';
 import { EventBus } from './eventBus.js';
 import {
   findAllIntersections, buildWallGraph, findFaces,
-  polygonArea, polygonCentroid, isPointInPolygon, isPointInWall
+  polygonArea, polygonCentroid, isPointInPolygon, isPointInWall,
+  polygonBboxArea,
 } from './geometry.js';
 
 let _wallHeightFallback = 2700;
@@ -38,6 +39,10 @@ function lineLineIntersect2(p1, d1, p2, d2) {
   return { x: p1.x + d1.x * t, y: p1.y + d1.y * t };
 }
 
+/**
+ * Возвращает ОДНУ ближайшую стену для ребра (используется в buildInnerPolygon).
+ * Для сбора boundaryWalls используй findAllWallsForEdge.
+ */
 function findWallForEdge(ax, ay, bx, by, walls, eps = 50) {
   const midX = (ax + bx) / 2, midY = (ay + by) / 2;
   const edgeLen = Math.hypot(bx - ax, by - ay);
@@ -60,6 +65,38 @@ function findWallForEdge(ax, ay, bx, by, walls, eps = 50) {
     if (perp < bestDist) { bestDist = perp; best = w; }
   }
   return best;
+}
+
+/**
+ * ИСПРАВЛЕНИЕ (Баг 3):
+ * Возвращает ВСЕ стены, которым принадлежит данное ребро графа.
+ * Раньше использовался findWallForEdge, который возвращал только одну стену.
+ * Если ребро является общей границей двух комнат (две параллельные стены),
+ * обе стены должны попасть в boundaryWalls — иначе метрики неверны.
+ */
+function findAllWallsForEdge(ax, ay, bx, by, walls, eps = 50) {
+  const midX = (ax + bx) / 2, midY = (ay + by) / 2;
+  const edgeLen = Math.hypot(bx - ax, by - ay);
+  if (edgeLen < 1) return [];
+  const edUX = (bx - ax) / edgeLen, edUY = (by - ay) / edgeLen;
+  const result = [];
+  for (const w of walls) {
+    const bx1 = w.cx1 ?? w.x1, by1 = w.cy1 ?? w.y1;
+    const bx2 = w.cx2 ?? w.x2, by2 = w.cy2 ?? w.y2;
+    const wLen = Math.hypot(bx2 - bx1, by2 - by1);
+    if (wLen < 1) continue;
+    const wUX = (bx2 - bx1) / wLen, wUY = (by2 - by1) / wLen;
+    // Ребро и стена должны быть коллинеарны
+    if (Math.abs(edUX * wUX + edUY * wUY) < 0.95) continue;
+    const halfT = (w.thickness || 0) / 2;
+    const dx = midX - bx1, dy = midY - by1;
+    const along = dx * wUX + dy * wUY;
+    if (along < -eps || along > wLen + eps) continue;
+    const perp = Math.abs(dx * (-wUY) + dy * wUX);
+    if (perp > halfT + eps) continue;
+    result.push(w);
+  }
+  return result;
 }
 
 function getInnerFaceLine(wall, roomCenter) {
@@ -117,10 +154,10 @@ function buildInnerPolygon(rawPoly, walls, roomCenter) {
 // ══════════════════════════════════════════════════════════════════
 export function computeRooms(wallHeightFallback = 2700) {
   appState.rooms = [];
-  
+
   const walls = appState.walls;
   const dividers = appState.dividers || [];
-  
+
   if (walls.length === 0 && dividers.length === 0) {
     EventBus.emit('rooms:computed');
     return;
@@ -164,6 +201,7 @@ export function computeRooms(wallHeightFallback = 2700) {
     }
     return a / 2;
   }
+
   const dedupedFaces = [];
   const seenKeys = new Set();
   for (const face of faces) {
@@ -178,34 +216,36 @@ export function computeRooms(wallHeightFallback = 2700) {
     dedupedFaces.push({ poly, sArea });
   }
 
-  let posCount = 0, negCount = 0;
-  for (const f of dedupedFaces) {
-    if (f.sArea > 0) posCount++; else negCount++;
-  }
-  let exteriorSign;
-  if (posCount === 0) exteriorSign = 'n';
-  else if (negCount === 0) exteriorSign = 'p';
-  else if (posCount === negCount) {
-    exteriorSign = 'n';
-  } else {
-    exteriorSign = posCount < negCount ? 'p' : 'n';
-  }
-
-  const facePolys = dedupedFaces.map(f => f.poly);
-  const faceAreas = dedupedFaces.map(f => Math.abs(f.sArea));
-
   if (dedupedFaces.length === 0) {
     EventBus.emit('rooms:computed');
     return;
   }
 
-  const exteriorIndices = new Set();
+  const facePolys = dedupedFaces.map(f => f.poly);
+  const faceAreas = dedupedFaces.map(f => Math.abs(f.sArea));
+
+  /**
+   * ИСПРАВЛЕНИЕ (Баг 2):
+   * Раньше внешний фейс определялся по знаку площади (posCount/negCount).
+   * Это ненадёжно: при несимметричных планах (Г-образные, с выступами)
+   * posCount === negCount → exteriorSign = 'n' по дефолту → одна из
+   * реальных комнат выбрасывалась как "внешняя".
+   *
+   * Правильный подход: внешний фейс — тот, у которого максимальная
+   * площадь bounding box. Он всегда охватывает весь план снаружи.
+   * Площадь bbox всегда больше у внешнего фейса, чем у любой комнаты.
+   */
+  let exteriorIndex = 0;
+  let maxBboxArea = -Infinity;
   for (let i = 0; i < dedupedFaces.length; i++) {
-    if ((dedupedFaces[i].sArea > 0 ? 'p' : 'n') === exteriorSign) {
-      exteriorIndices.add(i);
+    const bb = polygonBboxArea(dedupedFaces[i].poly);
+    if (bb > maxBboxArea) {
+      maxBboxArea = bb;
+      exteriorIndex = i;
     }
   }
-  const exteriorIndex = [...exteriorIndices][0] ?? faceAreas.indexOf(Math.max(...faceAreas));
+
+  const exteriorIndices = new Set([exteriorIndex]);
   const exteriorPoly = facePolys[exteriorIndex];
 
   exteriorWallIds = new Set();
@@ -221,7 +261,7 @@ export function computeRooms(wallHeightFallback = 2700) {
 
   for (let i = 0; i < facePolys.length; i++) {
     if (exteriorIndices.has(i)) continue;
-    
+
     const rawPoly = facePolys[i];
     const rawArea = faceAreas[i];
     if (rawArea < 50000) continue;
@@ -235,7 +275,7 @@ export function computeRooms(wallHeightFallback = 2700) {
     if (compactness < 0.005) continue;
 
     const roughCenter = polygonCentroid(rawPoly);
-    
+
     let insideWall = false;
     for (const w of walls) {
       const wx1 = w.cx1 ?? w.x1, wy1 = w.cy1 ?? w.y1;
@@ -245,7 +285,15 @@ export function computeRooms(wallHeightFallback = 2700) {
     }
     if (insideWall) continue;
 
-    // Сбор граничных стен и определение, есть ли разделители
+    /**
+     * ИСПРАВЛЕНИЕ (Баг 3):
+     * Раньше для каждого ребра rawPoly вызывался findWallForEdge,
+     * который возвращал только одну стену. Если ребро является общей
+     * границей двух комнат, вторая стена в boundaryWalls не попадала
+     * → её метрики (площадь стен, периметр) не учитывались.
+     *
+     * Теперь используем findAllWallsForEdge → все подходящие стены.
+     */
     let hasDividers = false;
     const boundaryWallIds = new Set();
     const boundaryWallsList = [];
@@ -253,8 +301,8 @@ export function computeRooms(wallHeightFallback = 2700) {
     for (let k = 0; k < rawPoly.length; k++) {
       const a = rawPoly[k];
       const b = rawPoly[(k + 1) % rawPoly.length];
-      const wall = findWallForEdge(a.x, a.y, b.x, b.y, allWalls, 100);
-      if (wall) {
+      const edgeWalls = findAllWallsForEdge(a.x, a.y, b.x, b.y, allWalls, 100);
+      for (const wall of edgeWalls) {
         if (wall.isDivider) {
           hasDividers = true;
         } else if (!boundaryWallIds.has(wall.id)) {
@@ -272,7 +320,7 @@ export function computeRooms(wallHeightFallback = 2700) {
 
     const center = polygonCentroid(poly);
 
-    // Вычисляем среднюю высоту, взвешенную по длине стены
+    // Средняя высота, взвешенная по длине стены
     let totalLengthMm = 0;
     let weightedHeightSum = 0;
     for (const w of boundaryWalls) {
@@ -421,11 +469,10 @@ function clipWallAxisToPolygon(wall, polygon) {
   }
 
   ts.sort((a, b) => a - b);
-  
+
   for (let i = 0; i < ts.length - 1; i++) {
     const t1 = ts[i], t2 = ts[i + 1];
     if (t2 - t1 < 0.001) continue;
-    // Проверяем несколько точек вдоль отрезка, чтобы корректно обработать граничные отрезки
     const epsTest = 0.01;
     const testPoints = [
       { x: seg.x1 + ux * (t1 + epsTest) * len, y: seg.y1 + uy * (t1 + epsTest) * len },
@@ -478,9 +525,7 @@ function wallFullLengthMm(w) {
 }
 
 function wallLengthMm(w, roomPolygon) {
-  if (!roomPolygon) {
-    return wallFullLengthMm(w);
-  }
+  if (!roomPolygon) return wallFullLengthMm(w);
   const clipped = clipWallAxisToPolygon(w, roomPolygon);
   return clipped.reduce((sum, seg) => sum + Math.hypot(seg.x2 - seg.x1, seg.y2 - seg.y1), 0);
 }
@@ -586,7 +631,6 @@ function computeRoomMetrics(walls, openings, heightMm, center, entranceDoorId, r
     orderedWalls = orderBoundaryWalls(walls, roomPolygon);
     wallSegData = buildWallSegments(orderedWalls, openings, roomPolygon);
     perimeterRawMm = orderedWalls.reduce((sum, w) => sum + wallLengthMm(w, roomPolygon), 0);
-    
     for (const { wall, segments, totalLenMm } of wallSegData) {
       const wallLenM = totalLenMm / 1000;
       for (const seg of segments) {
@@ -598,7 +642,6 @@ function computeRoomMetrics(walls, openings, heightMm, center, entranceDoorId, r
     orderedWalls = walls;
     wallSegData = buildWallSegments(orderedWalls, openings, roomPolygon);
     perimeterRawMm = orderedWalls.reduce((sum, w) => sum + wallFullLengthMm(w), 0);
-    
     for (const { wall, segments } of wallSegData) {
       const wallLenM = wallFullLengthMm(wall) / 1000;
       for (const seg of segments) {

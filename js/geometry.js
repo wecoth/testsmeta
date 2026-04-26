@@ -1,4 +1,13 @@
-// ─── GEOMETRY.JS — pure math, vector room detection added ─────────
+// ─── GEOMETRY.JS — pure math, vector room detection ────────────────
+//
+// МОДЕЛЬ ПОМЕЩЕНИЙ (Renga-style):
+// • Контур помещения = линии рисования стен (cx1,cy1 → cx2,cy2),
+//   которые при привязке 'left'/'right' лежат на ВНУТРЕННЕЙ ГРАНИ стены.
+// • Толщина стен в построении графа НЕ участвует. Снаппинг при рисовании
+//   гарантирует, что концы соседних стен совпадают точно по cx/cy.
+// • Все допуски в графе — это допуски на ошибки округления плавающей точки
+//   (~2 мм), а не на физические толщины конструкций.
+//
 export function segmentIntersection(a, b, epsilon = 0.001) {
   const r = { x: a.x2 - a.x1, y: a.y2 - a.y1 };
   const s = { x: b.x2 - b.x1, y: b.y2 - b.y1 };
@@ -61,6 +70,8 @@ export function clusterValues(values, threshold = 5) {
 }
 
 export function applyWallOffset(cx, cy, angle, offset, thickness) {
+  // 'center' deprecated — поддерживается только для обратной совместимости
+  // со старыми проектами. Новые стены создаются только с 'left' или 'right'.
   if (offset === 'center') return { x: cx, y: cy };
   const px = -Math.sin(angle);
   const py =  Math.cos(angle);
@@ -72,8 +83,8 @@ export function applyWallOffset(cx, cy, angle, offset, thickness) {
 // ВЕКТОРНОЕ ПОСТРОЕНИЕ КОМНАТ
 // ══════════════════════════════════════════════════════════════════
 
-/** Площадь полигона (по модулю) */
-export function polygonArea(poly) {
+/** Знаковая площадь полигона (положительная для CCW, отрицательная для CW) */
+export function polygonSignedArea(poly) {
   if (poly.length < 3) return 0;
   let area = 0;
   for (let i = 0; i < poly.length; i++) {
@@ -81,7 +92,12 @@ export function polygonArea(poly) {
     const p2 = poly[(i + 1) % poly.length];
     area += p1.x * p2.y - p2.x * p1.y;
   }
-  return Math.abs(area) / 2;
+  return area / 2;
+}
+
+/** Площадь полигона (по модулю) */
+export function polygonArea(poly) {
+  return Math.abs(polygonSignedArea(poly));
 }
 
 /** Центроид полигона */
@@ -132,7 +148,7 @@ export function isPointInWall(point, wall, eps = 5) {
   return dist <= wall.thickness / 2 + eps;
 }
 
-// Хелпер: базовая линия стены (cx/cy если есть, иначе x/y)
+// Хелпер: базовая линия стены — линия рисования = внутренняя грань
 function wallBase(w) {
   return {
     x1: w.cx1 ?? w.x1, y1: w.cy1 ?? w.y1,
@@ -141,28 +157,22 @@ function wallBase(w) {
 }
 
 /**
- * Находит все уникальные вершины графа по осям стен (cx/cy).
+ * Находит все уникальные вершины графа по линиям рисования стен (cx/cy).
  *
- * ИСПРАВЛЕНИЕ (Баг 1):
- * Раньше использовался единый MERGE = maxThickness + 10 (~160 мм).
- * Это приводило к тому, что конец перегородки и конец соседней стены
- * сливались в одну вершину → ребро не создавалось → контур не замыкался.
+ * НОВАЯ МОДЕЛЬ (Renga-style): толщина в построении графа НЕ участвует.
  *
- * Теперь два раздельных допуска:
- *   ENDPOINT_MERGE = 8 мм  — только для слияния концов стен друг с другом
- *   TSTYLE_MERGE           — для T-стыков: конец одной стены попадает в середину другой
- *
- * T-стык определяется отдельно: если конец стены лежит вдоль оси другой стены
- * на расстоянии перпендикуляра ≤ halfThickness + зазор, это T-стык.
+ * Снаппинг при рисовании стены гарантирует, что её конец привязывается
+ * точно к концу/середине другой стены по cx/cy. Поэтому единственный
+ * допуск здесь — компенсация ошибок плавающей точки (~2 мм).
  */
 export function findAllIntersections(walls, eps = 2) {
-  // Маленький допуск — только для слияния действительно близких концов
-  const ENDPOINT_MERGE = 8;
+  const EPS_MERGE = 2;       // мм — допуск слияния близких точек
+  const EPS_PERP  = 2;       // мм — допуск перпендикуляра для T-стыков
 
   const points = [];
 
   function findOrAdd(x, y, wallId) {
-    const existing = points.find(p => Math.hypot(p.x - x, p.y - y) < ENDPOINT_MERGE);
+    const existing = points.find(p => Math.hypot(p.x - x, p.y - y) < EPS_MERGE);
     if (existing) {
       if (!existing.wallIds.includes(wallId)) existing.wallIds.push(wallId);
       return existing;
@@ -172,15 +182,14 @@ export function findAllIntersections(walls, eps = 2) {
     return np;
   }
 
-  // 1. Концы всех стен (по cx/cy) — с дедупликацией через ENDPOINT_MERGE
+  // 1. Концы всех стен
   for (const w of walls) {
     const b = wallBase(w);
     findOrAdd(b.x1, b.y1, w.id);
     findOrAdd(b.x2, b.y2, w.id);
   }
 
-  // 2. Пересечения осей стен (T-стыки и крестовины)
-  //    Используем стандартный segmentIntersection — он работает точно
+  // 2. Пересечения осей стен (X-стыки и crossing)
   for (let i = 0; i < walls.length; i++) {
     for (let j = i + 1; j < walls.length; j++) {
       const b1 = wallBase(walls[i]), b2 = wallBase(walls[j]);
@@ -192,9 +201,9 @@ export function findAllIntersections(walls, eps = 2) {
     }
   }
 
-  // 3. T-стык: конец стены A лежит на оси стены B, но не пересекает её
-  //    (segmentIntersection не поймает случай, когда конец ровно на оси)
-  //    Допуск перпендикуляра = halfThickness стены B + небольшой зазор
+  // 3. T-стыки: конец стены A лежит на оси стены B (но не пересекает её)
+  //    Минимальный перпендикулярный допуск — снаппинг должен сводить точки
+  //    точно. EPS_PERP только компенсирует float-округления.
   for (const wA of walls) {
     const bA = wallBase(wA);
     const endpointsA = [
@@ -208,18 +217,14 @@ export function findAllIntersections(walls, eps = 2) {
       if (lenB < 1) continue;
       const uxB = (bB.x2 - bB.x1) / lenB, uyB = (bB.y2 - bB.y1) / lenB;
       const nxB = -uyB, nyB = uxB;
-      const halfTB = (wB.thickness || 0) / 2;
-      // Допуск перпендикуляра: полтолщины стены B + 5 мм зазор
-      const PERP_TOL = halfTB + 5;
-      // Допуск вдоль оси: чуть больше нуля, чтобы не дублировать уже найденные пересечения
-      const ALONG_TOL = 5;
 
       for (const pt of endpointsA) {
         const dx = pt.x - bB.x1, dy = pt.y - bB.y1;
         const along = dx * uxB + dy * uyB;
         const perp  = Math.abs(dx * nxB + dy * nyB);
-        // Точка должна лежать ВНУТРИ отрезка (не на самом конце — там уже есть вершина)
-        if (along > ALONG_TOL && along < lenB - ALONG_TOL && perp <= PERP_TOL) {
+        // Точка должна лежать ВНУТРИ отрезка (не на самом конце —
+        // концы уже добавлены в шаге 1) и почти точно на оси.
+        if (along > EPS_MERGE && along < lenB - EPS_MERGE && perp <= EPS_PERP) {
           // Проецируем на ось стены B → точная точка T-стыка
           const projX = bB.x1 + uxB * along;
           const projY = bB.y1 + uyB * along;
@@ -236,14 +241,17 @@ export function findAllIntersections(walls, eps = 2) {
 /**
  * Строит граф: вершины и рёбра.
  *
- * Для каждой стены отбираем только вершины, которые физически лежат
- * на её оси. Допуск перпендикуляра = halfThickness + зазор (покрывает
- * T-стыки, где вершина могла чуть сдвинуться при проекции).
+ * НОВАЯ МОДЕЛЬ: для каждой стены отбираем вершины строго на её оси cx/cy
+ * с минимальным перпендикулярным допуском (~2 мм). Толщина не участвует —
+ * она нужна только для отрисовки и подсчёта объёмов, но не для топологии.
  *
- * Параллельные дубликаты рёбер (общая граница между двумя комнатами)
- * склеиваются в одно ребро — иначе findFaces даёт паразитные фейсы.
+ * Параллельные дубликаты рёбер (две комнаты на общей стене, или две
+ * параллельные стены) склеиваются в одно ребро со списком wallIds.
  */
 export function buildWallGraph(walls, points, eps = 2) {
+  const EPS_PERP = 2;        // мм
+  const EPS_ALONG = 2;       // мм
+
   const vertices = points.map((p, i) => ({ ...p, id: i }));
   const rawEdges = [];
 
@@ -253,18 +261,13 @@ export function buildWallGraph(walls, points, eps = 2) {
     if (len < 1) continue;
     const ux = (b.x2 - b.x1) / len, uy = (b.y2 - b.y1) / len;
     const nx = -uy, ny = ux;
-    const halfT = (wall.thickness || 0) / 2;
-    // Допуск перпендикуляра: halfThickness + запас на T-стык
-    const PERP_TOL = halfT + 10;
-    // Допуск вдоль оси: небольшой выход за концы (слияние могло чуть сдвинуть вершину)
-    const ALONG_TOL = 10;
 
     const onWall = vertices.filter(v => {
       if (!v.wallIds.includes(wall.id)) return false;
       const dx = v.x - b.x1, dy = v.y - b.y1;
       const along = dx * ux + dy * uy;
       const perp  = Math.abs(dx * nx + dy * ny);
-      return along >= -ALONG_TOL && along <= len + ALONG_TOL && perp <= PERP_TOL;
+      return along >= -EPS_ALONG && along <= len + EPS_ALONG && perp <= EPS_PERP;
     });
 
     if (onWall.length < 2) continue;
@@ -292,7 +295,8 @@ export function buildWallGraph(walls, points, eps = 2) {
     }
   }
 
-  // Склейка параллельных дубликатов рёбер
+  // Склейка параллельных дубликатов рёбер (общие стены, или две стены на
+  // одной линии). В графе должны давать одно ребро со списком wallIds.
   const edgeMap = new Map();
   for (const e of rawEdges) {
     const a = Math.min(e.v1, e.v2), b = Math.max(e.v1, e.v2);
@@ -375,7 +379,7 @@ export function findFaces(vertices, edges) {
 }
 
 /**
- * Вычисляет bounding box полигона и его площадь.
+ * Площадь bounding box полигона.
  * Используется для надёжного определения внешнего фейса.
  */
 export function polygonBboxArea(poly) {

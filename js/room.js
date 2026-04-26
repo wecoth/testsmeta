@@ -56,11 +56,16 @@ export let exteriorWallIds = new Set();
 // ══════════════════════════════════════════════════════════════════
 
 /**
- * Возвращает все стены, ось которых (cx/cy) ЛЕЖИТ НА ребре полигона
- * комнаты. Используется для сбора граничных стен.
+ * Возвращает все стены, у которых ХОТЯ БЫ ОДНА грань (внутренняя cx/cy
+ * или противоположная) лежит на ребре полигона.
  *
- * Допуск перпендикуляра небольшой (~3 мм) — рёбра полигона совпадают
- * с осями стен по построению (граф строится из них же).
+ * Для внутренней грани — это сам отрезок cx/cy.
+ * Для противоположной грани — это отрезок cx/cy, сдвинутый по нормали
+ * на ±thickness в сторону, противоположную offset.
+ *
+ * Используется для:
+ *  - сбора граничных стен помещения,
+ *  - определения толщин стен в isDeadZone.
  */
 function findAllWallsForEdge(ax, ay, bx, by, walls, eps = 3) {
   const midX = (ax + bx) / 2, midY = (ay + by) / 2;
@@ -69,19 +74,35 @@ function findAllWallsForEdge(ax, ay, bx, by, walls, eps = 3) {
   const edUX = (bx - ax) / edgeLen, edUY = (by - ay) / edgeLen;
   const result = [];
   for (const w of walls) {
+    // Базовая линия (cx/cy = внутренняя грань)
     const bx1 = w.cx1 ?? w.x1, by1 = w.cy1 ?? w.y1;
     const bx2 = w.cx2 ?? w.x2, by2 = w.cy2 ?? w.y2;
     const wLen = Math.hypot(bx2 - bx1, by2 - by1);
     if (wLen < 1) continue;
     const wUX = (bx2 - bx1) / wLen, wUY = (by2 - by1) / wLen;
-    // Ребро и стена должны быть коллинеарны
+    // Ребро и стена должны быть коллинеарны (по углу)
     if (Math.abs(edUX * wUX + edUY * wUY) < 0.95) continue;
-    const dx = midX - bx1, dy = midY - by1;
-    const along = dx * wUX + dy * wUY;
-    if (along < -eps || along > wLen + eps) continue;
-    const perp = Math.abs(dx * (-wUY) + dy * wUX);
-    if (perp > eps) continue;
-    result.push(w);
+
+    // Кандидатные грани стены: inner и outer
+    const t = w.thickness || 0;
+    const candidates = [{ x1: bx1, y1: by1 }];
+    if (t > 0.5 && !w.isDivider) {
+      const nx = -wUY, ny = wUX;
+      const sign = w.offset === 'right' ? +1 : -1;
+      candidates.push({ x1: bx1 + sign * nx * t, y1: by1 + sign * ny * t });
+    }
+
+    let matched = false;
+    for (const c of candidates) {
+      const dx = midX - c.x1, dy = midY - c.y1;
+      const along = dx * wUX + dy * wUY;
+      if (along < -eps || along > wLen + eps) continue;
+      const perp = Math.abs(dx * (-wUY) + dy * wUX);
+      if (perp > eps) continue;
+      matched = true;
+      break;
+    }
+    if (matched) result.push(w);
   }
   return result;
 }
@@ -210,11 +231,19 @@ function wallFootprintArea(wall, lengthMm) {
  */
 function isDeadZone(poly, allWalls) {
   if (poly.length < 4) return false;
-  const n = poly.length;
+  // Базовый фильтр по компактности — мёртвые зоны очень узкие.
+  // У квадрата compactness = 0.0625, у полоски 200×3000 = 0.0146.
+  // Порог 0.03 надёжно отделяет реальные комнаты от мёртвых зон.
+  let perim = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i+1)%poly.length];
+    perim += Math.hypot(b.x - a.x, b.y - a.y);
+  }
+  const area = Math.abs(polygonSignedArea(poly));
+  const compactness = perim > 0 ? area / (perim * perim) : 0;
+  if (compactness > 0.03) return false;
 
-  // Для каждой пары рёбер: если они почти параллельны, измеряем
-  // перпендикулярное расстояние между ними. Если это расстояние
-  // ≤ thickness любой стены + 5 мм — это мёртвая зона.
+  const n = poly.length;
   for (let i = 0; i < n; i++) {
     const a1 = poly[i], a2 = poly[(i + 1) % n];
     const dxA = a2.x - a1.x, dyA = a2.y - a1.y;
@@ -222,29 +251,20 @@ function isDeadZone(poly, allWalls) {
     if (lenA < 1) continue;
     const uxA = dxA / lenA, uyA = dyA / lenA;
     const nxA = -uyA, nyA = uxA;
-
     for (let j = i + 2; j < n; j++) {
-      // не сравниваем смежные рёбра (i+1) и оставшееся последнее с первым
       if (j === n - 1 && i === 0) continue;
       const b1 = poly[j], b2 = poly[(j + 1) % n];
       const dxB = b2.x - b1.x, dyB = b2.y - b1.y;
       const lenB = Math.hypot(dxB, dyB);
       if (lenB < 1) continue;
       const uxB = dxB / lenB, uyB = dyB / lenB;
-      // Параллельность (с любым направлением)
       const dot = uxA * uxB + uyA * uyB;
       if (Math.abs(dot) < 0.95) continue;
-      // Перпендикулярное расстояние между двумя параллельными прямыми:
-      // проекция вектора (b1 - a1) на нормаль к ребру A
       const dx = b1.x - a1.x, dy = b1.y - a1.y;
       const dist = Math.abs(dx * nxA + dy * nyA);
-      // Если расстояние мало (≤ толщина любой стены + 5 мм), и при этом
-      // длины рёбер сопоставимы (это узкая полоска, а не угловой выступ)
       const minLen = Math.min(lenA, lenB);
       const maxLen = Math.max(lenA, lenB);
-      if (minLen / maxLen < 0.5) continue; // длины слишком разные
-
-      // Максимальная толщина среди стен на этих рёбрах
+      if (minLen / maxLen < 0.5) continue;
       const wallsA = findAllWallsForEdge(a1.x, a1.y, a2.x, a2.y, allWalls);
       const wallsB = findAllWallsForEdge(b1.x, b1.y, b2.x, b2.y, allWalls);
       if (wallsA.length === 0 || wallsB.length === 0) continue;
@@ -252,10 +272,7 @@ function isDeadZone(poly, allWalls) {
         ...wallsA.map(w => w.thickness || 0),
         ...wallsB.map(w => w.thickness || 0)
       );
-      // Расстояние ≤ толщина стены + 5 мм допуск → мёртвая зона
-      if (dist <= maxThick + 5) {
-        return true;
-      }
+      if (dist <= maxThick + 5) return true;
     }
   }
   return false;

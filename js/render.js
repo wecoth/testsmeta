@@ -153,7 +153,7 @@ export function drawAlignedTextBox(text, pos, angle, opts = {}) {
   const basePx   = BASE_FONT_MM * scale;
   // Из opts.font извлекаем weight и используем basePx как размер
   const weight   = opts.font ? (opts.font.match(/^(\d+)/) || ['','600'])[1] : '600';
-  _ctx.font      = `${weight} ${basePx.toFixed(1)}px Font_GOST_2.304, Onest, Inter, sans-serif`;
+  _ctx.font      = `${weight} ${basePx.toFixed(1)}px Merriweather, Onest, Inter, sans-serif`;
 
   // Тень для читаемости без подложки
   _ctx.shadowColor   = 'rgba(255,255,255,0.9)';
@@ -338,7 +338,7 @@ function drawGrid() {
   for (let y = Math.floor(wMin.y / stepMaj) * stepMaj; y <= wMax.y + stepMaj; y += stepMaj) {
     const sy = toScreen(0, y).y; _ctx.beginPath(); _ctx.moveTo(0, sy); _ctx.lineTo(W, sy); _ctx.stroke();
   }
-  _ctx.fillStyle = '#a0aab8'; _ctx.font = '10px Font_GOST_2.304, Onest, Inter, sans-serif'; _ctx.textAlign = 'left';
+  _ctx.fillStyle = '#a0aab8'; _ctx.font = '10px Merriweather, Onest, Inter, sans-serif'; _ctx.textAlign = 'left';
   for (let x = Math.floor(wMin.x / stepMaj) * stepMaj; x <= wMax.x + stepMaj; x += stepMaj) {
     const sx = toScreen(x, 0).x; if (sx > 2 && sx < W - 2) _ctx.fillText((x / 1000).toFixed(0) + 'м', sx + 2, 12);
   }
@@ -389,10 +389,10 @@ function drawRoomFills(selectedItems) {
       const center = r.center || (r.polygon ? polygonCentroid(r.polygon) : { x: 0, y: 0 });
       const sc = toScreen(center.x, center.y);
       _ctx.fillStyle = DRAW_COLORS.roomLabel;
-      _ctx.font = `600 ${(scale * 200).toFixed(1)}px Font_GOST_2.304, Onest, Inter, sans-serif`;
+      _ctx.font = `600 ${(scale * 200).toFixed(1)}px Merriweather, Onest, Inter, sans-serif`;
       _ctx.textAlign = 'center'; _ctx.textBaseline = 'middle';
       _ctx.fillText(r.name, sc.x, sc.y);
-      _ctx.font = `500 ${(scale * 160).toFixed(1)}px Font_GOST_2.304, Onest, Inter, sans-serif`;
+      _ctx.font = `500 ${(scale * 160).toFixed(1)}px Merriweather, Onest, Inter, sans-serif`;
       _ctx.fillStyle = DRAW_COLORS.roomMeta;
       _ctx.fillText(`${r.area.toFixed(2)} м²`, sc.x, sc.y + Math.max(10, scale * 180));
     }
@@ -501,7 +501,7 @@ function drawMeasures(selectedItems) {
     drawAlignedTextBox(m.label, labelPos, angle, {
       textColor: '#111111',
       background: 'rgba(255,255,255,0.95)',
-      font: '600 9px Font_GOST_2.304, Onest, Inter, sans-serif'
+      font: '600 9px Merriweather, Onest, Inter, sans-serif'
     });
 
     // Маркер перетаскивания для выделенного размера
@@ -967,7 +967,7 @@ function drawTempWall(ps) {
   if (chainMode) {
     _ctx.fillStyle = 'rgba(55,65,81,0.92)'; _ctx.beginPath();
     if (_ctx.roundRect) _ctx.roundRect(8, 32, 130, 20, 4); else _ctx.rect(8, 32, 130, 20); _ctx.fill();
-    _ctx.fillStyle = '#fff'; _ctx.font = '600 11px Font_GOST_2.304, Onest, Inter, sans-serif'; _ctx.textAlign = 'left'; _ctx.textBaseline = 'middle';
+    _ctx.fillStyle = '#fff'; _ctx.font = '600 11px Merriweather, Onest, Inter, sans-serif'; _ctx.textAlign = 'left'; _ctx.textBaseline = 'middle';
     _ctx.fillText('⛓ Цепочка стен · Esc — стоп', 14, 42);
   }
   _ctx.restore();
@@ -1052,7 +1052,7 @@ function drawTempMeasure(ps) {
   drawAlignedTextBox(labelText, labelPos, angle, {
     textColor: '#111111',
     background: 'rgba(255,255,255,0.95)',
-    font: '600 9px Font_GOST_2.304, Onest, Inter, sans-serif'
+    font: '600 9px Merriweather, Onest, Inter, sans-serif'
   });
   
   _ctx.restore();
@@ -1205,7 +1205,7 @@ function drawWallDimensions() {
         };
         const labelPos = toScreen(labelWorld.x, labelWorld.y);
         drawAlignedTextBox(`${Math.round(segLen)} мм`, labelPos, angle, {
-          font: '500 9px Font_GOST_2.304, Onest, Inter, sans-serif',
+          font: '500 9px Merriweather, Onest, Inter, sans-serif',
           background: 'rgba(255,255,255,0.97)',
           textColor: '#111111',
         });
@@ -1299,12 +1299,12 @@ function drawOpeningLeaders(extWallIds) {
     const typeLabel = op.type === 'window' ? 'Окно' : 'Вх. дверь';
     const textX = sEnd.x + toDirX * 3;
 
-    _ctx.font = `500 ${(BASE_FONT_MM * _getScale()).toFixed(1)}px Font_GOST_2.304, Onest, Inter, sans-serif`;
+    _ctx.font = `500 ${(BASE_FONT_MM * _getScale()).toFixed(1)}px Merriweather, Onest, Inter, sans-serif`;
     _ctx.fillStyle = '#374151';
     _ctx.textAlign = toDirX > 0 ? 'left' : 'right';
     _ctx.textBaseline = 'bottom';
     _ctx.fillText(label, textX, sEnd.y);
-    _ctx.font = `400 ${(BASE_FONT_SM_MM * _getScale()).toFixed(1)}px Font_GOST_2.304, Onest, Inter, sans-serif`;
+    _ctx.font = `400 ${(BASE_FONT_SM_MM * _getScale()).toFixed(1)}px Merriweather, Onest, Inter, sans-serif`;
     _ctx.fillStyle = '#9ca3af';
     _ctx.textBaseline = 'top';
     _ctx.fillText(typeLabel, textX, sEnd.y + 1);
@@ -1401,7 +1401,7 @@ function drawCursorGhost(ps) {
   _ctx.beginPath(); _ctx.rect(0, 0, gw, gd);
   _ctx.fillStyle = tool === 'window' ? DRAW_COLORS.windowHover : DRAW_COLORS.doorHover; _ctx.fill();
   _ctx.strokeStyle = tool === 'window' ? DRAW_COLORS.windowStroke : DRAW_COLORS.doorStroke; _ctx.stroke();
-  _ctx.fillStyle = DRAW_COLORS.roomLabel; _ctx.font = '600 10px Font_GOST_2.304, Onest, Inter, sans-serif'; _ctx.textAlign = 'left'; _ctx.textBaseline = 'top';
+  _ctx.fillStyle = DRAW_COLORS.roomLabel; _ctx.font = '600 10px Merriweather, Onest, Inter, sans-serif'; _ctx.textAlign = 'left'; _ctx.textBaseline = 'top';
   _ctx.fillText(`${w} × ${h} мм`, 0, gd + 8); _ctx.restore();
 }
 

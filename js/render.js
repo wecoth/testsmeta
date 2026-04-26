@@ -1104,8 +1104,9 @@ function drawWallDimensions() {
   const LEADER_OUT_MM = 280;  // leader diagonal outward distance
   const SHELF_MM      = 320;  // leader horizontal shelf length
 
-  // Global seen-walls set so each wall is drawn once even if shared by two rooms
-  const drawnWalls = new Set();
+  // Track (wallId, roomId) pairs so each wall is drawn once PER room
+  // This lets a shared wall show dimensions on both sides (one per room)
+  const drawnPairs = new Set();
 
   for (const room of appState.rooms) {
     if (!room.boundarySegments?.length || !room.polygon?.length) continue;
@@ -1113,7 +1114,8 @@ function drawWallDimensions() {
     for (const boundary of room.boundarySegments) {
       const wall = boundary.wall;
       if (!wall || wall.isDivider) continue;
-      if (drawnWalls.has(wall.id)) continue;
+      const pairKey = `${wall.id}__${room.id}`;
+      if (drawnPairs.has(pairKey)) continue;
 
       const wlen = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1);
       if (wlen < 50) continue;
@@ -1145,7 +1147,7 @@ function drawWallDimensions() {
         sideSign = dPlus <= dMinus ? 1 : -1;
       }
 
-      drawnWalls.add(wall.id);
+      drawnPairs.add(pairKey);
 
       // ── Build wall segments (gaps between openings) ───────────────
       const wallOpenings = appState.openings

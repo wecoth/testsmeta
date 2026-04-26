@@ -93,4 +93,4 @@ export const DRAW_COLORS = {
 
 export const ROOM_COLORS  = ['#e6e6e6'];
 export const ROOM_STROKES = ['rgba(120,127,136,0.4)'];
-if (typeof window !== 'undefined') window.appState = appState;
+window.appState = appState;

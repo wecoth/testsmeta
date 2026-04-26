@@ -140,8 +140,8 @@ function wallInteriorSide(wall, fallback = 1) {
 // BASE_FONT_MM: фиксированный размер шрифта в мировых единицах (мм).
 // При scale=0.12 → 10px на экране. При scale=0.5 → 42px (приближение).
 // Текст физически растёт вместе с чертежом — читается одинаково на любом масштабе.
-const BASE_FONT_MM    = 134;  // ~10px при стандартном масштабе
-const BASE_FONT_SM_MM = 120;  // ~9px  для вторичных подписей
+const BASE_FONT_MM    = 84;  // ~10px при стандартном масштабе
+const BASE_FONT_SM_MM = 75;  // ~9px  для вторичных подписей
 
 export function drawAlignedTextBox(text, pos, angle, opts = {}) {
   let a = angle;
@@ -338,7 +338,7 @@ function drawGrid() {
   for (let y = Math.floor(wMin.y / stepMaj) * stepMaj; y <= wMax.y + stepMaj; y += stepMaj) {
     const sy = toScreen(0, y).y; _ctx.beginPath(); _ctx.moveTo(0, sy); _ctx.lineTo(W, sy); _ctx.stroke();
   }
-  _ctx.fillStyle = '#a0aab8'; _ctx.font = '14px Merriweather, Onest, Inter, sans-serif'; _ctx.textAlign = 'left';
+  _ctx.fillStyle = '#a0aab8'; _ctx.font = '10px Merriweather, Onest, Inter, sans-serif'; _ctx.textAlign = 'left';
   for (let x = Math.floor(wMin.x / stepMaj) * stepMaj; x <= wMax.x + stepMaj; x += stepMaj) {
     const sx = toScreen(x, 0).x; if (sx > 2 && sx < W - 2) _ctx.fillText((x / 1000).toFixed(0) + 'м', sx + 2, 12);
   }
@@ -388,19 +388,6 @@ function drawRoomFills(selectedItems) {
     if (scale > 0.08) {
       const center = r.center || (r.polygon ? polygonCentroid(r.polygon) : { x: 0, y: 0 });
       const sc = toScreen(center.x, center.y);
-      _ctx.save();
-      // Clip to room polygon so label never bleeds into walls
-      if (r.polygon && r.polygon.length > 2) {
-        _ctx.beginPath();
-        const fp = toScreen(r.polygon[0].x, r.polygon[0].y);
-        _ctx.moveTo(fp.x, fp.y);
-        for (let i = 1; i < r.polygon.length; i++) {
-          const pp = toScreen(r.polygon[i].x, r.polygon[i].y);
-          _ctx.lineTo(pp.x, pp.y);
-        }
-        _ctx.closePath();
-        _ctx.clip();
-      }
       _ctx.fillStyle = DRAW_COLORS.roomLabel;
       _ctx.font = `600 ${(scale * 200).toFixed(1)}px Merriweather, Onest, Inter, sans-serif`;
       _ctx.textAlign = 'center'; _ctx.textBaseline = 'middle';
@@ -408,7 +395,6 @@ function drawRoomFills(selectedItems) {
       _ctx.font = `500 ${(scale * 160).toFixed(1)}px Merriweather, Onest, Inter, sans-serif`;
       _ctx.fillStyle = DRAW_COLORS.roomMeta;
       _ctx.fillText(`${r.area.toFixed(2)} м²`, sc.x, sc.y + Math.max(10, scale * 180));
-      _ctx.restore();
     }
     _ctx.restore();
   }
@@ -515,7 +501,7 @@ function drawMeasures(selectedItems) {
     drawAlignedTextBox(m.label, labelPos, angle, {
       textColor: '#111111',
       background: 'rgba(255,255,255,0.95)',
-      font: '600 13px Merriweather, Onest, Inter, sans-serif'
+      font: '600 9px Merriweather, Onest, Inter, sans-serif'
     });
 
     // Маркер перетаскивания для выделенного размера
@@ -981,7 +967,7 @@ function drawTempWall(ps) {
   if (chainMode) {
     _ctx.fillStyle = 'rgba(55,65,81,0.92)'; _ctx.beginPath();
     if (_ctx.roundRect) _ctx.roundRect(8, 32, 130, 20, 4); else _ctx.rect(8, 32, 130, 20); _ctx.fill();
-    _ctx.fillStyle = '#fff'; _ctx.font = '600 15px Merriweather, Onest, Inter, sans-serif'; _ctx.textAlign = 'left'; _ctx.textBaseline = 'middle';
+    _ctx.fillStyle = '#fff'; _ctx.font = '600 11px Merriweather, Onest, Inter, sans-serif'; _ctx.textAlign = 'left'; _ctx.textBaseline = 'middle';
     _ctx.fillText('⛓ Цепочка стен · Esc — стоп', 14, 42);
   }
   _ctx.restore();
@@ -1066,7 +1052,7 @@ function drawTempMeasure(ps) {
   drawAlignedTextBox(labelText, labelPos, angle, {
     textColor: '#111111',
     background: 'rgba(255,255,255,0.95)',
-    font: '600 13px Merriweather, Onest, Inter, sans-serif'
+    font: '600 9px Merriweather, Onest, Inter, sans-serif'
   });
   
   _ctx.restore();
@@ -1113,6 +1099,29 @@ function drawWallDimensions() {
   const TEXT_OFFSET_MM = 200;
   const GAP_MM = 10;
   const MIN_SEG_MM = 25;
+  // Minimum segment length (in screen px) to fit label inline; below this → leader
+  const MIN_INLINE_PX = 60;
+  // Leader line params
+  const LEADER_DIAG_MM  = 250;  // diagonal leg length in world mm
+  const LEADER_SHELF_MM = 400;  // horizontal shelf length in world mm
+
+  // Collect all dimension label screen rects to detect overlaps
+  const placedRects = [];
+
+  function rectsOverlap(r1, r2) {
+    return !(r1.x2 < r2.x1 || r2.x2 < r1.x1 || r1.y2 < r2.y1 || r2.y2 < r1.y1);
+  }
+
+  function reserveRect(cx, cy, w, h) {
+    const half = { x: w / 2 + 4, y: h / 2 + 4 };
+    const r = { x1: cx - half.x, y1: cy - half.y, x2: cx + half.x, y2: cy + half.y };
+    const overlaps = placedRects.some(p => rectsOverlap(p, r));
+    if (!overlaps) placedRects.push(r);
+    return !overlaps;
+  }
+
+  // Estimate text width in screen pixels (rough: ~7px per char at 13px)
+  function estimateTextW(label) { return label.length * 7 * _fontScale; }
 
   for (const room of appState.rooms) {
     if (!room.boundarySegments?.length) continue;
@@ -1138,59 +1147,49 @@ function drawWallDimensions() {
         .filter(op => op.wallId === wall.id)
         .map(op => ({
           start: Math.max(0, op.t * wlen - op.width / 2),
-          end: Math.min(wlen, op.t * wlen + op.width / 2),
+          end:   Math.min(wlen, op.t * wlen + op.width / 2),
         }))
         .sort((a, b) => a.start - b.start);
 
-      const segments = [];
+      // Build segments: gaps between openings + openings themselves
+      const allSegs = [];
       let cursor = 0;
       for (const op of wallOpenings) {
-        if (op.start > cursor + 1) segments.push({ from: cursor, to: op.start });
+        if (op.start > cursor + 1) allSegs.push({ from: cursor, to: op.start, isOpening: false });
+        allSegs.push({ from: op.start, to: op.end, isOpening: true });
         cursor = Math.max(cursor, op.end);
       }
-      if (cursor < wlen - 1) segments.push({ from: cursor, to: wlen });
+      if (cursor < wlen - 1) allSegs.push({ from: cursor, to: wlen, isOpening: false });
+
+      // Filter to only wall segments (not openings)
+      const segments = allSegs.filter(s => !s.isOpening && (s.to - s.from) >= MIN_SEG_MM);
+
+      // Determine side for this wall
+      let sideSign = fallbackSign;
+      const segMidTest = wlen / 2;
+      const lineBase = halfT + LINE_OFFSET_MM;
+      const textBase = halfT + TEXT_OFFSET_MM;
+      if (Array.isArray(room.polygon) && room.polygon.length >= 3) {
+        const pls = {
+          x: wall.x1 + ux * segMidTest + nx * lineBase,
+          y: wall.y1 + uy * segMidTest + ny * lineBase,
+        };
+        const mls = {
+          x: wall.x1 + ux * segMidTest - nx * lineBase,
+          y: wall.y1 + uy * segMidTest - ny * lineBase,
+        };
+        const plusIn  = isPointInPolygon(pls, room.polygon);
+        const minusIn = isPointInPolygon(mls, room.polygon);
+        if (plusIn && !minusIn) sideSign = 1;
+        else if (minusIn && !plusIn) sideSign = -1;
+      }
+
+      const lineOff = sideSign * lineBase;
+      const textOff = sideSign * textBase;
 
       for (const seg of segments) {
         const segLen = seg.to - seg.from;
-        if (segLen < MIN_SEG_MM) continue;
-
-        const segMid = (seg.from + seg.to) / 2;
-        const lineBase = halfT + LINE_OFFSET_MM;
-        const textBase = halfT + TEXT_OFFSET_MM;
-
-        let sideSign = fallbackSign;
-        if (Array.isArray(room.polygon) && room.polygon.length >= 3) {
-          const plusLineProbe = {
-            x: wall.x1 + ux * segMid + nx * lineBase,
-            y: wall.y1 + uy * segMid + ny * lineBase,
-          };
-          const plusTextProbe = {
-            x: wall.x1 + ux * segMid + nx * textBase,
-            y: wall.y1 + uy * segMid + ny * textBase,
-          };
-          const minusLineProbe = {
-            x: wall.x1 + ux * segMid - nx * lineBase,
-            y: wall.y1 + uy * segMid - ny * lineBase,
-          };
-          const minusTextProbe = {
-            x: wall.x1 + ux * segMid - nx * textBase,
-            y: wall.y1 + uy * segMid - ny * textBase,
-          };
-
-          const plusInside = isPointInPolygon(plusLineProbe, room.polygon) || isPointInPolygon(plusTextProbe, room.polygon);
-          const minusInside = isPointInPolygon(minusLineProbe, room.polygon) || isPointInPolygon(minusTextProbe, room.polygon);
-
-          if (plusInside && !minusInside) sideSign = 1;
-          else if (minusInside && !plusInside) sideSign = -1;
-          else if (plusInside && minusInside) {
-            const dPlus = Math.hypot(plusTextProbe.x - room.center.x, plusTextProbe.y - room.center.y);
-            const dMinus = Math.hypot(minusTextProbe.x - room.center.x, minusTextProbe.y - room.center.y);
-            sideSign = dPlus <= dMinus ? 1 : -1;
-          }
-        }
-
-        const lineOff = sideSign * lineBase;
-        const textOff = sideSign * textBase;
+        const label  = `${Math.round(segLen)} мм`;
 
         const worldA = {
           x: wall.x1 + ux * (seg.from + GAP_MM) + nx * lineOff,
@@ -1202,27 +1201,90 @@ function drawWallDimensions() {
         };
         const a = toScreen(worldA.x, worldA.y);
         const b = toScreen(worldB.x, worldB.y);
-
-        _ctx.strokeStyle = '#111111';
-        _ctx.lineWidth = 1.0;
-        _ctx.setLineDash([]);
-        _ctx.beginPath();
-        _ctx.moveTo(a.x, a.y);
-        _ctx.lineTo(b.x, b.y);
-        drawTick45(a, angle);
-        drawTick45(b, angle);
-        _ctx.stroke();
+        const segPx = Math.hypot(b.x - a.x, b.y - a.y);
 
         const labelWorld = {
           x: wall.x1 + ux * ((seg.from + seg.to) / 2) + nx * textOff,
           y: wall.y1 + uy * ((seg.from + seg.to) / 2) + ny * textOff,
         };
         const labelPos = toScreen(labelWorld.x, labelWorld.y);
-        drawAlignedTextBox(`${Math.round(segLen)} мм`, labelPos, angle, {
-          font: '500 13px Merriweather, Onest, Inter, sans-serif',
-          background: 'rgba(255,255,255,0.97)',
-          textColor: '#111111',
-        });
+        const tw = estimateTextW(label);
+
+        // Try inline placement first
+        const canInline = segPx >= MIN_INLINE_PX && reserveRect(labelPos.x, labelPos.y, tw, 14 * _fontScale);
+
+        if (canInline) {
+          // Draw dimension line with ticks
+          _ctx.strokeStyle = '#111111';
+          _ctx.lineWidth = 1.0;
+          _ctx.setLineDash([]);
+          _ctx.beginPath();
+          _ctx.moveTo(a.x, a.y);
+          _ctx.lineTo(b.x, b.y);
+          drawTick45(a, angle);
+          drawTick45(b, angle);
+          _ctx.stroke();
+
+          drawAlignedTextBox(label, labelPos, angle, {
+            font: '500 13px Merriweather, Onest, Inter, sans-serif',
+            background: 'rgba(255,255,255,0.97)',
+            textColor: '#111111',
+          });
+        } else {
+          // Leader line: diagonal away from wall + horizontal shelf
+          const segCenterW = (seg.from + seg.to) / 2;
+          const attachWorld = {
+            x: wall.x1 + ux * segCenterW + nx * (halfT * sideSign),
+            y: wall.y1 + uy * segCenterW + ny * (halfT * sideSign),
+          };
+          // Diagonal goes outward (away from room) and slightly along wall
+          const leaderDirX = nx * sideSign * -1; // outward from wall exterior
+          const leaderDirY = ny * sideSign * -1;
+          const leaderDiagWorld = {
+            x: attachWorld.x + leaderDirX * LEADER_DIAG_MM + ux * LEADER_DIAG_MM * 0.5,
+            y: attachWorld.y + leaderDirY * LEADER_DIAG_MM + uy * LEADER_DIAG_MM * 0.5,
+          };
+          // Shelf goes along wall direction
+          const leaderEndWorld = {
+            x: leaderDiagWorld.x + ux * LEADER_SHELF_MM,
+            y: leaderDiagWorld.y + uy * LEADER_SHELF_MM,
+          };
+          const leaderMidWorld = {
+            x: (leaderDiagWorld.x + leaderEndWorld.x) / 2,
+            y: (leaderDiagWorld.y + leaderEndWorld.y) / 2,
+          };
+
+          const pA  = toScreen(attachWorld.x, attachWorld.y);
+          const pD  = toScreen(leaderDiagWorld.x, leaderDiagWorld.y);
+          const pE  = toScreen(leaderEndWorld.x, leaderEndWorld.y);
+          const pL  = toScreen(leaderMidWorld.x, leaderMidWorld.y);
+
+          // Check if leader label overlaps; skip drawing if still overlapping
+          const canLeader = reserveRect(pL.x, pL.y, tw, 14 * _fontScale);
+          if (!canLeader) continue;
+
+          _ctx.strokeStyle = '#444444';
+          _ctx.lineWidth = 0.8;
+          _ctx.setLineDash([3, 3]);
+          _ctx.beginPath();
+          _ctx.moveTo(pA.x, pA.y);
+          _ctx.lineTo(pD.x, pD.y);
+          _ctx.lineTo(pE.x, pE.y);
+          _ctx.stroke();
+          _ctx.setLineDash([]);
+
+          // Small dot at attach point
+          _ctx.beginPath();
+          _ctx.arc(pA.x, pA.y, 2 * _fontScale, 0, Math.PI * 2);
+          _ctx.fillStyle = '#444444';
+          _ctx.fill();
+
+          drawAlignedTextBox(label, pL, angle, {
+            font: '500 13px Merriweather, Onest, Inter, sans-serif',
+            background: 'rgba(255,255,255,0.97)',
+            textColor: '#333333',
+          });
+        }
       }
     }
   }
@@ -1415,7 +1477,7 @@ function drawCursorGhost(ps) {
   _ctx.beginPath(); _ctx.rect(0, 0, gw, gd);
   _ctx.fillStyle = tool === 'window' ? DRAW_COLORS.windowHover : DRAW_COLORS.doorHover; _ctx.fill();
   _ctx.strokeStyle = tool === 'window' ? DRAW_COLORS.windowStroke : DRAW_COLORS.doorStroke; _ctx.stroke();
-  _ctx.fillStyle = DRAW_COLORS.roomLabel; _ctx.font = '600 14px Merriweather, Onest, Inter, sans-serif'; _ctx.textAlign = 'left'; _ctx.textBaseline = 'top';
+  _ctx.fillStyle = DRAW_COLORS.roomLabel; _ctx.font = '600 10px Merriweather, Onest, Inter, sans-serif'; _ctx.textAlign = 'left'; _ctx.textBaseline = 'top';
   _ctx.fillText(`${w} × ${h} мм`, 0, gd + 8); _ctx.restore();
 }
 

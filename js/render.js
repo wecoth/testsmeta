@@ -1100,7 +1100,7 @@ function drawWallDimensions() {
   const TEXT_OFF_MM  = 230;   // text offset from wall face (inside room)
   const GAP_MM       = 8;     // gap at ends of dimension line
   const MIN_SEG_MM   = 20;    // skip segments shorter than this
-  const MIN_INLINE_PX = 55;   // min screen px to render label inline; below → leader
+  const MIN_INLINE_MM = 300;  // segments shorter than this get a leader (world mm, zoom-independent)
   const LEADER_OUT_MM = 280;  // leader diagonal outward distance
   const SHELF_MM      = 320;  // leader horizontal shelf length
 
@@ -1186,9 +1186,8 @@ function drawWallDimensions() {
         const sA = toScreen(wA.x, wA.y);
         const sB = toScreen(wB.x, wB.y);
         const sL = toScreen(wL.x, wL.y);
-        const segPx = Math.hypot(sB.x - sA.x, sB.y - sA.y);
 
-        if (segPx >= MIN_INLINE_PX) {
+        if (segLen >= MIN_INLINE_MM) {
           // ── Inline dimension ──────────────────────────────────────
           _ctx.strokeStyle = '#111';
           _ctx.lineWidth = 1.0;

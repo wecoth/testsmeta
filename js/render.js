@@ -1472,33 +1472,13 @@ export function renderToImage(outW, outH, withDimensions = false) {
   const wMaxX  = bbox.maxX + PAD_MM, wMaxY = bbox.maxY + PAD_MM;
   const worldW = wMaxX - wMinX,      worldH = wMaxY - wMinY;
 
-  let canvasW, canvasH, scale;
-
-  if (withDimensions) {
-    // Full plan: fit into outW×outH with small margin
-    scale    = Math.min(outW / worldW, outH / worldH) * 0.94;
-    canvasW  = outW;
-    canvasH  = outH;
-  } else {
-    // Clean plan: canvas exactly matches bbox proportions at a fixed resolution
-    // Use outW as the max dimension, derive the other from aspect ratio
-    const aspect = worldW / worldH;
-    if (aspect >= 1) {
-      canvasW = outW;
-      canvasH = Math.round(outW / aspect);
-    } else {
-      canvasH = outH;
-      canvasW = Math.round(outH * aspect);
-    }
-    scale = Math.min(canvasW / worldW, canvasH / worldH);
-  }
-
+  const scale   = Math.min(outW / worldW, outH / worldH) * (withDimensions ? 0.94 : 1.0);
   const renderW = worldW * scale, renderH = worldH * scale;
-  const panX    = (canvasW - renderW) / 2 - wMinX * scale;
-  const panY    = (canvasH - renderH) / 2 - wMinY * scale;
+  const panX    = (outW - renderW) / 2 - wMinX * scale;
+  const panY    = (outH - renderH) / 2 - wMinY * scale;
 
   const oc   = document.createElement('canvas');
-  oc.width   = canvasW; oc.height = canvasH;
+  oc.width   = outW; oc.height = outH;
   const octx = oc.getContext('2d');
 
   // Сохраняем состояние рендерера
@@ -1512,28 +1492,13 @@ export function renderToImage(outW, outH, withDimensions = false) {
   _ctx       = octx;
   _getScale  = () => scale;
   _hatchPat  = null;
-  // Масштабируем шрифты пропорционально ширине output (базовый = 800px)
-  _fontScale = Math.max(1, canvasW / 800);
+  _fontScale = Math.max(1, outW / 800);
 
-  // Устанавливаем viewport — _setViewportFn это setViewport из snapping.js
   _setViewportFn(scale, panX, panY);
 
   // Белый фон
   octx.fillStyle = '#ffffff';
-  octx.fillRect(0, 0, canvasW, canvasH);
-
-  if (withDimensions) {
-    const step = 1000;
-    octx.strokeStyle = '#e8eaee'; octx.lineWidth = 0.5;
-    for (let wx = Math.floor(wMinX / step) * step; wx <= wMaxX + step; wx += step) {
-      const sx = wx * scale + panX;
-      octx.beginPath(); octx.moveTo(sx, 0); octx.lineTo(sx, canvasH); octx.stroke();
-    }
-    for (let wy = Math.floor(wMinY / step) * step; wy <= wMaxY + step; wy += step) {
-      const sy = wy * scale + panY;
-      octx.beginPath(); octx.moveTo(0, sy); octx.lineTo(canvasW, sy); octx.stroke();
-    }
-  }
+  octx.fillRect(0, 0, outW, outH);
 
   const empty = [];
   drawRoomFills(empty);
@@ -1553,6 +1518,19 @@ export function renderToImage(outW, outH, withDimensions = false) {
   _fontScale = 1;
   const vp   = window._plannerViewport ?? { scale: 0.12, panX: 200, panY: 150 };
   _setViewportFn(vp.scale, vp.panX, vp.panY);
+
+  // For clean plan: crop to actual drawing area, no whitespace
+  if (!withDimensions) {
+    const cropX = Math.max(0, Math.floor(panX));
+    const cropY = Math.max(0, Math.floor(panY));
+    const cropW = Math.min(outW - cropX, Math.ceil(renderW));
+    const cropH = Math.min(outH - cropY, Math.ceil(renderH));
+    const cropped = document.createElement('canvas');
+    cropped.width  = cropW;
+    cropped.height = cropH;
+    cropped.getContext('2d').drawImage(oc, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+    return cropped.toDataURL('image/png');
+  }
 
   return oc.toDataURL('image/png');
 }

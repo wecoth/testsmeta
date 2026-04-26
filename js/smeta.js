@@ -1,6 +1,6 @@
 // ─── SMETA.JS ─────────────────────────────────────────────────────
 import { appState } from './state.js';
-import { renderToImage } from './render.js';
+import { renderToImage, getWallsBboxWorld } from './render.js';
 
 // ── Utils ─────────────────────────────────────────────────────────
 
@@ -58,7 +58,16 @@ export function captureCanvas() {
   // planData — чистый чертёж (без сетки и размеров) для страницы "Планирование работ"
   const cleanImg = renderToImage(800, 600, false);
   // planDataFull — полный обмерный план (со всеми размерами) для отдельной страницы
-  const fullImg  = renderToImage(2480, 1754, true); // A4 landscape @300dpi
+  // Auto-rotate: portrait A4 if drawing is taller than wide, landscape if wider
+  const bbox = getWallsBboxWorld();
+  const drawingW = bbox ? (bbox.maxX - bbox.minX) : 1;
+  const drawingH = bbox ? (bbox.maxY - bbox.minY) : 1;
+  const isPortrait = drawingH > drawingW;
+  appState.bpPortrait = isPortrait;
+  if (window._appState) window._appState.bpPortrait = isPortrait;
+  const fullImg = isPortrait
+    ? renderToImage(1754, 2480, true)   // A4 portrait @300dpi
+    : renderToImage(2480, 1754, true);  // A4 landscape @300dpi
 
   if (!cleanImg) { alert('Не удалось захватить чертёж'); return; }
 
@@ -537,6 +546,18 @@ function _syncRightPanel({ cn, cl, sl, on, ex, phone, ogrn, dt, rooms, tf, tw, t
   // Blueprint page
   const bpImg2 = document.getElementById('prevBpImg2'), bpPh2 = document.getElementById('prevBpPh2');
   const bpImgSrc = appState.planDataFull || appState.planData || null;
+  const isPortrait = appState.bpPortrait ?? false;
+  // Switch blueprint page orientation to match drawing
+  const bpPage = document.querySelector('.spp-page[data-page="blueprint"] .spp-a4');
+  if (bpPage) {
+    if (isPortrait) {
+      bpPage.style.width  = '794px';
+      bpPage.style.height = '1123px';
+    } else {
+      bpPage.style.width  = '1123px';
+      bpPage.style.height = '794px';
+    }
+  }
   if (bpImgSrc) {
     if (bpImg2) { bpImg2.src = bpImgSrc; bpImg2.style.display = 'block'; }
     if (bpPh2)  bpPh2.style.display = 'none';

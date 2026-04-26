@@ -1105,8 +1105,8 @@ function drawWallDimensions() {
   const LEADER_OUT_MM = 280;  // leader diagonal outward distance
   const SHELF_MM      = 320;  // leader horizontal shelf length
 
-  // Global seen-walls set so each wall is drawn once even if shared by two rooms
-  const drawnWalls = new Set();
+  // Track (wallId, roomId) pairs — each wall drawn once PER room
+  const drawnPairs = new Set();
 
   for (const room of appState.rooms) {
     if (!room.boundarySegments?.length || !room.polygon?.length) continue;
@@ -1114,7 +1114,8 @@ function drawWallDimensions() {
     for (const boundary of room.boundarySegments) {
       const wall = boundary.wall;
       if (!wall || wall.isDivider) continue;
-      if (drawnWalls.has(wall.id)) continue;
+      const pairKey = `${wall.id}__${room.id}`;
+      if (drawnPairs.has(pairKey)) continue;
 
       const wlen = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1);
       if (wlen < 50) continue;
@@ -1146,7 +1147,7 @@ function drawWallDimensions() {
         sideSign = dPlus <= dMinus ? 1 : -1;
       }
 
-      drawnWalls.add(wall.id);
+      drawnPairs.add(pairKey);
 
       // ── Build wall segments (gaps between openings) ───────────────
       const wallOpenings = appState.openings
@@ -1342,6 +1343,97 @@ function drawOpeningWidthDimensions() {
       font: '500 13px Merriweather, Onest, Inter, sans-serif',
       background: 'rgba(255,255,255,0.95)',
       textColor: color,
+    });
+  }
+
+  _ctx.restore();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// РАЗМЕР ШИРИНЫ ПРОЁМА — для всех окон и дверей прямо на стене
+// Чёрным, со стороны интерьера, засечки 45°
+// ══════════════════════════════════════════════════════════════════
+function drawOpeningWidthDimensions() {
+  const scale = _getScale();
+  if (scale < 0.07 || !appState.rooms?.length) return;
+  _ctx.save();
+
+  const LINE_OFF_MM = 120;
+  const TEXT_OFF_MM = 230;
+  const GAP_MM      = 4;
+
+  for (const op of appState.openings) {
+    const wall = appState.walls.find(w => w.id === op.wallId);
+    if (!wall) continue;
+
+    const wlen  = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1);
+    if (wlen < 1) continue;
+
+    const angle = Math.atan2(wall.y2 - wall.y1, wall.x2 - wall.x1);
+    const ux = Math.cos(angle), uy = Math.sin(angle);
+    const nx = -uy, ny = ux;
+    const halfT = wall.thickness / 2;
+
+    const opFrom = Math.max(0, op.t * wlen - op.width / 2);
+    const opTo   = Math.min(wlen, op.t * wlen + op.width / 2);
+    const opLen  = opTo - opFrom;
+    if (opLen < 20) continue;
+
+    // Определяем сторону интерьера по ближайшей комнате с этой стеной
+    let sideSign = 1;
+    const midX = wall.x1 + ux * (opFrom + opLen / 2);
+    const midY = wall.y1 + uy * (opFrom + opLen / 2);
+    const testDist = halfT + LINE_OFF_MM;
+    const pPlus  = { x: midX + nx * testDist, y: midY + ny * testDist };
+    const pMinus = { x: midX - nx * testDist, y: midY - ny * testDist };
+    let bestRoom = null, bestDist = Infinity;
+    for (const room of appState.rooms) {
+      if (!room.polygon?.length) continue;
+      if (room.boundarySegments?.some(b => b.wall?.id === wall.id)) {
+        const d = Math.hypot(midX - room.center.x, midY - room.center.y);
+        if (d < bestDist) { bestDist = d; bestRoom = room; }
+      }
+    }
+    if (bestRoom) {
+      const plusIn  = isPointInPolygon(pPlus,  bestRoom.polygon);
+      const minusIn = isPointInPolygon(pMinus, bestRoom.polygon);
+      if (plusIn && !minusIn)      sideSign =  1;
+      else if (minusIn && !plusIn) sideSign = -1;
+      else {
+        const dP = Math.hypot(pPlus.x  - bestRoom.center.x, pPlus.y  - bestRoom.center.y);
+        const dM = Math.hypot(pMinus.x - bestRoom.center.x, pMinus.y - bestRoom.center.y);
+        sideSign = dP <= dM ? 1 : -1;
+      }
+    }
+
+    const lineOff = sideSign * (halfT + LINE_OFF_MM);
+    const textOff = sideSign * (halfT + TEXT_OFF_MM);
+
+    const wA = { x: wall.x1 + ux * (opFrom + GAP_MM) + nx * lineOff,
+                 y: wall.y1 + uy * (opFrom + GAP_MM) + ny * lineOff };
+    const wB = { x: wall.x1 + ux * (opTo   - GAP_MM) + nx * lineOff,
+                 y: wall.y1 + uy * (opTo   - GAP_MM) + ny * lineOff };
+    const wL = { x: wall.x1 + ux * (opFrom + opLen / 2) + nx * textOff,
+                 y: wall.y1 + uy * (opFrom + opLen / 2) + ny * textOff };
+
+    const sA = toScreen(wA.x, wA.y);
+    const sB = toScreen(wB.x, wB.y);
+    const sL = toScreen(wL.x, wL.y);
+
+    _ctx.strokeStyle = '#111';
+    _ctx.lineWidth = 1.0;
+    _ctx.setLineDash([]);
+    _ctx.beginPath();
+    _ctx.moveTo(sA.x, sA.y);
+    _ctx.lineTo(sB.x, sB.y);
+    drawTick45(sA, angle);
+    drawTick45(sB, angle);
+    _ctx.stroke();
+
+    drawAlignedTextBox(`${Math.round(opLen)} мм`, sL, angle, {
+      font: '500 13px Merriweather, Onest, Inter, sans-serif',
+      background: 'rgba(255,255,255,0.95)',
+      textColor: '#111',
     });
   }
 

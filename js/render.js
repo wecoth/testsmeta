@@ -1410,7 +1410,7 @@ function drawCursorGhost(ps) {
 // OFFSCREEN РЕНДЕР ДЛЯ PDF
 // ══════════════════════════════════════════════════════════════════
 
-function getWallsBboxWorld() {
+export function getWallsBboxWorld() {
   const walls = appState.walls;
   if (!walls.length) return null;
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
@@ -1467,12 +1467,12 @@ export function renderToImage(outW, outH, withDimensions = false) {
   const bbox = getWallsBboxWorld();
   if (!bbox) return null;
 
-  const PAD_MM = withDimensions ? 500 : 40;
+  const PAD_MM = withDimensions ? 200 : 40;
   const wMinX  = bbox.minX - PAD_MM, wMinY = bbox.minY - PAD_MM;
   const wMaxX  = bbox.maxX + PAD_MM, wMaxY = bbox.maxY + PAD_MM;
   const worldW = wMaxX - wMinX,      worldH = wMaxY - wMinY;
 
-  const scale   = Math.min(outW / worldW, outH / worldH) * (withDimensions ? 0.94 : 1.0);
+  const scale   = Math.min(outW / worldW, outH / worldH) * (withDimensions ? 0.97 : 1.0);
   const renderW = worldW * scale, renderH = worldH * scale;
   const panX    = (outW - renderW) / 2 - wMinX * scale;
   const panY    = (outH - renderH) / 2 - wMinY * scale;

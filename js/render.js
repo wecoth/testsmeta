@@ -1421,6 +1421,43 @@ function getWallsBboxWorld() {
     maxX = Math.max(maxX, w.x1 + half, w.x2 + half);
     maxY = Math.max(maxY, w.y1 + half, w.y2 + half);
   }
+  // Include door arc extents in bbox
+  for (const op of (appState.openings || [])) {
+    if (op.type !== 'door') continue;
+    const wall = walls.find(w => w.id === op.wallId); if (!wall) continue;
+    const wlen = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1); if (wlen < 1) continue;
+    const angle = Math.atan2(wall.y2 - wall.y1, wall.x2 - wall.x1);
+    const halfW = op.width / 2;
+    const t1 = Math.max(0, Math.min(1, op.t - halfW / wlen));
+    const t2 = Math.max(0, Math.min(1, op.t + halfW / wlen));
+    const ax1 = wall.x1 + (wall.x2 - wall.x1) * t1, ay1 = wall.y1 + (wall.y2 - wall.y1) * t1;
+    const ax2 = wall.x1 + (wall.x2 - wall.x1) * t2, ay2 = wall.y1 + (wall.y2 - wall.y1) * t2;
+    // Hinge point in world coords
+    const dh = op.hinge || 'start';
+    const ds = op.swing ?? 1;
+    const hx = dh === 'start' ? ax1 : ax2, hy = dh === 'start' ? ay1 : ay2;
+    const leafLen = op.width; // door leaf length = door width in world units
+    const baseAngle = dh === 'start' ? angle : angle + Math.PI;
+    const openAngle = baseAngle + ds * Math.PI / 2;
+    // Arc sweeps from baseAngle to openAngle — expand bbox by radius in all touched quadrants
+    // Simplest safe approach: bbox covers all 4 cardinal extremes of the arc circle, clipped to actual sweep
+    const angles = [baseAngle, openAngle];
+    // Add cardinal angles (0, π/2, π, 3π/2) if they fall within the sweep
+    for (let a = -2 * Math.PI; a <= 2 * Math.PI; a += Math.PI / 2) {
+      const normalized = ((a - Math.min(baseAngle, openAngle)) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+      const sweep = Math.abs(openAngle - baseAngle);
+      if (normalized <= sweep + 0.01) angles.push(a);
+    }
+    for (const a of angles) {
+      minX = Math.min(minX, hx + Math.cos(a) * leafLen);
+      minY = Math.min(minY, hy + Math.sin(a) * leafLen);
+      maxX = Math.max(maxX, hx + Math.cos(a) * leafLen);
+      maxY = Math.max(maxY, hy + Math.sin(a) * leafLen);
+    }
+    // Also include hinge point itself
+    minX = Math.min(minX, hx); minY = Math.min(minY, hy);
+    maxX = Math.max(maxX, hx); maxY = Math.max(maxY, hy);
+  }
   return { minX, minY, maxX, maxY };
 }
 
@@ -1430,12 +1467,12 @@ export function renderToImage(outW, outH, withDimensions = false) {
   const bbox = getWallsBboxWorld();
   if (!bbox) return null;
 
-  const PAD_MM = withDimensions ? 500 : 150;
+  const PAD_MM = withDimensions ? 500 : 40;
   const wMinX  = bbox.minX - PAD_MM, wMinY = bbox.minY - PAD_MM;
   const wMaxX  = bbox.maxX + PAD_MM, wMaxY = bbox.maxY + PAD_MM;
   const worldW = wMaxX - wMinX,      worldH = wMaxY - wMinY;
 
-  const scale   = Math.min(outW / worldW, outH / worldH) * 0.94;
+  const scale   = Math.min(outW / worldW, outH / worldH) * (withDimensions ? 0.94 : 1.0);
   const renderW = worldW * scale, renderH = worldH * scale;
   const panX    = (outW - renderW) / 2 - wMinX * scale;
   const panY    = (outH - renderH) / 2 - wMinY * scale;

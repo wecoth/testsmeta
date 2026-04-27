@@ -243,9 +243,9 @@ function wallSegments(w) {
  * Снаппинг при рисовании гарантирует точное совпадение концов соседних
  * стен. Допуск ~2 мм только на float-округления.
  */
-export function findAllIntersections(walls, eps = 2) {
-  const EPS_MERGE = 2;
-  const EPS_PERP  = 2;
+export function findAllIntersections(walls, eps = 5) {
+  const EPS_MERGE = 5;
+  const EPS_PERP  = 5;
 
   // Все сегменты всех стен
   const allSegs = [];
@@ -338,8 +338,8 @@ export function findAllIntersections(walls, eps = 2) {
  *
  * Параллельные дубликаты рёбер склеиваются.
  */
-export function buildWallGraph(walls, points, eps = 2) {
-  const EPS_PERP = 2;
+export function buildWallGraph(walls, points, eps = 5) {
+  const EPS_PERP = 5;
   const EPS_ALONG = 2;
 
   const vertices = points.map((p, i) => ({ ...p, id: i }));

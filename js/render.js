@@ -217,9 +217,9 @@ export function redraw(ps) {
   drawDividers(ps.selectedItems);
   drawMeasures(ps.selectedItems);   // ← добавить
   drawOpenings(ps.selectedItems, ps.defaultDoorHinge, ps.defaultDoorSwing);
-  drawWallDimensions();
-  drawOpeningWidthDimensions();
-  drawOpeningLeaders(exteriorWallIds);
+  ///drawWallDimensions();
+  ///drawOpeningWidthDimensions();
+  ///drawOpeningLeaders(exteriorWallIds);
   drawSelectedHandles(ps.tool, ps.selectedItems, ps.wallResizeState);
   // Stage 1: базовая линия для выделенных стен (жёлтый пунктир)
   for (const item of ps.selectedItems) {
@@ -1904,9 +1904,9 @@ export function renderToImage(outW, outH, withDimensions = false) {
   drawWallJoints(empty);
   drawOpenings(empty, 'start', 1);
   if (withDimensions) {
-    drawWallDimensions();
-    drawOpeningWidthDimensions();
-    drawOpeningLeaders(exteriorWallIds);
+    ///drawWallDimensions();
+    ///drawOpeningWidthDimensions();
+    ///drawOpeningLeaders(exteriorWallIds);
   }
 
   // Восстанавливаем состояние

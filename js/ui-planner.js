@@ -401,7 +401,7 @@ export function setTool(t) {
   
   document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tool' + t.charAt(0).toUpperCase() + t.slice(1))?.classList.add('active');
-  const labels = { select: 'Выбор', wall: 'Стена', window: 'Окно', door: 'Дверь', divider: 'Зона', measure: 'Рулетка' };
+  const labels = { select: 'Выбор', wall: 'Стена', window: 'Окно', door: 'Дверь', divider: 'Зона', measure: 'Рулетка', room: 'Комната' };
   if (dom.lblTool) dom.lblTool.textContent = labels[t] || t;
   
   canvas.style.cursor = activeTool ? activeTool.getCursor() : 'default';

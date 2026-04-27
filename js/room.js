@@ -227,12 +227,15 @@ function wallFootprintArea(wall, lengthMm) {
  * мостов, ни вершин степени 1 — нужен анализ через biconnected components.
  *
  * Алгоритм Тарьяна для BCC:
- *   1. DFS обход с подсчётом disc[v] и low[v].
- *   2. Каждое ребро относится к одному BCC. При завершении BCC (когда
- *      обнаружена точка сочленения) — все накопленные рёбра образуют
- *      одну компоненту.
- *   3. Самый крупный BCC (по числу рёбер) — "сердцевина" с реальными
- *      контурами помещений. Остальные удаляем.
+ *   1. Для КАЖДОГО связного компонента графа отдельно строим BCC.
+ *   2. В каждом компоненте берём самую большую BCC по числу рёбер —
+ *      это "сердцевина" с реальным контуром помещения.
+ *   3. Все остальные BCC внутри компонента + bridges, ведущие к ним,
+ *      удаляем как хвосты.
+ *
+ * Покомпонентная обработка нужна потому что в плане могут быть несколько
+ * НЕСВЯЗАННЫХ групп стен (например, две квартиры, два дома) — каждая
+ * должна обработаться независимо.
  *
  * Удалённые стены не теряются: они потом найдутся через
  * clipWallAxisToPolygon как interiorWalls помещения, в котором лежат.
@@ -248,14 +251,16 @@ function pruneDanglingTails(vertices, edges) {
   }
 
   // BCC через DFS Тарьяна. Каждое ребро попадает ровно в один BCC.
+  // edgeComponentId[ei] = id корневой вершины DFS, с которой
+  // начался обход (= id связного компонента графа).
   const disc = new Array(n).fill(-1);
   const low  = new Array(n).fill(-1);
-  const edgeStack = []; // стек рёбер (eid) для извлечения BCC
-  const bccEdges = []; // массив компонент: каждая = массив ei
+  const edgeStack = [];
+  const bccEdges = [];      // массив компонент BCC: каждая = массив ei
+  const bccComponentId = []; // для каждой BCC — id связного компонента
   let timer = 0;
 
-  // Итеративный DFS чтобы избежать переполнения стека
-  function dfsBCC(root) {
+  function dfsBCC(root, componentId) {
     disc[root] = low[root] = timer++;
     const callStack = [{ u: root, parentEi: -1, iter: 0 }];
     while (callStack.length) {
@@ -269,46 +274,57 @@ function pruneDanglingTails(vertices, edges) {
           edgeStack.push(ei);
           callStack.push({ u: to, parentEi: ei, iter: 0 });
         } else if (disc[to] < disc[u]) {
-          // back-edge — добавляем в стек, обновляем low
           edgeStack.push(ei);
           low[u] = Math.min(low[u], disc[to]);
         }
       } else {
-        // конец обработки u — возвращаемся к родителю
         callStack.pop();
         if (callStack.length) {
           const parent = callStack[callStack.length - 1];
           low[parent.u] = Math.min(low[parent.u], low[u]);
-          // Если parent.u — точка сочленения для u, выгружаем BCC
           if (low[u] >= disc[parent.u]) {
             const bcc = [];
-            // Извлекаем рёбра до тех пор пока не извлечём parentEi (ребро,
-            // по которому мы пришли в u — это тоже часть текущего BCC)
             while (edgeStack.length) {
               const top = edgeStack.pop();
               bcc.push(top);
               if (top === parentEi) break;
             }
-            if (bcc.length > 0) bccEdges.push(bcc);
+            if (bcc.length > 0) {
+              bccEdges.push(bcc);
+              bccComponentId.push(componentId);
+            }
           }
         }
       }
     }
   }
+  // Запускаем DFS отдельно от каждой непосещённой вершины с рёбрами —
+  // получаем разбиение на связные компоненты автоматически.
   for (let v = 0; v < n; v++) {
-    if (disc[v] === -1 && adj[v].length > 0) dfsBCC(v);
+    if (disc[v] === -1 && adj[v].length > 0) {
+      dfsBCC(v, v);
+    }
   }
 
   if (bccEdges.length === 0) return edges;
 
-  // Самая большая BCC по числу рёбер — сердцевина
-  let mainIdx = 0;
-  for (let i = 1; i < bccEdges.length; i++) {
-    if (bccEdges[i].length > bccEdges[mainIdx].length) mainIdx = i;
+  // Для каждого связного компонента находим САМУЮ БОЛЬШУЮ BCC по
+  // числу рёбер (это сердцевина, остальные BCC компонента — хвосты).
+  const mainBccByComponent = new Map(); // componentId → idx в bccEdges
+  for (let i = 0; i < bccEdges.length; i++) {
+    const cid = bccComponentId[i];
+    const cur = mainBccByComponent.get(cid);
+    if (cur === undefined || bccEdges[i].length > bccEdges[cur].length) {
+      mainBccByComponent.set(cid, i);
+    }
   }
 
-  // Все рёбра НЕ из главной BCC удаляются
-  const keep = new Set(bccEdges[mainIdx]);
+  // Оставляем рёбра, которые в главной BCC своего компонента
+  const keep = new Set();
+  for (const idx of mainBccByComponent.values()) {
+    for (const ei of bccEdges[idx]) keep.add(ei);
+  }
+
   const removed = new Set();
   for (let i = 0; i < edges.length; i++) {
     if (!keep.has(i)) removed.add(edges[i].id);

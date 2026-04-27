@@ -1025,13 +1025,141 @@ export function getComputedRooms() {
   });
 }
 
+// Экспорт для инструмента RoomTool – создаёт комнату по одному полигону
+export function computeRoomForPolygon(poly) {
+  const walls = appState.walls;
+  const dividers = appState.dividers || [];
+  const wallHeightFallback = _wallHeightFallback;
+
+  const dividerWalls = dividers.map(d => ({
+    id: `div_${d.id}`,
+    x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2,
+    cx1: d.x1, cy1: d.y1, cx2: d.x2, cy2: d.y2,
+    thickness: 0,
+    height: wallHeightFallback,
+    offset: 'left',
+    isDivider: true,
+  }));
+
+  const allWalls = [...walls, ...dividerWalls];
+  const boundaryWallIds = new Set();
+  const boundaryWallsList = [];
+  let hasDividers = false;
+
+  // 1. Определяем граничные стены (те, что лежат на рёбрах полигона)
+  for (let k = 0; k < poly.length; k++) {
+    const a = poly[k];
+    const b = poly[(k + 1) % poly.length];
+    const edgeWalls = findAllWallsForEdge(a.x, a.y, b.x, b.y, allWalls);
+    for (const w of edgeWalls) {
+      if (w.isDivider) {
+        hasDividers = true;
+      } else if (!boundaryWallIds.has(w.id)) {
+        boundaryWallIds.add(w.id);
+        boundaryWallsList.push(w);
+      }
+    }
+  }
+
+  // 2. Внутренние стены (висящие, но не входящие в boundary)
+  const interiorWalls = [];
+  for (const w of walls) {
+    if (boundaryWallIds.has(w.id)) continue;
+    const clipped = clipWallAxisToPolygon(w, poly);
+    let totalLen = 0;
+    for (const seg of clipped) {
+      totalLen += Math.hypot(seg.x2 - seg.x1, seg.y2 - seg.y1);
+    }
+    if (totalLen > 1) {
+      interiorWalls.push({ wall: w, lengthMm: totalLen });
+    }
+  }
+
+  // 3. Площади и проёмы
+  let grossArea = polygonArea(poly);
+  let netAreaMm2 = grossArea;
+
+  for (const { wall, lengthMm } of interiorWalls) {
+    netAreaMm2 -= wallFootprintArea(wall, lengthMm);
+  }
+
+  const roomOpenings = appState.openings.filter(op => boundaryWallIds.has(op.wallId));
+  for (const op of roomOpenings) {
+    if (op.type !== 'door') continue;
+    const wall = boundaryWallsList.find(w => w.id === op.wallId);
+    if (!wall) continue;
+    const isInterior = !exteriorWallIds.has(op.wallId);   // внешние стены определяются позже
+    if (isInterior) {
+      netAreaMm2 += (op.width * (wall.thickness || 0)) / 2;
+    } else {
+      netAreaMm2 += op.width * (wall.thickness || 0);
+    }
+  }
+
+  if (netAreaMm2 < 10000) return null;   // меньше 0.01 м² – не комната
+
+  // 4. Высота (средняя по граничным стенам)
+  let totalLengthMm = 0, weightedHeightSum = 0;
+  for (const w of boundaryWallsList) {
+    const len = wallFullLengthMm(w);
+    const h = w.height || wallHeightFallback;
+    totalLengthMm += len;
+    weightedHeightSum += len * h;
+  }
+  const heightMm = totalLengthMm > 0 ? weightedHeightSum / totalLengthMm : wallHeightFallback;
+
+  const entranceDoorId = detectEntranceDoor(roomOpenings, exteriorWallIds);
+
+  const metrics = computeRoomMetrics({
+    boundaryWalls: boundaryWallsList,
+    interiorWalls,
+    openings: roomOpenings,
+    heightMm,
+    polygon: poly,
+    entranceDoorId,
+    hasDividers,
+    netAreaMm2,
+    exteriorWallIds,
+  });
+
+  const key = generateRoomKey(poly);
+  const defaultName = roomDefaultName(appState.rooms.length);
+  const bbox = getBbox(poly);
+  const center = polygonCentroid(poly);
+
+  return {
+    key,
+    polygon: poly,
+    cells: [{ x1: bbox.minX, y1: bbox.minY, x2: bbox.maxX, y2: bbox.maxY }],
+    boundarySegments: boundaryWallsList.map(w => ({
+      orientation: Math.abs(w.y2 - w.y1) < Math.abs(w.x2 - w.x1) ? 'h' : 'v',
+      x1: Math.min(w.x1, w.x2), y1: Math.min(w.y1, w.y2),
+      x2: Math.max(w.x1, w.x2), y2: Math.max(w.y1, w.y2),
+      length: Math.hypot(w.x2 - w.x1, w.y2 - w.y1),
+      wall: w,
+    })),
+    center,
+    defaultName,
+    name: appState.roomNameOverrides[key] || defaultName,
+    area: netAreaMm2 / 1e6,
+    volume: netAreaMm2 * heightMm / 1e9,
+    height: heightMm / 1000,
+    perimeter: metrics.perimeterFloorM,
+    wallArea: metrics.wallAreaNetM2,
+    openingsArea: metrics.openingsAreaM2,
+    metrics,
+    wallIds: [...boundaryWallIds],
+    interiorWalls,
+  };
+}
+
 // ══════════════════════════════════════════════════════════════════
 // РЕАКТИВНОСТЬ
 // ══════════════════════════════════════════════════════════════════
 let debounceTimer = null;
 const DEBOUNCE_MS = 20;
 
-EventBus.on('walls:changed', () => {
+//EventBus.on('walls:changed', () => {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     computeRooms(_wallHeightFallback);
@@ -1039,10 +1167,12 @@ EventBus.on('walls:changed', () => {
   }, DEBOUNCE_MS);
 });
 
-EventBus.on('dividers:changed', () => {
+//EventBus.on('dividers:changed', () => {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
     computeRooms(_wallHeightFallback);
     debounceTimer = null;
   }, DEBOUNCE_MS);
 });
+
+EventBus.emit('rooms:computed')

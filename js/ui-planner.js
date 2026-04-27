@@ -195,6 +195,14 @@ export function doRedraw() {
     ...toolState,
   };
   redraw(plannerState);
+
+  // Отрисовка оверлея инструментов (например, подсказка комнаты)
+  if (activeTool && typeof activeTool.renderOverlay === 'function') {
+    const ctx = canvas.getContext('2d');
+    ctx.save();
+    activeTool.renderOverlay(ctx);
+    ctx.restore();
+  }
 }
 
 function resizeCanvas() {

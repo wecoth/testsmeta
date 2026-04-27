@@ -1245,9 +1245,217 @@ function drawWallDimensions() {
         }
       }
     }
+
+    // ── Простенки (interiorWalls) ─────────────────────────────────
+    // Висящие стены, выступы, ниши внутри помещения. Каждая стена
+    // простенка размечается с ОБЕИХ длинных сторон (inner + opposite face),
+    // плюс размеры свободных торцов (если торец не примыкает к другой стене).
+    //
+    // В отличие от граничных стен, простенок не имеет "одной стороны где
+    // комната" — обе его длинные грани обращены в комнату.
+    if (room.interiorWalls?.length) {
+      drawInteriorWallDimensions(room);
+    }
   }
 
   _ctx.restore();
+}
+
+/**
+ * Рисует размеры для простенков (interior walls) комнаты.
+ * Каждая стена простенка получает 2 размера на длинных гранях.
+ * Свободные торцы (не примыкающие к другим стенам) тоже размечаются.
+ */
+function drawInteriorWallDimensions(room) {
+  const LINE_OFF_MM   = 120;
+  const TEXT_OFF_MM   = 230;
+  const GAP_MM        = 8;
+  const MIN_SEG_MM    = 20;
+  const MIN_INLINE_MM = 300;
+  const LEADER_OUT_MM = 280;
+  const SHELF_MM      = 320;
+  const ENDPOINT_TOL  = 20; // мм — порог "торец не примыкает"
+
+  const interiorWallList = room.interiorWalls.map(iw => iw.wall).filter(Boolean);
+  if (interiorWallList.length === 0) return;
+
+  // Все вершины (концы) стен простенка — для определения свободных торцов
+  // Если в точке концов стены сходятся 2+ стены простенка — это стык,
+  // торец не свободный. Если только одна — торец свободный.
+  const wallEndpointCounts = new Map(); // "x,y" → число стен
+  function endKey(x, y) {
+    return `${Math.round(x / 5) * 5},${Math.round(y / 5) * 5}`;
+  }
+  for (const w of interiorWallList) {
+    const k1 = endKey(w.cx1 ?? w.x1, w.cy1 ?? w.y1);
+    const k2 = endKey(w.cx2 ?? w.x2, w.cy2 ?? w.y2);
+    wallEndpointCounts.set(k1, (wallEndpointCounts.get(k1) || 0) + 1);
+    wallEndpointCounts.set(k2, (wallEndpointCounts.get(k2) || 0) + 1);
+  }
+
+  for (const wall of interiorWallList) {
+    if (wall.isDivider) continue;
+    const wlen = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1);
+    if (wlen < MIN_SEG_MM) continue;
+
+    const angle = Math.atan2(wall.y2 - wall.y1, wall.x2 - wall.x1);
+    const ux = Math.cos(angle), uy = Math.sin(angle);
+    const nx = -uy, ny = ux;
+    const halfT = wall.thickness / 2;
+    const x1 = wall.cx1 ?? wall.x1, y1 = wall.cy1 ?? wall.y1;
+
+    // Две длинные грани: sideSign = +1 (по +нормали) и -1 (по -нормали)
+    for (const sideSign of [1, -1]) {
+      const label = `${Math.round(wlen)} мм`;
+      const lineOff = sideSign * (halfT + LINE_OFF_MM);
+      const textOff = sideSign * (halfT + TEXT_OFF_MM);
+
+      const wA = { x: x1 + ux * GAP_MM + nx * lineOff,
+                   y: y1 + uy * GAP_MM + ny * lineOff };
+      const wB = { x: x1 + ux * (wlen - GAP_MM) + nx * lineOff,
+                   y: y1 + uy * (wlen - GAP_MM) + ny * lineOff };
+      const wL = { x: x1 + ux * (wlen / 2) + nx * textOff,
+                   y: y1 + uy * (wlen / 2) + ny * textOff };
+
+      const sA = toScreen(wA.x, wA.y);
+      const sB = toScreen(wB.x, wB.y);
+      const sL = toScreen(wL.x, wL.y);
+
+      if (wlen >= MIN_INLINE_MM) {
+        _ctx.strokeStyle = '#111';
+        _ctx.lineWidth = 1.0;
+        _ctx.setLineDash([]);
+        _ctx.beginPath();
+        _ctx.moveTo(sA.x, sA.y);
+        _ctx.lineTo(sB.x, sB.y);
+        drawTick45(sA, angle);
+        drawTick45(sB, angle);
+        _ctx.stroke();
+        drawAlignedTextBox(label, sL, angle, {
+          font: '500 13px Merriweather, Onest, Inter, sans-serif',
+          background: 'rgba(255,255,255,0.95)',
+          textColor: '#111',
+        });
+      } else {
+        // Leader-line для коротких сегментов
+        const attachW = { x: x1 + ux * (wlen / 2) + nx * sideSign * halfT,
+                          y: y1 + uy * (wlen / 2) + ny * sideSign * halfT };
+        const diagW = { x: attachW.x + nx * sideSign * LEADER_OUT_MM,
+                        y: attachW.y + ny * sideSign * LEADER_OUT_MM };
+        const shelfW = { x: diagW.x + ux * SHELF_MM,
+                         y: diagW.y + uy * SHELF_MM };
+        const midShelfW = { x: (diagW.x + shelfW.x) / 2,
+                            y: (diagW.y + shelfW.y) / 2 };
+
+        const pA = toScreen(attachW.x, attachW.y);
+        const pD = toScreen(diagW.x, diagW.y);
+        const pE = toScreen(shelfW.x, shelfW.y);
+        const pM = toScreen(midShelfW.x, midShelfW.y);
+
+        _ctx.strokeStyle = '#444';
+        _ctx.lineWidth = 0.8;
+        _ctx.setLineDash([3, 3]);
+        _ctx.beginPath();
+        _ctx.moveTo(pA.x, pA.y);
+        _ctx.lineTo(pD.x, pD.y);
+        _ctx.lineTo(pE.x, pE.y);
+        _ctx.stroke();
+        _ctx.setLineDash([]);
+        _ctx.beginPath();
+        _ctx.arc(pA.x, pA.y, 2, 0, Math.PI * 2);
+        _ctx.fillStyle = '#444';
+        _ctx.fill();
+        drawAlignedTextBox(label, pM, angle, {
+          font: '500 13px Merriweather, Onest, Inter, sans-serif',
+          background: 'rgba(255,255,255,0.95)',
+          textColor: '#333',
+        });
+      }
+    }
+
+    // Свободные торцы: если конец стены — единственный сход стен простенка
+    // в этой точке, торец обращён в комнату → нужен размер торца.
+    // Длина торца = thickness стены, идёт перпендикулярно оси.
+    const ends = [
+      { x: wall.cx1 ?? wall.x1, y: wall.cy1 ?? wall.y1, sign: -1 },
+      { x: wall.cx2 ?? wall.x2, y: wall.cy2 ?? wall.y2, sign: +1 },
+    ];
+    for (const end of ends) {
+      const k = endKey(end.x, end.y);
+      const count = wallEndpointCounts.get(k) || 0;
+      // Если в точке сходится 2+ стен — это внутренний стык простенка, не размечаем
+      if (count >= 2) continue;
+      // Проверим что торец не примыкает к граничной стене комнаты —
+      // в этом случае это конец, прилегающий к стене дома, не свободный
+      let touchesBoundary = false;
+      for (const bs of room.boundarySegments || []) {
+        const bw = bs.wall;
+        if (!bw) continue;
+        const bx1 = bw.cx1 ?? bw.x1, by1 = bw.cy1 ?? bw.y1;
+        const bx2 = bw.cx2 ?? bw.x2, by2 = bw.cy2 ?? bw.y2;
+        const blen = Math.hypot(bx2 - bx1, by2 - by1);
+        if (blen < 1) continue;
+        const buX = (bx2 - bx1) / blen, buY = (by2 - by1) / blen;
+        const dx = end.x - bx1, dy = end.y - by1;
+        const along = dx * buX + dy * buY;
+        const perp = Math.abs(dx * (-buY) + dy * buX);
+        if (along >= -ENDPOINT_TOL && along <= blen + ENDPOINT_TOL && perp <= bw.thickness / 2 + ENDPOINT_TOL) {
+          touchesBoundary = true;
+          break;
+        }
+      }
+      if (touchesBoundary) continue;
+
+      // Торец свободный: рисуем размер длиной thickness стены
+      const torecLen = wall.thickness;
+      if (torecLen < MIN_SEG_MM) continue;
+      const torecLabel = `${Math.round(torecLen)} мм`;
+
+      // Торец — отрезок перпендикулярный оси, от (-halfT) до (+halfT) по нормали
+      // Размерная линия — со стороны end.sign по оси
+      const torecAxialOff = end.sign * (LINE_OFF_MM); // отступ от торца в направлении оси
+      const torecCenter = { x: end.x + ux * torecAxialOff,
+                            y: end.y + uy * torecAxialOff };
+
+      // Концы размера (по нормали ±halfT)
+      const tA = { x: torecCenter.x - nx * (halfT - GAP_MM),
+                   y: torecCenter.y - ny * (halfT - GAP_MM) };
+      const tB = { x: torecCenter.x + nx * (halfT - GAP_MM),
+                   y: torecCenter.y + ny * (halfT - GAP_MM) };
+
+      // Текст всегда через leader (торцы короткие)
+      const attachW = { x: end.x + ux * end.sign * GAP_MM, y: end.y + uy * end.sign * GAP_MM };
+      const diagW = { x: torecCenter.x + ux * end.sign * LEADER_OUT_MM,
+                      y: torecCenter.y + uy * end.sign * LEADER_OUT_MM };
+      const shelfW = { x: diagW.x + nx * SHELF_MM, y: diagW.y + ny * SHELF_MM };
+      const midShelfW = { x: (diagW.x + shelfW.x) / 2, y: (diagW.y + shelfW.y) / 2 };
+
+      const pA = toScreen(attachW.x, attachW.y);
+      const pD = toScreen(diagW.x, diagW.y);
+      const pE = toScreen(shelfW.x, shelfW.y);
+      const pM = toScreen(midShelfW.x, midShelfW.y);
+
+      _ctx.strokeStyle = '#444';
+      _ctx.lineWidth = 0.8;
+      _ctx.setLineDash([3, 3]);
+      _ctx.beginPath();
+      _ctx.moveTo(pA.x, pA.y);
+      _ctx.lineTo(pD.x, pD.y);
+      _ctx.lineTo(pE.x, pE.y);
+      _ctx.stroke();
+      _ctx.setLineDash([]);
+      _ctx.beginPath();
+      _ctx.arc(pA.x, pA.y, 2, 0, Math.PI * 2);
+      _ctx.fillStyle = '#444';
+      _ctx.fill();
+      // Угол перпендикулярен оси стены
+      drawAlignedTextBox(torecLabel, pM, angle + Math.PI / 2, {
+        font: '500 13px Merriweather, Onest, Inter, sans-serif',
+        background: 'rgba(255,255,255,0.95)',
+        textColor: '#333',
+      });
+    }
+  }
 }
 
 // ══════════════════════════════════════════════════════════════════

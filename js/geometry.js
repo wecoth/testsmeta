@@ -477,6 +477,13 @@ export function findFaces(vertices, edges) {
       }
 
       const polygon = path.map(p => vertices[p.v]);
+
+      // В canvas-координатах (Y вниз) внутренние комнаты обходятся по CW,
+      // что даёт ОТРИЦАТЕЛЬНУЮ знаковую площадь (polygonSignedArea < 0).
+      // Внешний обход (CCW) даёт положительную — отбрасываем его.
+      // Это убирает дубли: каждый замкнутый контур находится ровно один раз.
+      if (polygonSignedArea(polygon) >= 0) continue;
+
       faces.push(polygon);
     }
   }

@@ -170,9 +170,14 @@ function getSlimWalls(walls, dividers) {
     x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2,
     cx1: w.cx1 ?? w.x1, cy1: w.cy1 ?? w.y1,
     cx2: w.cx2 ?? w.x2, cy2: w.cy2 ?? w.y2,
-    thickness: 0,
+    // Сохраняем реальную толщину — нужна для findAllWallsForEdge:
+    // функция ищет стену по midpoint ребра полигона, и при thickness=0
+    // перпендикулярное расстояние от середины ребра до оси стены может
+    // превышать eps, если ребро не лежит точно на cx/cy (float-погрешность).
+    // С реальной толщиной кандидат candidates[] включает обе грани — матч надёжнее.
+    thickness: w.thickness || 0,
     height: w.height || _wallHeightFallback,
-    offset: 'left',
+    offset: w.offset || 'left',
     isDivider: false,
   }));
 
@@ -373,7 +378,17 @@ export function computeRoomForPolygon(poly) {
     totalLengthMm += len;
     weightedHeightSum += len * h;
   }
-  const heightMm = totalLengthMm > 0 ? weightedHeightSum / totalLengthMm : wallHeightFallback;
+  // Fallback: если граничные стены не нашлись (комната из разделителей или
+  // float-погрешность в findAllWallsForEdge) — берём высоту из внутренних стен
+  // или глобальный fallback.
+  let heightMm;
+  if (totalLengthMm > 0) {
+    heightMm = weightedHeightSum / totalLengthMm;
+  } else if (interiorWalls.length > 0) {
+    heightMm = interiorWalls[0].wall.height || wallHeightFallback;
+  } else {
+    heightMm = wallHeightFallback;
+  }
 
   const entranceDoorId = detectEntranceDoor(roomOpenings, exteriorWallIds);
 
@@ -656,9 +671,8 @@ const DEBOUNCE_MS = 20;
 EventBus.on('walls:changed', () => {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(() => {
-    purgeInvalidRooms();      // только удаляем невалидные, не создаём новые
+    rebuildAllRooms();   // полное перестроение — новые замкнутые контуры появляются сразу
     debounceTimer = null;
-    // Ручное создание остаётся за инструментом «Комната»
   }, DEBOUNCE_MS);
 });
 

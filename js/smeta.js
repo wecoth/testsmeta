@@ -56,7 +56,7 @@ export function captureCanvas() {
   if (!walls.length) { alert('Нарисуйте план перед захватом'); return; }
 
   // planData — чистый чертёж (без сетки и размеров) для страницы "Планирование работ"
-  const cleanImg = renderToImage(800, 600, false);
+  const cleanImg = renderToImage(1600, 1200, false);
   // planDataFull — полный обмерный план (со всеми размерами) для отдельной страницы
   // Auto-rotate: portrait A4 if drawing is taller than wide, landscape if wider
   const bbox = getWallsBboxWorld();
@@ -66,8 +66,8 @@ export function captureCanvas() {
   appState.bpPortrait = isPortrait;
   if (window._appState) window._appState.bpPortrait = isPortrait;
   const fullImg = isPortrait
-    ? renderToImage(1754, 2480, true)   // A4 portrait @300dpi
-    : renderToImage(2480, 1754, true);  // A4 landscape @300dpi
+    ? renderToImage(2480, 3508, true)   // A4 portrait @300dpi
+    : renderToImage(3508, 2480, true);  // A4 landscape @300dpi
 
   if (!cleanImg) { alert('Не удалось захватить чертёж'); return; }
 

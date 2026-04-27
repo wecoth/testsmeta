@@ -5,6 +5,7 @@ import { WindowTool } from './WindowTool.js';
 import { DoorTool } from './DoorTool.js';
 import { DividerTool } from './DividerTool.js';
 import { MeasureTool } from './MeasureTool.js';
+import { RoomTool } from './RoomTool.js';   // <-- добавить
 
 export function createTool(toolId, uiPlanner) {
   switch (toolId) {
@@ -14,7 +15,7 @@ export function createTool(toolId, uiPlanner) {
     case 'door':    return new DoorTool(uiPlanner);
     case 'divider': return new DividerTool(uiPlanner);
     case 'measure': return new MeasureTool(uiPlanner);
-    case 'room':    return new RoomTool(uiPlanner);   // <-- добавьте
+    case 'room':    return new RoomTool(uiPlanner);   // <-- добавить
     default:        return null;
   }
 }

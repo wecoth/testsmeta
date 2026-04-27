@@ -1903,6 +1903,7 @@ export function renderToImage(outW, outH, withDimensions = false) {
   drawWalls(empty);
   drawWallJoints(empty);
   drawOpenings(empty, 'start', 1);
+  drawMeasures(empty);   // ← ручная рулетка всегда попадает в экспорт
   if (withDimensions) {
     ///drawWallDimensions();
     ///drawOpeningWidthDimensions();

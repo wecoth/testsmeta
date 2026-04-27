@@ -13,6 +13,13 @@ export function segmentIntersection(a, b, epsilon = 0.001) {
   return { x: a.x1 + r.x * t, y: a.y1 + r.y * t, t, u };
 }
 
+export function normalizeDirection(dir) {
+  if (Math.abs(dir.x) >= Math.abs(dir.y)) {
+    return dir.x >= 0 ? { x: 1, y: 0 } : { x: -1, y: 0 };
+  }
+  return dir.y >= 0 ? { x: 0, y: 1 } : { x: 0, y: -1 };
+}
+
 export function applyWallOffset(cx, cy, angle, offset, thickness) {
   if (offset === 'center') return { x: cx, y: cy };
   const px = -Math.sin(angle);

@@ -1,10 +1,10 @@
-// RoomTool.js
+// js/tools/RoomTool.js
 import { BaseTool } from './BaseTool.js';
 import { appState } from '../state.js';
 import { EventBus } from '../eventBus.js';
 import { executeCommand } from '../commands/CommandHistory.js';
 import { AddRoomCommand } from '../commands/AddRoomCommand.js';
-import { computeRoomForPolygon } from '../room.js';  // скоро появится
+import { computeRoomForPolygon } from '../room.js';
 import {
   findAllIntersections, buildWallGraph, findFaces,
   polygonArea, isPointInPolygon
@@ -27,7 +27,7 @@ export class RoomTool extends BaseTool {
     const walls = appState.walls;
     const dividers = appState.dividers || [];
 
-    // Стены превращаем в тонкие линии (толщина 0) – используем только оси
+    // Превращаем стены в тонкие линии (используем только оси)
     const slimWalls = walls.map(w => ({
       id: w.id,
       x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2,
@@ -69,7 +69,6 @@ export class RoomTool extends BaseTool {
       if (polygonArea(poly) < 50000) continue;   // игнорируем мусор
 
       if (isPointInPolygon(clickPoint, poly)) {
-        // Нашли нужный полигон
         const room = computeRoomForPolygon(poly);
         if (!room) {
           alert('Не удалось создать комнату – проверьте замкнутость контура');

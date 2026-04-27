@@ -442,6 +442,7 @@ export function findFaces(vertices, edges) {
   }
 
   const usedEdges = new Set();
+  const seenFaces = new Set();
   const faces = [];
 
   for (const e of edges) {
@@ -478,11 +479,12 @@ export function findFaces(vertices, edges) {
 
       const polygon = path.map(p => vertices[p.v]);
 
-      // В canvas-координатах (Y вниз) внутренние комнаты обходятся по CW,
-      // что даёт ОТРИЦАТЕЛЬНУЮ знаковую площадь (polygonSignedArea < 0).
-      // Внешний обход (CCW) даёт положительную — отбрасываем его.
-      // Это убирает дубли: каждый замкнутый контур находится ровно один раз.
-      if (polygonSignedArea(polygon) >= 0) continue;
+      // Дедупликация: каждый контур находится дважды (forward + backward).
+      // Нормализуем ключ полигона — сортируем ID вершин — и пропускаем дубли.
+      const vertexIds = path.map(p => p.v).slice().sort((a, b) => a - b);
+      const faceKey = vertexIds.join(',');
+      if (seenFaces.has(faceKey)) continue;
+      seenFaces.add(faceKey);
 
       faces.push(polygon);
     }

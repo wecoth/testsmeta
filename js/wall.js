@@ -1,5 +1,6 @@
 // ─── WALL.JS ──────────────────────────────────────────────────────
 import { appState } from './state.js';
+import { clamp, applyWallOffset } from './geometry.js';
 
 // ── Contour helpers ──────────────────────────────────────────────
 

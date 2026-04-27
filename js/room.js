@@ -242,7 +242,7 @@ function rebuildAllRooms() {
       const poly = faces[fi].map(v => ({ x: v.x, y: v.y }));
       const area = faceAreas[fi];
 
-      if (area < 50000) continue; // мусорные фейсы < 0.05 м²
+      if (area < 200000) continue; // мусорные фейсы < 0.2 м²
       if (area >= maxArea * 0.98) continue; // внешний фейс (самый большой)
 
       // Проверяем что хотя бы одно ребро полигона лежит на реальной стене/разделителе
@@ -304,7 +304,7 @@ function purgeInvalidRooms() {
 
     for (const face of faces) {
       const poly = face.map(v => ({ x: v.x, y: v.y }));
-      if (polygonArea(poly) < 50000) continue;
+      if (polygonArea(poly) < 200000) continue;
       const key = generateRoomKey(poly);
       validKeys.add(key);
     }

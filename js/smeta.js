@@ -51,26 +51,61 @@ export function handlePlan(e) {
 // Берёт текущий canvas чертежа, вычисляет bbox всех стен в экранных
 // координатах, кропает и масштабирует на offscreen canvas.
 // Результат: PNG dataURL сохраняется как planData.
-export function captureCanvas() {
+export async function captureCanvas() {
   const walls = window._appState?.walls ?? appState?.walls ?? [];
   if (!walls.length) { alert('Нарисуйте план перед захватом'); return; }
 
-  // planData — чистый чертёж (без сетки и размеров) для страницы "Планирование работ"
+  // Чистый чертёж (без размеров) — A4 1600×1200
   const cleanImg = renderToImage(1600, 1200, false);
-  // planDataFull — полный обмерный план (со всеми размерами) для отдельной страницы
-  // Auto-rotate: portrait A4 if drawing is taller than wide, landscape if wider
+  if (!cleanImg) { alert('Не удалось захватить чистый чертёж'); return; }
+
   const bbox = getWallsBboxWorld();
   const drawingW = bbox ? (bbox.maxX - bbox.minX) : 1;
   const drawingH = bbox ? (bbox.maxY - bbox.minY) : 1;
   const isPortrait = drawingH > drawingW;
-  appState.bpPortrait = isPortrait;
-  if (window._appState) window._appState.bpPortrait = isPortrait;
-  const fullImg = isPortrait
-    ? renderToImage(2480, 3508, true)   // A4 portrait @300dpi
-    : renderToImage(3508, 2480, true);  // A4 landscape @300dpi
 
-  if (!cleanImg) { alert('Не удалось захватить чертёж'); return; }
+  // Обмерный план всегда будет размещён на альбомном листе A4 300dpi
+  const LANDSCAPE_W = 3508, LANDSCAPE_H = 2480;
+  const PORTRAIT_W = 2480, PORTRAIT_H = 3508;
 
+  let fullImg;
+  if (isPortrait) {
+    // 1) Рендерим в портретный лист (2480×3508)
+    const portraitImg = renderToImage(PORTRAIT_W, PORTRAIT_H, true);
+    if (!portraitImg) { alert('Не удалось захватить обмерный план'); return; }
+
+    // 2) Поворачиваем на 90°, чтобы заполнить альбомный лист
+    const img = await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = reject;
+      image.src = portraitImg;
+    });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = LANDSCAPE_W;
+    canvas.height = LANDSCAPE_H;
+    const ctx = canvas.getContext('2d');
+
+    // Белый фон
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Поворот вокруг центра листа
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    ctx.rotate(Math.PI / 2);
+    // Рисуем изображение точно по центру (оно идеально вписывается 2480×3508 → 3508×2480)
+    ctx.drawImage(img, -PORTRAIT_W / 2, -PORTRAIT_H / 2);
+
+    fullImg = canvas.toDataURL('image/png');
+  } else {
+    // Чертеж горизонтальный – сразу рендерим в альбомный лист
+    fullImg = renderToImage(LANDSCAPE_W, LANDSCAPE_H, true);
+  }
+
+  if (!fullImg) { alert('Не удалось захватить обмерный план'); return; }
+
+  // Сохраняем изображения
   appState.planData     = cleanImg;
   appState.planDataFull = fullImg;
   if (window._appState) {
@@ -78,19 +113,19 @@ export function captureCanvas() {
     window._appState.planDataFull = fullImg;
   }
 
-  // Обновляем превью в форме
+  // Превью в форме
   const planPreview = document.getElementById('planPreview');
   const planPlaceholder = document.getElementById('planPlaceholder');
   if (planPreview) { planPreview.src = cleanImg; planPreview.style.display = 'block'; }
   if (planPlaceholder) planPlaceholder.style.display = 'none';
 
+  // Обмерный план всегда альбомный – явно указываем это
+  appState.bpPortrait = false;
+  if (window._appState) window._appState.bpPortrait = false;
+
   liveUpdate();
   alert('Чертёж захвачен ✓');
 }
-
-// ── Rooms (smeta side) ────────────────────────────────────────────
-
-let roomCnt = 0;
 
 export function addRoom(n = '', f = '', w = '', p = '') {
   roomCnt++;

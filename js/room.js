@@ -260,10 +260,9 @@ function rebuildAllRooms() {
       }
     }
 
-    // Если нашли комнаты – заменяем; иначе оставляем старые (на случай, если граф не замкнут)
-    if (newRooms.length > 0) {
-      appState.rooms = newRooms;
-    }
+    // Всегда заменяем — это гарантирует что удалённые стены/перегородки
+    // сразу убирают комнаты которых больше нет.
+    appState.rooms = newRooms;
   } catch (e) {
     // При ошибке оставляем существующие комнаты
     console.warn('Ошибка при перестроении комнат:', e);
@@ -370,35 +369,9 @@ export function computeRoomForPolygon(poly) {
   let grossArea = polygonArea(poly);
   let netAreaMm2 = grossArea;
 
-  // Корректируем площадь пола: граф строится по cx/cy (внутренняя грань стены).
-  // Для стены с offset='left': cx/cy = левая грань стены.
-  //   - комната слева от направления стены → её контур идёт по cx/cy (внутренняя грань) → вычет 0
-  //   - комната справа → её контур идёт по cx/cy которая для неё ВНЕШНЯЯ грань → вычет thickness
-  // Определяем сторону: центроид комнаты относительно ребра (знак cross product).
-  const roomCenter = polygonCentroid(poly);
-  for (let k = 0; k < poly.length; k++) {
-    const a = poly[k], b = poly[(k + 1) % poly.length];
-    const edgeLen = Math.hypot(b.x - a.x, b.y - a.y);
-    if (edgeLen < 1) continue;
-    const edgeWalls = findAllWallsForEdge(a.x, a.y, b.x, b.y, allWalls);
-    for (const w of edgeWalls) {
-      if (w.isDivider) continue;
-      const t = w.thickness || 0;
-      if (t < 1) continue;
-      // Направление стены по cx/cy
-      const wx1 = w.cx1 ?? w.x1, wy1 = w.cy1 ?? w.y1;
-      const wx2 = w.cx2 ?? w.x2, wy2 = w.cy2 ?? w.y2;
-      const wdx = wx2 - wx1, wdy = wy2 - wy1;
-      // Cross product: определяем с какой стороны от стены находится центроид комнаты
-      // Если cross > 0 → комната справа от направления стены (для offset='left' это внешняя сторона)
-      const cross = wdx * (roomCenter.y - wy1) - wdy * (roomCenter.x - wx1);
-      const roomIsOnOuterSide = (w.offset === 'left') ? cross > 0 : cross < 0;
-      if (roomIsOnOuterSide) {
-        // Контур комнаты проходит по внешней грани стены — вычитаем всю толщину
-        netAreaMm2 -= t * edgeLen;
-      }
-    }
-  }
+  // Площадь пола: полигон строится по cx/cy (внутренняя грань стен).
+  // Для несущих стен cx/cy = внутренняя грань → полигон уже правильный, вычет не нужен.
+  // Вычитаем только footprint внутренних стен (interiorWalls) — ниже.
 
   for (const { wall, lengthMm } of interiorWalls) {
     netAreaMm2 -= wallFootprintArea(wall, lengthMm);

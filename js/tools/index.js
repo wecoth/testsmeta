@@ -14,6 +14,7 @@ export function createTool(toolId, uiPlanner) {
     case 'door':    return new DoorTool(uiPlanner);
     case 'divider': return new DividerTool(uiPlanner);
     case 'measure': return new MeasureTool(uiPlanner);
+    case 'room':    return new RoomTool(uiPlanner);   // <-- добавьте
     default:        return null;
   }
 }

@@ -1,22 +1,34 @@
-//AddRoomCommand.js
+// js/commands/AddRoomCommand.js
 import { BaseCommand } from './BaseCommand.js';
-import { appState } from '../state.js';
-import { EventBus } from '../eventBus.js';
+import { createRoomFromCandidate, deleteRoom } from '../room.js';
 
 export class AddRoomCommand extends BaseCommand {
-  constructor(roomData) {
+  constructor(polygon) {
     super();
-    this._roomData = roomData;   // готовый объект комнаты
-    this.description = `Добавление комнаты "${roomData.name}"`;
+    this._polygon = polygon;        // массив точек {x,y} полигона кандидата
+    this._key = null;               // ключ созданной комнаты (заполнится в execute)
+    this.description = 'Добавление комнаты';
   }
 
   execute() {
-    appState.rooms.push({ ...this._roomData });
-    EventBus.emit('rooms:computed');
+    // создаём комнату (ключ генерируется внутри)
+    const room = createRoomFromCandidate(this._polygon);
+    if (!room) return false;       // комната уже существует или создать не удалось
+    this._key = room.key;
+    this.description = `Добавление комнаты "${room.name}"`;
+    return true;
   }
 
   undo() {
-    appState.rooms = appState.rooms.filter(r => r.key !== this._roomData.key);
-    EventBus.emit('rooms:computed');
+    if (this._key) {
+      deleteRoom(this._key);
+    }
+  }
+
+  redo() {
+    if (this._key) {
+      // пересоздаём комнату из исходного полигона (ключ будет тот же)
+      createRoomFromCandidate(this._polygon);
+    }
   }
 }

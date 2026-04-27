@@ -329,53 +329,40 @@ function pruneDanglingTails(vertices, edges) {
  * Для произвольных N-угольников — берём для каждого ребра ближайшее
  * параллельное ребро и измеряем расстояние.
  */
-function isDeadZone(poly, allWalls) {
-  if (poly.length < 4) return false;
-  // Базовый фильтр по компактности — мёртвые зоны очень узкие.
-  // У квадрата compactness = 0.0625, у полоски 200×3000 = 0.0146.
-  // Порог 0.03 надёжно отделяет реальные комнаты от мёртвых зон.
-  let perim = 0;
-  for (let i = 0; i < poly.length; i++) {
-    const a = poly[i], b = poly[(i+1)%poly.length];
-    perim += Math.hypot(b.x - a.x, b.y - a.y);
-  }
-  const area = Math.abs(polygonSignedArea(poly));
-  const compactness = perim > 0 ? area / (perim * perim) : 0;
-  if (compactness > 0.03) return false;
-
-  const n = poly.length;
-  for (let i = 0; i < n; i++) {
-    const a1 = poly[i], a2 = poly[(i + 1) % n];
-    const dxA = a2.x - a1.x, dyA = a2.y - a1.y;
-    const lenA = Math.hypot(dxA, dyA);
-    if (lenA < 1) continue;
-    const uxA = dxA / lenA, uyA = dyA / lenA;
-    const nxA = -uyA, nyA = uxA;
-    for (let j = i + 2; j < n; j++) {
-      if (j === n - 1 && i === 0) continue;
-      const b1 = poly[j], b2 = poly[(j + 1) % n];
-      const dxB = b2.x - b1.x, dyB = b2.y - b1.y;
-      const lenB = Math.hypot(dxB, dyB);
-      if (lenB < 1) continue;
-      const uxB = dxB / lenB, uyB = dyB / lenB;
-      const dot = uxA * uxB + uyA * uyB;
-      if (Math.abs(dot) < 0.95) continue;
-      const dx = b1.x - a1.x, dy = b1.y - a1.y;
-      const dist = Math.abs(dx * nxA + dy * nyA);
-      const minLen = Math.min(lenA, lenB);
-      const maxLen = Math.max(lenA, lenB);
-      if (minLen / maxLen < 0.5) continue;
-      const wallsA = findAllWallsForEdge(a1.x, a1.y, a2.x, a2.y, allWalls);
-      const wallsB = findAllWallsForEdge(b1.x, b1.y, b2.x, b2.y, allWalls);
-      if (wallsA.length === 0 || wallsB.length === 0) continue;
-      const maxThick = Math.max(
-        ...wallsA.map(w => w.thickness || 0),
-        ...wallsB.map(w => w.thickness || 0)
-      );
-      if (dist <= maxThick + 5) return true;
+/**
+ * Классифицирует рёбра полигона фейса по типу граней стен.
+ *
+ * Каждая стена в графе даёт 4 типа рёбер (см. geometry.js / wallSegments):
+ *   - inner: внутренняя грань (cx/cy = линия рисования)
+ *   - outer: противоположная грань (на расстоянии thickness)
+ *   - end-start, end-end: торцы стены
+ *
+ * Реальное помещение — это фейс, у которого рёбра преимущественно по
+ * inner-граням (внутренние грани стен, замыкающие контур комнаты).
+ * Внешний контур здания — наоборот, по outer-граням. Артефакты в углах
+ * простенков и физические толщины стен (мёртвые зоны) — это фейсы,
+ * у которых inner ≤ outer+торцы.
+ */
+function classifyFaceEdges(poly, vertices, edges) {
+  const stats = { inner: 0, outer: 0, endStart: 0, endEnd: 0, unknown: 0 };
+  for (let k = 0; k < poly.length; k++) {
+    const a = poly[k], b = poly[(k + 1) % poly.length];
+    // Найти вершины графа, соответствующие концам ребра
+    const v1 = vertices.findIndex(v => Math.hypot(v.x - a.x, v.y - a.y) < 2);
+    const v2 = vertices.findIndex(v => Math.hypot(v.x - b.x, v.y - b.y) < 2);
+    if (v1 < 0 || v2 < 0) { stats.unknown++; continue; }
+    const edge = edges.find(e => (e.v1 === v1 && e.v2 === v2) || (e.v1 === v2 && e.v2 === v1));
+    if (!edge) { stats.unknown++; continue; }
+    // Ребро может иметь несколько faceKinds (например inner+outer если
+    // две разных стены лежат на одной линии). Учитываем все.
+    for (const fk of (edge.faceKinds || [])) {
+      if (fk === 'inner') stats.inner++;
+      else if (fk === 'outer') stats.outer++;
+      else if (fk === 'end-start') stats.endStart++;
+      else if (fk === 'end-end') stats.endEnd++;
     }
   }
-  return false;
+  return stats;
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -467,22 +454,51 @@ export function computeRooms(wallHeightFallback = 2700) {
     return;
   }
 
-  // 3. Внешний фейс — с максимальной площадью bbox (охватывает весь план).
-  //    Используется только для отбраковки "внешнего" фейса из кандидатов в комнаты.
-  //    exteriorWallIds (стены, граничащие с улицей) определяется ниже по counter.
-  let exteriorIndex = 0;
-  let maxBboxArea = -Infinity;
+  // 3. Внешний фейс — определяется по СОСТАВУ РЁБЕР, а не по bbox.
+  //    Внешний контур здания по построению модели идёт по outer-граням
+  //    стен (внешние грани, обращённые на улицу) и торцам. У него inner=0
+  //    или очень мало.
+  //
+  //    Реальная комната, наоборот, имеет рёбра по inner-граням (внутренние
+  //    грани стен, замыкающие контур помещения).
+  //
+  //    Правило: фейс — внешний ⇔ inner-рёбер строго меньше чем outer+торцов.
+  //    Если фейсов с такой характеристикой несколько — берём тот с
+  //    максимальной площадью (объемлющий внешний контур всего плана).
+  let exteriorIndex = -1;
+  let maxExteriorArea = -Infinity;
+  const faceClassifications = dedupedFaces.map(f =>
+    classifyFaceEdges(f.poly, vertices, cleanEdges)
+  );
   for (let i = 0; i < dedupedFaces.length; i++) {
-    const bb = polygonBboxArea(dedupedFaces[i].poly);
-    if (bb > maxBboxArea) {
-      maxBboxArea = bb;
-      exteriorIndex = i;
+    const stats = faceClassifications[i];
+    const otherCount = stats.outer + stats.endStart + stats.endEnd;
+    if (stats.inner < otherCount) {
+      const area = polygonArea(dedupedFaces[i].poly);
+      if (area > maxExteriorArea) {
+        maxExteriorArea = area;
+        exteriorIndex = i;
+      }
+    }
+  }
+  // Fallback: если по составу не нашли (граф вырожденный) — берём по bbox
+  if (exteriorIndex === -1) {
+    exteriorIndex = 0;
+    let maxBbox = -Infinity;
+    for (let i = 0; i < dedupedFaces.length; i++) {
+      const bb = polygonBboxArea(dedupedFaces[i].poly);
+      if (bb > maxBbox) { maxBbox = bb; exteriorIndex = i; }
     }
   }
 
-  // 4. Кандидаты в помещения — все фейсы кроме внешнего, отфильтровав
-  //    "мёртвые зоны" между параллельными стенами (физическая толщина
-  //    общих стен между комнатами).
+  // 4. Кандидаты в помещения — фейсы, у которых рёбра в основном по
+  //    внутренним граням стен (inner). Фейсы по внешним граням и торцам —
+  //    это либо внешний контур здания, либо мёртвые зоны (физические
+  //    толщины стен), либо артефакты пересечения граней в углах.
+  //
+  //    Правило: фейс = комната ⇔ count(inner) > count(outer + torcy).
+  //    Это математически чисто, не зависит от геометрических порогов
+  //    и работает для любой формы и толщины стен.
   const roomCandidates = [];
   for (let i = 0; i < dedupedFaces.length; i++) {
     if (i === exteriorIndex) continue;
@@ -490,20 +506,10 @@ export function computeRooms(wallHeightFallback = 2700) {
     const area = polygonArea(poly);
     if (area < 50000) continue; // < 0.05 м² — мусорные фейсы
 
-    // Фильтр "мёртвой зоны": если все рёбра фейса — реальные стены,
-    // и минимальная "ширина" фейса (расстояние между его параллельными
-    // сторонами) сопоставима с толщиной этих стен — это пространство
-    // между двумя стенами, а не помещение.
-    if (isDeadZone(poly, allWalls)) continue;
-
-    // Проверка минимальной "толщины" фейса — отсеиваем вырожденные
-    let perimeter = 0;
-    for (let k = 0; k < poly.length; k++) {
-      const a = poly[k], b = poly[(k + 1) % poly.length];
-      perimeter += Math.hypot(b.x - a.x, b.y - a.y);
-    }
-    const compactness = perimeter > 0 ? area / (perimeter * perimeter) : 0;
-    if (compactness < 0.005) continue;
+    const stats = faceClassifications[i];
+    const innerCount = stats.inner;
+    const otherCount = stats.outer + stats.endStart + stats.endEnd;
+    if (innerCount <= otherCount) continue; // не комната, а артефакт/мёртвая зона
 
     roomCandidates.push({ poly, grossArea: area });
   }

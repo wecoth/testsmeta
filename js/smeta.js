@@ -127,6 +127,8 @@ export async function captureCanvas() {
   alert('Чертёж захвачен ✓');
 }
 
+let roomCnt = 0;
+
 export function addRoom(n = '', f = '', w = '', p = '') {
   roomCnt++;
   const id = 'rm' + roomCnt;

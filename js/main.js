@@ -1,6 +1,6 @@
 // ─── MAIN.JS ──────────────────────────────────────────────────────
 import { appState } from './state.js';
-import { computeRooms, updateExpl } from './room.js';
+import { as updateExpl } from './room.js';
 import { initPlanner, setTool, forceRedraw, getViewport } from './ui-planner.js';
 import { renderToImage } from './render.js';
 import { setViewport } from './snapping.js';
@@ -104,7 +104,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // ── Restore planner project from local storage (if exists) ──
   if (loadFromLocalStorage()) {
-    computeRooms(parseFloat(document.getElementById('inpWallHeight')?.value) || 2700);
     updateExpl(document.getElementById('explBody'), document.getElementById('roomCount'));
     clearHistory();
     forceRedraw();
@@ -119,7 +118,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const f = e.target.files[0]; if (!f) return;
     uploadProject(f, err => {
       if (err) { alert('Ошибка загрузки: ' + err.message); return; }
-      computeRooms(parseFloat(document.getElementById('inpWallHeight')?.value) || 2700);
       updateExpl(document.getElementById('explBody'), document.getElementById('roomCount'));
       clearHistory(); forceRedraw();
     });

@@ -1,13 +1,6 @@
-// ─── GEOMETRY.JS — pure math, vector room detection ────────────────
-//
-// МОДЕЛЬ ПОМЕЩЕНИЙ (Renga-style):
-// • Контур помещения = линии рисования стен (cx1,cy1 → cx2,cy2),
-//   которые при привязке 'left'/'right' лежат на ВНУТРЕННЕЙ ГРАНИ стены.
-// • Толщина стен в построении графа НЕ участвует. Снаппинг при рисовании
-//   гарантирует, что концы соседних стен совпадают точно по cx/cy.
-// • Все допуски в графе — это допуски на ошибки округления плавающей точки
-//   (~2 мм), а не на физические толщины конструкций.
-//
+// ─── GEOMETRY.JS ──────────────────────────────────────────────────
+// pure math: segment intersections, graph, faces, polygon utilities
+
 export function segmentIntersection(a, b, epsilon = 0.001) {
   const r = { x: a.x2 - a.x1, y: a.y2 - a.y1 };
   const s = { x: b.x2 - b.x1, y: b.y2 - b.y1 };
@@ -20,70 +13,6 @@ export function segmentIntersection(a, b, epsilon = 0.001) {
   return { x: a.x1 + r.x * t, y: a.y1 + r.y * t, t, u };
 }
 
-export function projectPointOntoSegment(point, segment) {
-  const dx = segment.x2 - segment.x1;
-  const dy = segment.y2 - segment.y1;
-  const len2 = dx * dx + dy * dy;
-  if (len2 < 0.0001) {
-    return {
-      x: segment.x1, y: segment.y1, t: 0,
-      distance: Math.hypot(point.x - segment.x1, point.y - segment.y1)
-    };
-  }
-  let t = ((point.x - segment.x1) * dx + (point.y - segment.y1) * dy) / len2;
-  t = Math.max(0, Math.min(1, t));
-  const proj = { x: segment.x1 + dx * t, y: segment.y1 + dy * t };
-  return { ...proj, t, distance: Math.hypot(point.x - proj.x, point.y - proj.y) };
-}
-
-export function clamp(v, min, max) {
-  return Math.min(max, Math.max(min, v));
-}
-
-export function normalizeDirection(dir) {
-  if (Math.abs(dir.x) >= Math.abs(dir.y)) {
-    return dir.x >= 0 ? { x: 1, y: 0 } : { x: -1, y: 0 };
-  }
-  return dir.y >= 0 ? { x: 0, y: 1 } : { x: 0, y: -1 };
-}
-
-export function rangesOverlap(a1, a2, b1, b2, eps = 2) {
-  return Math.max(Math.min(a1, a2), Math.min(b1, b2)) <
-         Math.min(Math.max(a1, a2), Math.max(b1, b2)) + eps;
-}
-
-export function clusterValues(values, threshold = 5) {
-  if (!values.length) return [];
-  const sorted = [...values].sort((a, b) => a - b);
-  const result = [];
-  let group = [sorted[0]];
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i] - group[group.length - 1] <= threshold) {
-      group.push(sorted[i]);
-    } else {
-      result.push(group.reduce((s, v) => s + v, 0) / group.length);
-      group = [sorted[i]];
-    }
-  }
-  result.push(group.reduce((s, v) => s + v, 0) / group.length);
-  return result.map(v => Math.round(v));
-}
-
-export function applyWallOffset(cx, cy, angle, offset, thickness) {
-  // 'center' deprecated — поддерживается только для обратной совместимости
-  // со старыми проектами. Новые стены создаются только с 'left' или 'right'.
-  if (offset === 'center') return { x: cx, y: cy };
-  const px = -Math.sin(angle);
-  const py =  Math.cos(angle);
-  const sign = offset === 'right' ? 1 : -1;
-  return { x: cx + sign * px * thickness / 2, y: cy + sign * py * thickness / 2 };
-}
-
-// ══════════════════════════════════════════════════════════════════
-// ВЕКТОРНОЕ ПОСТРОЕНИЕ КОМНАТ
-// ══════════════════════════════════════════════════════════════════
-
-/** Знаковая площадь полигона (положительная для CCW, отрицательная для CW) */
 export function polygonSignedArea(poly) {
   if (poly.length < 3) return 0;
   let area = 0;
@@ -95,12 +24,10 @@ export function polygonSignedArea(poly) {
   return area / 2;
 }
 
-/** Площадь полигона (по модулю) */
 export function polygonArea(poly) {
   return Math.abs(polygonSignedArea(poly));
 }
 
-/** Центроид полигона */
 export function polygonCentroid(poly) {
   if (poly.length === 0) return { x: 0, y: 0 };
   let cx = 0, cy = 0, area = 0;
@@ -121,7 +48,6 @@ export function polygonCentroid(poly) {
   return { x: cx / (6 * area), y: cy / (6 * area) };
 }
 
-/** Проверка: точка внутри полигона (алгоритм луча) */
 export function isPointInPolygon(point, poly) {
   let inside = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -134,131 +60,14 @@ export function isPointInPolygon(point, poly) {
   return inside;
 }
 
-/** Проверка: точка внутри контура стены (для исключения пустот) */
-export function isPointInWall(point, wall, eps = 5) {
-  const len = Math.hypot(wall.x2 - wall.x1, wall.y2 - wall.y1);
-  if (len < 0.001) return false;
-  const u = ((point.x - wall.x1) * (wall.x2 - wall.x1) + (point.y - wall.y1) * (wall.y2 - wall.y1)) / (len * len);
-  if (u < -0.1 || u > 1.1) return false;
-  const proj = {
-    x: wall.x1 + u * (wall.x2 - wall.x1),
-    y: wall.y1 + u * (wall.y2 - wall.y1)
-  };
-  const dist = Math.hypot(point.x - proj.x, point.y - proj.y);
-  return dist <= wall.thickness / 2 + eps;
-}
-
-// Хелпер: базовая линия стены — линия рисования = внутренняя грань
-function wallBase(w) {
-  return {
-    x1: w.cx1 ?? w.x1, y1: w.cy1 ?? w.y1,
-    x2: w.cx2 ?? w.x2, y2: w.cy2 ?? w.y2,
-  };
-}
-
 /**
- * Возвращает противоположную грань стены — линию, параллельную cx/cy на
- * расстоянии thickness по нормали в сторону, противоположную offset.
- *
- * Для стены с offset='right': cx/cy справа от направления, противоположная
- * грань слева (нормаль -wN). Для offset='left': наоборот.
- *
- * Если толщина 0 (разделитель) — противоположная грань не строится (return null).
+ * Находит все уникальные вершины графа стен/разделителей.
+ * Принимает массив отрезков вида { id, x1, y1, x2, y2 }.
+ * EPS увеличивает до 5 мм для надёжности смыкания.
  */
-function wallOppositeFace(w) {
-  const b = wallBase(w);
-  const t = w.thickness || 0;
-  if (t < 0.5) return null; // разделители не имеют второй грани
-  const len = Math.hypot(b.x2 - b.x1, b.y2 - b.y1);
-  if (len < 1) return null;
-  const ux = (b.x2 - b.x1) / len, uy = (b.y2 - b.y1) / len;
-  const nx = -uy, ny = ux;
-  // Знак противоположной грани относительно cx/cy:
-  // applyWallOffset для 'right' сдвигает ось на +nx*halfT (sign=+1)
-  // → внутренняя грань (cx/cy) = ось − halfT по n → противоположная = ось + halfT = +n от cx/cy
-  // Для 'left' → противоположная = -n от cx/cy
-  const sign = w.offset === 'right' ? +1 : -1;
-  const dx = sign * nx * t;
-  const dy = sign * ny * t;
-  return {
-    x1: b.x1 + dx, y1: b.y1 + dy,
-    x2: b.x2 + dx, y2: b.y2 + dy,
-  };
-}
-
-/**
- * Возвращает обе грани стены: внутреннюю (cx/cy) и противоположную.
- * Для разделителей — только одну (cx/cy).
- *
- * Каждая грань — это объект { x1,y1,x2,y2, wall, faceKind } где faceKind
- * = 'inner' (по cx/cy, со стороны offset) или 'outer' (противоположная).
- */
-function wallFaces(w) {
-  const inner = wallBase(w);
-  const opp = wallOppositeFace(w);
-  const result = [{ ...inner, wall: w, faceKind: 'inner' }];
-  if (opp) result.push({ ...opp, wall: w, faceKind: 'outer' });
-  return result;
-}
-
-/**
- * Возвращает торцы стены — два коротких отрезка на её концах,
- * соединяющих внутреннюю и внешнюю грани. Нужны чтобы соседняя
- * комната могла замкнуть свой контур через торец общей стены.
- *
- * Для разделителя торцов нет (return []).
- */
-function wallEnds(w) {
-  const inner = wallBase(w);
-  const opp = wallOppositeFace(w);
-  if (!opp) return [];
-  return [
-    { x1: inner.x1, y1: inner.y1, x2: opp.x1, y2: opp.y1, wall: w, faceKind: 'end-start' },
-    { x1: inner.x2, y1: inner.y2, x2: opp.x2, y2: opp.y2, wall: w, faceKind: 'end-end' },
-  ];
-}
-
-/**
- * Все сегменты стены, участвующие в графе помещений:
- *   - inner: внутренняя грань (cx/cy, та что рисует пользователь)
- *   - outer: противоположная грань (на расстоянии thickness)
- *   - end-start, end-end: торцы (соединяют inner и outer на концах стены)
- *
- * Для разделителя — только одна inner (нет толщины, нет торцов).
- */
-function wallSegments(w) {
-  return [...wallFaces(w), ...wallEnds(w)];
-}
-
-/**
- * Находит все уникальные вершины графа по ВСЕМ сегментам каждой стены
- * (внутренняя грань, внешняя грань, два торца).
- *
- * НОВАЯ МОДЕЛЬ (Renga-style 2.0):
- * Стена даёт в граф 4 сегмента: две продольных грани (inner + outer) и
- * два торца. Это позволяет одной физической стене обслуживать ДВЕ комнаты
- * (по одной с каждой стороны), и контур каждой комнаты корректно замыкается
- * через торцы общей стены.
- *
- * Снаппинг при рисовании гарантирует точное совпадение концов соседних
- * стен. Допуск ~2 мм только на float-округления.
- */
-export function findAllIntersections(walls, eps = 5) {
+export function findAllIntersections(segments, eps = 5) {
   const EPS_MERGE = 5;
   const EPS_PERP  = 5;
-
-  // Все сегменты всех стен
-  const allSegs = [];
-  for (const w of walls) {
-    for (const s of wallSegments(w)) allSegs.push(s);
-  }
-
-  // Уникальный ID сегмента — для wallIds в вершинах
-  function segId(s) {
-    if (s.faceKind === 'inner') return s.wall.id;
-    if (s.faceKind === 'outer') return `${s.wall.id}_o`;
-    return `${s.wall.id}_${s.faceKind}`; // end-start / end-end
-  }
 
   const points = [];
 
@@ -273,40 +82,34 @@ export function findAllIntersections(walls, eps = 5) {
     return np;
   }
 
-  // 1. Концы всех сегментов
-  for (const s of allSegs) {
-    const sid = segId(s);
-    findOrAdd(s.x1, s.y1, sid);
-    findOrAdd(s.x2, s.y2, sid);
+  // 1. Концы всех отрезков
+  for (const s of segments) {
+    findOrAdd(s.x1, s.y1, s.id);
+    findOrAdd(s.x2, s.y2, s.id);
   }
 
-  // 2. Пересечения сегментов (X-стыки и crossing)
-  for (let i = 0; i < allSegs.length; i++) {
-    for (let j = i + 1; j < allSegs.length; j++) {
-      const s1 = allSegs[i], s2 = allSegs[j];
-      // Не считаем пересечения сегментов одной стены — они и так связаны
-      if (s1.wall.id === s2.wall.id) continue;
-      const inter = segmentIntersection(s1, s2, eps);
+  // 2. Пересечения отрезков (X-стыки)
+  for (let i = 0; i < segments.length; i++) {
+    for (let j = i + 1; j < segments.length; j++) {
+      const a = segments[i], b = segments[j];
+      if (a.id === b.id) continue;
+      const inter = segmentIntersection(a, b, eps);
       if (inter) {
-        const p = findOrAdd(inter.x, inter.y, segId(s1));
-        const sid2 = segId(s2);
-        if (!p.wallIds.includes(sid2)) p.wallIds.push(sid2);
+        const p = findOrAdd(inter.x, inter.y, a.id);
+        if (!p.wallIds.includes(b.id)) p.wallIds.push(b.id);
       }
     }
   }
 
-  // 3. T-стыки: конец одного сегмента лежит на оси другого
-  for (const sA of allSegs) {
+  // 3. T-стыки: конец одного отрезка лежит на теле другого
+  for (const sA of segments) {
     const endpointsA = [{ x: sA.x1, y: sA.y1 }, { x: sA.x2, y: sA.y2 }];
-    const sidA = segId(sA);
-    for (const sB of allSegs) {
-      if (sA === sB) continue;
-      if (sA.wall.id === sB.wall.id) continue; // те же стены — пропускаем
+    for (const sB of segments) {
+      if (sA.id === sB.id) continue;
       const lenB = Math.hypot(sB.x2 - sB.x1, sB.y2 - sB.y1);
       if (lenB < 1) continue;
       const uxB = (sB.x2 - sB.x1) / lenB, uyB = (sB.y2 - sB.y1) / lenB;
       const nxB = -uyB, nyB = uxB;
-      const sidB = segId(sB);
 
       for (const pt of endpointsA) {
         const dx = pt.x - sB.x1, dy = pt.y - sB.y1;
@@ -315,8 +118,8 @@ export function findAllIntersections(walls, eps = 5) {
         if (along > EPS_MERGE && along < lenB - EPS_MERGE && perp <= EPS_PERP) {
           const projX = sB.x1 + uxB * along;
           const projY = sB.y1 + uyB * along;
-          const p = findOrAdd(projX, projY, sidB);
-          if (!p.wallIds.includes(sidA)) p.wallIds.push(sidA);
+          const p = findOrAdd(projX, projY, sB.id);
+          if (!p.wallIds.includes(sA.id)) p.wallIds.push(sA.id);
         }
       }
     }
@@ -326,46 +129,23 @@ export function findAllIntersections(walls, eps = 5) {
 }
 
 /**
- * Строит граф: вершины и рёбра.
- *
- * НОВАЯ МОДЕЛЬ: каждая стена даёт 4 ребра в графе:
- *   - inner: внутренняя грань (cx/cy)
- *   - outer: противоположная грань (на расстоянии thickness)
- *   - 2 торца: соединяют inner и outer на концах
- *
- * Это позволяет одной физической стене замыкать контуры ДВУХ комнат —
- * каждая со своей стороны, через торцы общей стены.
- *
- * Параллельные дубликаты рёбер склеиваются.
+ * Строит граф: вершины (id, x, y, wallIds) и рёбра (v1, v2, wallId).
  */
-export function buildWallGraph(walls, points, eps = 5) {
+export function buildWallGraph(segments, points, eps = 5) {
   const EPS_PERP = 5;
   const EPS_ALONG = 2;
 
   const vertices = points.map((p, i) => ({ ...p, id: i }));
   const rawEdges = [];
 
-  // Все сегменты всех стен
-  const allSegs = [];
-  for (const w of walls) {
-    for (const s of wallSegments(w)) allSegs.push(s);
-  }
-
-  function segId(s) {
-    if (s.faceKind === 'inner') return s.wall.id;
-    if (s.faceKind === 'outer') return `${s.wall.id}_o`;
-    return `${s.wall.id}_${s.faceKind}`;
-  }
-
-  for (const seg of allSegs) {
-    const sid = segId(seg);
+  for (const seg of segments) {
     const len = Math.hypot(seg.x2 - seg.x1, seg.y2 - seg.y1);
     if (len < 1) continue;
     const ux = (seg.x2 - seg.x1) / len, uy = (seg.y2 - seg.y1) / len;
     const nx = -uy, ny = ux;
 
     const onSeg = vertices.filter(v => {
-      if (!v.wallIds.includes(sid)) return false;
+      if (!v.wallIds.includes(seg.id)) return false;
       const dx = v.x - seg.x1, dy = v.y - seg.y1;
       const along = dx * ux + dy * uy;
       const perp  = Math.abs(dx * nx + dy * ny);
@@ -380,6 +160,7 @@ export function buildWallGraph(walls, points, eps = 5) {
       return da - db;
     });
 
+    // удаляем дубли по координате вдоль
     const deduped = [];
     for (const v of onSeg) {
       const along = (v.x - seg.x1) * ux + (v.y - seg.y1) * uy;
@@ -392,11 +173,7 @@ export function buildWallGraph(walls, points, eps = 5) {
     for (let i = 0; i < deduped.length - 1; i++) {
       const v1 = deduped[i], v2 = deduped[i+1];
       if (Math.hypot(v2.x - v1.x, v2.y - v1.y) < 1) continue;
-      rawEdges.push({
-        v1: v1.id, v2: v2.id,
-        wallId: seg.wall.id,
-        faceKind: seg.faceKind,
-      });
+      rawEdges.push({ v1: v1.id, v2: v2.id, wallId: seg.id });
     }
   }
 
@@ -406,25 +183,20 @@ export function buildWallGraph(walls, points, eps = 5) {
     const a = Math.min(e.v1, e.v2), b = Math.max(e.v1, e.v2);
     const key = `${a}-${b}`;
     if (!edgeMap.has(key)) {
-      edgeMap.set(key, {
-        id: `e${edgeMap.size}`,
-        v1: e.v1, v2: e.v2,
-        wallId: e.wallId,
-        wallIds: [e.wallId],
-        faceKinds: [e.faceKind],
-      });
+      edgeMap.set(key, { id: `e${edgeMap.size}`, v1: e.v1, v2: e.v2, wallId: e.wallId });
     } else {
-      const existing = edgeMap.get(key);
-      if (!existing.wallIds.includes(e.wallId)) existing.wallIds.push(e.wallId);
-      if (!existing.faceKinds.includes(e.faceKind)) existing.faceKinds.push(e.faceKind);
+      // если несколько стен на одном ребре, сохраняем первую попавшуюся (для поиска граней не важно)
     }
   }
 
-  const edges = Array.from(edgeMap.values());
-  return { vertices, edges };
+  return { vertices, edges: Array.from(edgeMap.values()) };
 }
 
-/** Находит все грани (faces) в планарном графе */
+/**
+ * Находит все грани (faces) в планарном графе.
+ * В canvas (y вниз) внутренние комнаты = CW (signedArea < 0).
+ * Внешний обход (CCW) отбрасывается.
+ */
 export function findFaces(vertices, edges) {
   const adj = Array.from({ length: vertices.length }, () => []);
   for (const e of edges) {
@@ -485,29 +257,11 @@ export function findFaces(vertices, edges) {
       if (seenFaces.has(faceKey)) continue;
       seenFaces.add(faceKey);
 
-      // В canvas (Y вниз): внутренние комнаты = CW = signedArea < 0.
-      // Внешний обход (CCW, signedArea > 0) — это «фон» вокруг всего плана, не комната.
-      if (polygonSignedArea(polygon) > 0) continue;
+      if (polygonSignedArea(polygon) > 0) continue; // внешний контур
 
       faces.push(polygon);
     }
   }
 
   return faces;
-}
-
-/**
- * Площадь bounding box полигона.
- * Используется для надёжного определения внешнего фейса.
- */
-export function polygonBboxArea(poly) {
-  if (!poly || poly.length === 0) return 0;
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const p of poly) {
-    if (p.x < minX) minX = p.x;
-    if (p.y < minY) minY = p.y;
-    if (p.x > maxX) maxX = p.x;
-    if (p.y > maxY) maxY = p.y;
-  }
-  return (maxX - minX) * (maxY - minY);
 }

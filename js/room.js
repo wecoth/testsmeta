@@ -1153,8 +1153,91 @@ export function computeRoomForPolygon(poly) {
   };
 }
 
-// ══════════════════════════════════════════════════════════════════
-// РЕАКТИВНОСТЬ (отключена)
-// Комнаты создаются вручную инструментом «Комната».
-// Автоматический пересчёт отключён, чтобы не создавать мусор.
-// ══════════════════════════════════════════════════════════════════
+// Проверяет существующие комнаты и удаляет те, чей контур больше не существует
+function purgeInvalidRooms() {
+  const walls = appState.walls;
+  const dividers = appState.dividers || [];
+
+  // Строим граф как в RoomTool: только оси стен + разделители
+  const slimWalls = walls.map(w => ({
+    id: w.id,
+    x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2,
+    cx1: w.cx1 ?? w.x1, cy1: w.cy1 ?? w.y1,
+    cx2: w.cx2 ?? w.x2, cy2: w.cy2 ?? w.y2,
+    thickness: 0,
+    height: w.height || 2700,
+    offset: 'left',
+    isDivider: false,
+  }));
+  const dividerWalls = dividers.map(d => ({
+    id: `div_${d.id}`,
+    x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2,
+    cx1: d.x1, cy1: d.y1, cx2: d.x2, cy2: d.y2,
+    thickness: 0,
+    height: 2700,
+    offset: 'left',
+    isDivider: true,
+  }));
+  const allWalls = [...slimWalls, ...dividerWalls];
+  if (allWalls.length < 3) {
+    // Если стен мало, удаляем все комнаты
+    if (appState.rooms.length) {
+      appState.rooms = [];
+      EventBus.emit('rooms:computed');
+    }
+    return;
+  }
+
+  try {
+    const points = findAllIntersections(allWalls);
+    if (!points || points.length < 3) {
+      appState.rooms = [];
+      EventBus.emit('rooms:computed');
+      return;
+    }
+    const { vertices, edges } = buildWallGraph(allWalls, points);
+    if (edges.length < 3) {
+      appState.rooms = [];
+      EventBus.emit('rooms:computed');
+      return;
+    }
+    const faces = findFaces(vertices, edges);
+    const validKeys = new Set();
+
+    for (const face of faces) {
+      const poly = face.map(v => ({ x: v.x, y: v.y }));
+      if (polygonArea(poly) < 50000) continue;
+      // Генерируем ключ и добавляем в множество существующих полигонов
+      const key = generateRoomKey(poly);
+      validKeys.add(key);
+    }
+
+    // Оставляем только комнаты, чей ключ есть среди найденных фейсов
+    const previousCount = appState.rooms.length;
+    appState.rooms = appState.rooms.filter(room => validKeys.has(room.key));
+    if (appState.rooms.length !== previousCount) {
+      EventBus.emit('rooms:computed');
+    }
+  } catch (e) {
+    // Если граф не строится, не трогаем комнаты
+  }
+}
+
+let debounceTimer = null;
+const DEBOUNCE_MS = 20;
+
+EventBus.on('walls:changed', () => {
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => {
+    purgeInvalidRooms();
+    debounceTimer = null;
+  }, DEBOUNCE_MS);
+});
+
+EventBus.on('dividers:changed', () => {
+  if (debounceTimer) clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(() => {
+    purgeInvalidRooms();
+    debounceTimer = null;
+  }, DEBOUNCE_MS);
+});

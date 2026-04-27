@@ -515,18 +515,14 @@ export function computeRooms(wallHeightFallback = 2700) {
   //    Правило: фейс = комната ⇔ count(inner) > count(outer + torcy).
   //    Это математически чисто, не зависит от геометрических порогов
   //    и работает для любой формы и толщины стен.
-  const roomCandidates = [];
+    const roomCandidates = [];
   for (let i = 0; i < dedupedFaces.length; i++) {
     if (i === exteriorIndex) continue;
     const poly = dedupedFaces[i].poly;
     const area = polygonArea(poly);
     if (area < 50000) continue; // < 0.05 м² — мусорные фейсы
 
-    const stats = faceClassifications[i];
-    const innerCount = stats.inner;
-    const otherCount = stats.outer + stats.endStart + stats.endEnd;
-    if (innerCount <= otherCount) continue; // не комната, а артефакт/мёртвая зона
-
+    // Все полигоны, кроме внешнего и слишком мелких, считаем кандидатами
     roomCandidates.push({ poly, grossArea: area });
   }
 

@@ -515,34 +515,21 @@ export function computeRooms(wallHeightFallback = 2700) {
   //    Правило: фейс = комната ⇔ count(inner) > count(outer + torcy).
   //    Это математически чисто, не зависит от геометрических порогов
   //    и работает для любой формы и толщины стен.
-      const roomCandidates = [];
+  const roomCandidates = [];
   for (let i = 0; i < dedupedFaces.length; i++) {
     if (i === exteriorIndex) continue;
     const poly = dedupedFaces[i].poly;
     const area = polygonArea(poly);
-    if (area < 50000) continue; // < 0.05 м² — мусор
+    if (area < 50000) continue; // < 0.05 м² — мусорные фейсы
 
     const stats = faceClassifications[i];
-    // Комната должна иметь хотя бы одну внутреннюю грань стены (inner)
-
-  console.log('=== DEDUPED FACES (всего ' + dedupedFaces.length + ') ===');
-  for (let i = 0; i < dedupedFaces.length; i++) {
-    const poly = dedupedFaces[i].poly;
-    const area = polygonArea(poly);
-    const stats = faceClassifications[i];
-    console.log(
-      `Face ${i}: area=${(area/1e6).toFixed(2)} m², ` +
-      `inner=${stats.inner}, outer=${stats.outer}, endStart=${stats.endStart}, endEnd=${stats.endEnd}, unknown=${stats.unknown}, ` +
-      `isExterior=${i === exteriorIndex}`
-    );
-  }
-  console.log('============================');
-    
-    if (stats.inner === 0) continue;
+    const innerCount = stats.inner;
+    const otherCount = stats.outer + stats.endStart + stats.endEnd;
+    if (innerCount <= otherCount) continue; // не комната, а артефакт/мёртвая зона
 
     roomCandidates.push({ poly, grossArea: area });
   }
-  
+
   if (roomCandidates.length === 0) {
     EventBus.emit('rooms:computed');
     return;

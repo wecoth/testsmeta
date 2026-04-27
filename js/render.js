@@ -217,9 +217,6 @@ export function redraw(ps) {
   drawDividers(ps.selectedItems);
   drawMeasures(ps.selectedItems);   // ← добавить
   drawOpenings(ps.selectedItems, ps.defaultDoorHinge, ps.defaultDoorSwing);
-  ///drawWallDimensions();
-  ///drawOpeningWidthDimensions();
-  ///drawOpeningLeaders(exteriorWallIds);
   drawSelectedHandles(ps.tool, ps.selectedItems, ps.wallResizeState);
   // Stage 1: базовая линия для выделенных стен (жёлтый пунктир)
   for (const item of ps.selectedItems) {
@@ -356,7 +353,6 @@ function drawRoomFills(selectedItems) {
     _ctx.save();
 
     if (r.polygon && r.polygon.length >= 3) {
-      // Новый векторный метод
       _ctx.beginPath();
       const first = toScreen(r.polygon[0].x, r.polygon[0].y);
       _ctx.moveTo(first.x, first.y);
@@ -367,27 +363,14 @@ function drawRoomFills(selectedItems) {
       _ctx.closePath();
       _ctx.fillStyle = ROOM_COLORS[i % ROOM_COLORS.length];
       _ctx.fill();
-      // Тонкая обводка для устранения возможных зазоров
       _ctx.strokeStyle = ROOM_COLORS[i % ROOM_COLORS.length];
       _ctx.lineWidth = 1;
       _ctx.stroke();
-    } else if (r.cells) {
-      // Старый метод (fallback)
-      const OVERLAP_MM = 32;
-      _ctx.beginPath();
-      for (const c of r.cells) {
-        const p = toScreen(c.x1 - OVERLAP_MM / 2, c.y1 - OVERLAP_MM / 2);
-        const w = (c.x2 - c.x1 + OVERLAP_MM) * scale;
-        const h = (c.y2 - c.y1 + OVERLAP_MM) * scale;
-        _ctx.rect(p.x, p.y, w, h);
-      }
-      _ctx.fillStyle = ROOM_COLORS[i % ROOM_COLORS.length];
-      _ctx.fill();
     }
 
-    // Текст метки (как было)
+    // Текст метки
     if (scale > 0.08) {
-      const center = r.center || (r.polygon ? polygonCentroid(r.polygon) : { x: 0, y: 0 });
+      const center = r.center || polygonCentroid(r.polygon);
       const sc = toScreen(center.x, center.y);
       _ctx.fillStyle = DRAW_COLORS.roomLabel;
       _ctx.font = `600 ${(scale * 200).toFixed(1)}px Merriweather, Onest, Inter, sans-serif`;

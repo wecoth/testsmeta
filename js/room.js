@@ -1154,25 +1154,7 @@ export function computeRoomForPolygon(poly) {
 }
 
 // ══════════════════════════════════════════════════════════════════
-// РЕАКТИВНОСТЬ
+// РЕАКТИВНОСТЬ (отключена)
+// Комнаты создаются вручную инструментом «Комната».
+// Автоматический пересчёт отключён, чтобы не создавать мусор.
 // ══════════════════════════════════════════════════════════════════
-let debounceTimer = null;
-const DEBOUNCE_MS = 20;
-
-//EventBus.on('walls:changed', () => {
-  if (debounceTimer) clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => {
-    computeRooms(_wallHeightFallback);
-    debounceTimer = null;
-  }, DEBOUNCE_MS);
-});
-
-//EventBus.on('dividers:changed', () => {
-  if (debounceTimer) clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => {
-    computeRooms(_wallHeightFallback);
-    debounceTimer = null;
-  }, DEBOUNCE_MS);
-});
-
-EventBus.emit('rooms:computed')

@@ -1,6 +1,6 @@
 // ─── MAIN.JS ──────────────────────────────────────────────────────
 import { appState } from './state.js';
-import { as updateExpl } from './room.js';
+import { updateExpl } from './room.js';
 import { initPlanner, setTool, forceRedraw, getViewport } from './ui-planner.js';
 import { renderToImage } from './render.js';
 import { setViewport } from './snapping.js';

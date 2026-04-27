@@ -66,14 +66,18 @@ export class RoomTool extends BaseTool {
       return false;
     }
 
-    const room = createRoomFromCandidate(this.hoveredCandidate);
-    if (!room) {
-      alert('Не удалось создать комнату (возможно, она уже существует)');
+    // Проверим, не существует ли уже комната с таким ключом
+    const key = candidateKey(this.hoveredCandidate);
+    if (appState.rooms.some(r => r.key === key)) {
+      alert('Комната уже существует');
+      this.hoveredCandidate = null;
+      this.hoverLabel = '';
+      this.ui.doRedraw();
       return false;
     }
 
-    // выполняем команду (для истории undo/redo)
-    executeCommand(new AddRoomCommand(room.polygon, room.key));
+    // Только выполняем команду – она сама вызовет createRoomFromCandidate
+    executeCommand(new AddRoomCommand(this.hoveredCandidate));
     this.hoveredCandidate = null;
     this.hoverLabel = '';
     this.ui.doRedraw();

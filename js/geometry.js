@@ -13,6 +13,18 @@ export function segmentIntersection(a, b, epsilon = 0.001) {
   return { x: a.x1 + r.x * t, y: a.y1 + r.y * t, t, u };
 }
 
+export function applyWallOffset(cx, cy, angle, offset, thickness) {
+  if (offset === 'center') return { x: cx, y: cy };
+  const px = -Math.sin(angle);
+  const py =  Math.cos(angle);
+  const sign = offset === 'right' ? 1 : -1;
+  return { x: cx + sign * px * thickness / 2, y: cy + sign * py * thickness / 2 };
+}
+
+export function clamp(v, min, max) {
+  return Math.min(max, Math.max(min, v));
+}
+
 export function polygonSignedArea(poly) {
   if (poly.length < 3) return 0;
   let area = 0;

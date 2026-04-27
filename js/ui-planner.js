@@ -352,7 +352,7 @@ function updateEditPanel() {
         <div class="choice-grid"><button class="choice-btn compact" type="button" data-edit-door-swing="-1">На себя</button><button class="choice-btn compact" type="button" data-edit-door-swing="1">От себя</button></div></div>`;
     }
     dom.editContent.innerHTML = html;
-  } else if (it.type === 'room') {
+   } else if (it.type === 'room') {
     const room = appState.rooms.find(r => r.key === it.id);
     if (!room) return;
     dom.editContent.innerHTML = `
@@ -362,6 +362,8 @@ function updateEditPanel() {
       <div class="edit-row"><label>Периметр</label><b>${(room.metrics?.perimeterFloorM ?? room.perimeter).toFixed(2)} м.п.</b></div>
     `;
   }
+  }  // ← ВОТ ЭТА СКОБКА (закрывает весь блок if-else if и саму функцию)
+
   syncDoorButtons();
   
 function updateHistoryBtns() {

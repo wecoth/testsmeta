@@ -479,12 +479,15 @@ export function findFaces(vertices, edges) {
 
       const polygon = path.map(p => vertices[p.v]);
 
-      // Дедупликация: каждый контур находится дважды (forward + backward).
-      // Нормализуем ключ полигона — сортируем ID вершин — и пропускаем дубли.
+      // Дедупликация по набору вершин
       const vertexIds = path.map(p => p.v).slice().sort((a, b) => a - b);
       const faceKey = vertexIds.join(',');
       if (seenFaces.has(faceKey)) continue;
       seenFaces.add(faceKey);
+
+      // В canvas (Y вниз): внутренние комнаты = CW = signedArea < 0.
+      // Внешний обход (CCW, signedArea > 0) — это «фон» вокруг всего плана, не комната.
+      if (polygonSignedArea(polygon) > 0) continue;
 
       faces.push(polygon);
     }

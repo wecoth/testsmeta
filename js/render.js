@@ -1303,25 +1303,73 @@ function drawInteriorWallDimensions(room) {
     const nx = -uy, ny = ux;
     const halfT = wall.thickness / 2;
     const x1 = wall.cx1 ?? wall.x1, y1 = wall.cy1 ?? wall.y1;
+    const x2 = wall.cx2 ?? wall.x2, y2 = wall.cy2 ?? wall.y2;
+
+    // Для каждого конца определяем — упирается ли он в другую стену простенка
+    // и с какой стороны от cx/cy эта стена находится.
+    // Это нужно чтобы рассчитать удлинение каждой грани.
+    function findNeighborSide(endX, endY) {
+      // Возвращает { thickness, sideSign } если соседняя стена найдена,
+      // иначе null. sideSign = +1 если соседняя стена с +нормали, -1 если с -.
+      const k = endKey(endX, endY);
+      for (const w of interiorWallList) {
+        if (w === wall) continue;
+        const wk1 = endKey(w.cx1 ?? w.x1, w.cy1 ?? w.y1);
+        const wk2 = endKey(w.cx2 ?? w.x2, w.cy2 ?? w.y2);
+        if (wk1 !== k && wk2 !== k) continue;
+        // Соседняя стена найдена. Определяем с какой стороны от cx/cy она
+        // (по нормали к нашей стене).
+        // Берём середину соседней стены — это точка внутри её тела.
+        const wmx = ((w.cx1 ?? w.x1) + (w.cx2 ?? w.x2)) / 2;
+        const wmy = ((w.cy1 ?? w.y1) + (w.cy2 ?? w.y2)) / 2;
+        // Проекция вектора (wmid - end) на нормаль нашей стены
+        const dx = wmx - endX, dy = wmy - endY;
+        const proj = dx * nx + dy * ny;
+        return {
+          thickness: w.thickness || 0,
+          sideSign: proj >= 0 ? +1 : -1,
+        };
+      }
+      return null;
+    }
+
+    const neighbor1 = findNeighborSide(x1, y1); // соседняя у конца 1 (start)
+    const neighbor2 = findNeighborSide(x2, y2); // соседняя у конца 2 (end)
 
     // Две длинные грани: sideSign = +1 (по +нормали) и -1 (по -нормали)
     for (const sideSign of [1, -1]) {
-      const label = `${Math.round(wlen)} мм`;
+      // Для каждого конца определяем удлинение этой грани.
+      // Логика: если соседняя стена есть И она с ТОЙ ЖЕ стороны что грань
+      // (sideSign совпадает с neighbor.sideSign) → грань идёт по ВНЕШНЕМУ
+      // углу Г, удлиняется на thickness соседней.
+      // Если соседняя есть и с противоположной стороны → грань идёт по
+      // ВНУТРЕННЕМУ углу, длина = cx/cy без удлинения.
+      // Если соседней нет → конец свободный, грань = cx/cy.
+      let extStart = 0, extEnd = 0;
+      if (neighbor1 && neighbor1.sideSign === sideSign) extStart = neighbor1.thickness;
+      if (neighbor2 && neighbor2.sideSign === sideSign) extEnd   = neighbor2.thickness;
+
+      const segLen = wlen + extStart + extEnd;
+      const label = `${Math.round(segLen)} мм`;
       const lineOff = sideSign * (halfT + LINE_OFF_MM);
       const textOff = sideSign * (halfT + TEXT_OFF_MM);
 
-      const wA = { x: x1 + ux * GAP_MM + nx * lineOff,
-                   y: y1 + uy * GAP_MM + ny * lineOff };
-      const wB = { x: x1 + ux * (wlen - GAP_MM) + nx * lineOff,
-                   y: y1 + uy * (wlen - GAP_MM) + ny * lineOff };
-      const wL = { x: x1 + ux * (wlen / 2) + nx * textOff,
-                   y: y1 + uy * (wlen / 2) + ny * textOff };
+      // Концы размерной линии: с учётом удлинения
+      const sFrom = -extStart;          // вдоль оси: начало грани (может быть < 0)
+      const sTo   = wlen + extEnd;      // конец грани (может быть > wlen)
+
+      const wA = { x: x1 + ux * (sFrom + GAP_MM) + nx * lineOff,
+                   y: y1 + uy * (sFrom + GAP_MM) + ny * lineOff };
+      const wB = { x: x1 + ux * (sTo - GAP_MM) + nx * lineOff,
+                   y: y1 + uy * (sTo - GAP_MM) + ny * lineOff };
+      const wL = { x: x1 + ux * ((sFrom + sTo) / 2) + nx * textOff,
+                   y: y1 + uy * ((sFrom + sTo) / 2) + ny * textOff };
 
       const sA = toScreen(wA.x, wA.y);
       const sB = toScreen(wB.x, wB.y);
       const sL = toScreen(wL.x, wL.y);
 
-      if (wlen >= MIN_INLINE_MM) {
+      if (segLen >= MIN_INLINE_MM) {
         _ctx.strokeStyle = '#111';
         _ctx.lineWidth = 1.0;
         _ctx.setLineDash([]);
@@ -1338,8 +1386,9 @@ function drawInteriorWallDimensions(room) {
         });
       } else {
         // Leader-line для коротких сегментов
-        const attachW = { x: x1 + ux * (wlen / 2) + nx * sideSign * halfT,
-                          y: y1 + uy * (wlen / 2) + ny * sideSign * halfT };
+        const segCx = (sFrom + sTo) / 2;
+        const attachW = { x: x1 + ux * segCx + nx * sideSign * halfT,
+                          y: y1 + uy * segCx + ny * sideSign * halfT };
         const diagW = { x: attachW.x + nx * sideSign * LEADER_OUT_MM,
                         y: attachW.y + ny * sideSign * LEADER_OUT_MM };
         const shelfW = { x: diagW.x + ux * SHELF_MM,

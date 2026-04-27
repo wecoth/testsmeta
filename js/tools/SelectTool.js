@@ -16,6 +16,7 @@ import {
 } from '../wall.js';
 import { hitTestWallResizeHandle, getOpeningScreenBounds } from '../render.js';
 import { EventBus } from '../eventBus.js';
+import { isPointInPolygon } from '../geometry.js';
 
 function distanceToSegment(px, py, x1, y1, x2, y2) {
   const dx = x2 - x1, dy = y2 - y1;
@@ -451,6 +452,13 @@ export class SelectTool extends BaseTool {
     }
     if (bestWall) return { type: 'wall', id: bestWall.id };
 
+    // Проверка комнат (после всех остальных объектов, самый низкий приоритет)
+    for (const room of appState.rooms) {
+      if (room.polygon && isPointInPolygon({ x: wx, y: wy }, room.polygon)) {
+        return { type: 'room', id: room.key };
+      }
+    }
+    
     return null;
   }
 

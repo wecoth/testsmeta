@@ -694,6 +694,9 @@ export function computeRooms(wallHeightFallback = 2700) {
       openingsArea: metrics.openingsAreaM2,
       metrics,
       wallIds: [...boundaryWallIds],
+      // Висящие стены и простенки внутри помещения — для разметки в render.js
+      // и других модулей. Каждая запись { wall, lengthMm }.
+      interiorWalls,
     });
   }
 

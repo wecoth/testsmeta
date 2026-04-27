@@ -1,6 +1,7 @@
 // ─── GEOMETRY.JS ──────────────────────────────────────────────────
 // pure math: segment intersections, graph, faces, polygon utilities
 
+// Базовая геометрия отрезков
 export function segmentIntersection(a, b, epsilon = 0.001) {
   const r = { x: a.x2 - a.x1, y: a.y2 - a.y1 };
   const s = { x: b.x2 - b.x1, y: b.y2 - b.y1 };
@@ -11,6 +12,26 @@ export function segmentIntersection(a, b, epsilon = 0.001) {
   const u = (qp.x * r.y - qp.y * r.x) / denom;
   if (t < -epsilon || t > 1 + epsilon || u < -epsilon || u > 1 + epsilon) return null;
   return { x: a.x1 + r.x * t, y: a.y1 + r.y * t, t, u };
+}
+
+export function projectPointOntoSegment(point, segment) {
+  const dx = segment.x2 - segment.x1;
+  const dy = segment.y2 - segment.y1;
+  const len2 = dx * dx + dy * dy;
+  if (len2 < 0.0001) {
+    return {
+      x: segment.x1, y: segment.y1, t: 0,
+      distance: Math.hypot(point.x - segment.x1, point.y - segment.y1)
+    };
+  }
+  let t = ((point.x - segment.x1) * dx + (point.y - segment.y1) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  const proj = { x: segment.x1 + dx * t, y: segment.y1 + dy * t };
+  return { ...proj, t, distance: Math.hypot(point.x - proj.x, point.y - proj.y) };
+}
+
+export function clamp(v, min, max) {
+  return Math.min(max, Math.max(min, v));
 }
 
 export function normalizeDirection(dir) {
@@ -28,10 +49,7 @@ export function applyWallOffset(cx, cy, angle, offset, thickness) {
   return { x: cx + sign * px * thickness / 2, y: cy + sign * py * thickness / 2 };
 }
 
-export function clamp(v, min, max) {
-  return Math.min(max, Math.max(min, v));
-}
-
+// Полигоны
 export function polygonSignedArea(poly) {
   if (poly.length < 3) return 0;
   let area = 0;
@@ -79,10 +97,11 @@ export function isPointInPolygon(point, poly) {
   return inside;
 }
 
+// Граф и комнаты (работает с массивом отрезков {id, x1,y1,x2,y2})
+
 /**
  * Находит все уникальные вершины графа стен/разделителей.
- * Принимает массив отрезков вида { id, x1, y1, x2, y2 }.
- * EPS увеличивает до 5 мм для надёжности смыкания.
+ * Принимает массив простых отрезков.
  */
 export function findAllIntersections(segments, eps = 5) {
   const EPS_MERGE = 5;
@@ -203,9 +222,8 @@ export function buildWallGraph(segments, points, eps = 5) {
     const key = `${a}-${b}`;
     if (!edgeMap.has(key)) {
       edgeMap.set(key, { id: `e${edgeMap.size}`, v1: e.v1, v2: e.v2, wallId: e.wallId });
-    } else {
-      // если несколько стен на одном ребре, сохраняем первую попавшуюся (для поиска граней не важно)
     }
+    // Если несколько стен на одном ребре — игнорируем повтор, для графа важно только наличие ребра
   }
 
   return { vertices, edges: Array.from(edgeMap.values()) };
@@ -213,8 +231,7 @@ export function buildWallGraph(segments, points, eps = 5) {
 
 /**
  * Находит все грани (faces) в планарном графе.
- * В canvas (y вниз) внутренние комнаты = CW (signedArea < 0).
- * Внешний обход (CCW) отбрасывается.
+ * Внешний контур (CCW) отбрасывается.
  */
 export function findFaces(vertices, edges) {
   const adj = Array.from({ length: vertices.length }, () => []);

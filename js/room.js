@@ -32,7 +32,7 @@ export let exteriorWallIds = new Set();
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ (остаются без изменений)
 // ══════════════════════════════════════════════════════════════════
 
-function findAllWallsForEdge(ax, ay, bx, by, walls, eps = 3) {
+function findAllWallsForEdge(ax, ay, bx, by, walls, eps = 8) {
   const midX = (ax + bx) / 2, midY = (ay + by) / 2;
   const edgeLen = Math.hypot(bx - ax, by - ay);
   if (edgeLen < 1) return [];
@@ -170,14 +170,11 @@ function getSlimWalls(walls, dividers) {
     x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2,
     cx1: w.cx1 ?? w.x1, cy1: w.cy1 ?? w.y1,
     cx2: w.cx2 ?? w.x2, cy2: w.cy2 ?? w.y2,
-    // Сохраняем реальную толщину — нужна для findAllWallsForEdge:
-    // функция ищет стену по midpoint ребра полигона, и при thickness=0
-    // перпендикулярное расстояние от середины ребра до оси стены может
-    // превышать eps, если ребро не лежит точно на cx/cy (float-погрешность).
-    // С реальной толщиной кандидат candidates[] включает обе грани — матч надёжнее.
-    thickness: w.thickness || 0,
+    // thickness=0: граф строится ТОЛЬКО по осям (cx/cy).
+    // Реальная толщина используется только в метриках (computeRoomForPolygon).
+    thickness: 0,
     height: w.height || _wallHeightFallback,
-    offset: w.offset || 'left',
+    offset: 'left',
     isDivider: false,
   }));
 
@@ -231,11 +228,32 @@ function rebuildAllRooms() {
     const faces = findFaces(vertices, edges);
     const newRooms = [];
 
-    for (const face of faces) {
-      const poly = face.map(v => ({ x: v.x, y: v.y }));
-      if (polygonArea(poly) < 50000) continue; // мусорные фейсы < 0.05 м²
+    // Все стены и разделители для проверки принадлежности ребра
+    const allWallsFlat = [...walls, ...(dividers.map(d => ({
+      id: `div_${d.id}`, cx1: d.x1, cy1: d.y1, cx2: d.x2, cy2: d.y2,
+      thickness: 0, offset: 'left', isDivider: true,
+    })))];
 
-      // Используем готовую функцию для создания объекта комнаты по полигону
+    // Площадь самого большого фейса — это внешний контур, его пропускаем
+    const faceAreas = faces.map(f => polygonArea(f.map(v => ({ x: v.x, y: v.y }))));
+    const maxArea = Math.max(...faceAreas);
+
+    for (let fi = 0; fi < faces.length; fi++) {
+      const poly = faces[fi].map(v => ({ x: v.x, y: v.y }));
+      const area = faceAreas[fi];
+
+      if (area < 50000) continue; // мусорные фейсы < 0.05 м²
+      if (area >= maxArea * 0.98) continue; // внешний фейс (самый большой)
+
+      // Проверяем что хотя бы одно ребро полигона лежит на реальной стене/разделителе
+      let hasWallEdge = false;
+      for (let k = 0; k < poly.length; k++) {
+        const a = poly[k], b = poly[(k + 1) % poly.length];
+        const found = findAllWallsForEdge(a.x, a.y, b.x, b.y, allWallsFlat);
+        if (found.length > 0) { hasWallEdge = true; break; }
+      }
+      if (!hasWallEdge) continue;
+
       const room = computeRoomForPolygon(poly);
       if (room) {
         newRooms.push(room);

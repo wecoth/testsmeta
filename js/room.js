@@ -218,6 +218,106 @@ function wallFootprintArea(wall, lengthMm) {
 }
 
 /**
+ * Удаляет из графа "висящие хвосты" — подграфы, соединённые с основной
+ * сетью контуров через единственную точку сочленения (articulation point).
+ *
+ * В нашей модели каждая стена даёт inner+outer+2 торца. Висящий простенок
+ * образует замкнутую микро-петлю (4-цикл) на свободном конце, подвешенную
+ * к остальной сети через ОДНУ ТОЧКУ. Это означает что в графе нет ни
+ * мостов, ни вершин степени 1 — нужен анализ через biconnected components.
+ *
+ * Алгоритм Тарьяна для BCC:
+ *   1. DFS обход с подсчётом disc[v] и low[v].
+ *   2. Каждое ребро относится к одному BCC. При завершении BCC (когда
+ *      обнаружена точка сочленения) — все накопленные рёбра образуют
+ *      одну компоненту.
+ *   3. Самый крупный BCC (по числу рёбер) — "сердцевина" с реальными
+ *      контурами помещений. Остальные удаляем.
+ *
+ * Удалённые стены не теряются: они потом найдутся через
+ * clipWallAxisToPolygon как interiorWalls помещения, в котором лежат.
+ */
+function pruneDanglingTails(vertices, edges) {
+  const n = vertices.length;
+  if (edges.length === 0) return edges;
+
+  const adj = Array.from({ length: n }, () => []);
+  for (let i = 0; i < edges.length; i++) {
+    adj[edges[i].v1].push({ to: edges[i].v2, ei: i });
+    adj[edges[i].v2].push({ to: edges[i].v1, ei: i });
+  }
+
+  // BCC через DFS Тарьяна. Каждое ребро попадает ровно в один BCC.
+  const disc = new Array(n).fill(-1);
+  const low  = new Array(n).fill(-1);
+  const edgeStack = []; // стек рёбер (eid) для извлечения BCC
+  const bccEdges = []; // массив компонент: каждая = массив ei
+  let timer = 0;
+
+  // Итеративный DFS чтобы избежать переполнения стека
+  function dfsBCC(root) {
+    disc[root] = low[root] = timer++;
+    const callStack = [{ u: root, parentEi: -1, iter: 0 }];
+    while (callStack.length) {
+      const frame = callStack[callStack.length - 1];
+      const { u, parentEi } = frame;
+      if (frame.iter < adj[u].length) {
+        const { to, ei } = adj[u][frame.iter++];
+        if (ei === parentEi) continue;
+        if (disc[to] === -1) {
+          disc[to] = low[to] = timer++;
+          edgeStack.push(ei);
+          callStack.push({ u: to, parentEi: ei, iter: 0 });
+        } else if (disc[to] < disc[u]) {
+          // back-edge — добавляем в стек, обновляем low
+          edgeStack.push(ei);
+          low[u] = Math.min(low[u], disc[to]);
+        }
+      } else {
+        // конец обработки u — возвращаемся к родителю
+        callStack.pop();
+        if (callStack.length) {
+          const parent = callStack[callStack.length - 1];
+          low[parent.u] = Math.min(low[parent.u], low[u]);
+          // Если parent.u — точка сочленения для u, выгружаем BCC
+          if (low[u] >= disc[parent.u]) {
+            const bcc = [];
+            // Извлекаем рёбра до тех пор пока не извлечём parentEi (ребро,
+            // по которому мы пришли в u — это тоже часть текущего BCC)
+            while (edgeStack.length) {
+              const top = edgeStack.pop();
+              bcc.push(top);
+              if (top === parentEi) break;
+            }
+            if (bcc.length > 0) bccEdges.push(bcc);
+          }
+        }
+      }
+    }
+  }
+  for (let v = 0; v < n; v++) {
+    if (disc[v] === -1 && adj[v].length > 0) dfsBCC(v);
+  }
+
+  if (bccEdges.length === 0) return edges;
+
+  // Самая большая BCC по числу рёбер — сердцевина
+  let mainIdx = 0;
+  for (let i = 1; i < bccEdges.length; i++) {
+    if (bccEdges[i].length > bccEdges[mainIdx].length) mainIdx = i;
+  }
+
+  // Все рёбра НЕ из главной BCC удаляются
+  const keep = new Set(bccEdges[mainIdx]);
+  const removed = new Set();
+  for (let i = 0; i < edges.length; i++) {
+    if (!keep.has(i)) removed.add(edges[i].id);
+  }
+
+  return edges.filter(e => !removed.has(e.id));
+}
+
+/**
  * Определяет, является ли фейс "мёртвой зоной" — пространством между
  * двумя параллельными стенами (физической толщиной общей стены).
  *
@@ -324,8 +424,28 @@ export function computeRooms(wallHeightFallback = 2700) {
     return;
   }
 
-  // 2. Находим все грани
-  const faces = findFaces(vertices, edges);
+  // 1.5. ЧИСТКА ВИСЯЩИХ ХВОСТОВ.
+  // Простенки, ниши, выступы — это легитимная геометрия. В графе они
+  // выглядят как "хвосты": цепочки рёбер, ведущих к вершине степени 1
+  // (конец стены, висящий в воздухе).
+  //
+  // Чтобы findFaces корректно нашёл замкнутый контур помещения, надо
+  // временно удалить эти хвосты из графа. Удалённые стены потом учтутся
+  // как interiorWalls помещения через clipWallAxisToPolygon — она найдёт
+  // их геометрически как "стены внутри полигона комнаты".
+  //
+  // Алгоритм: итеративно удаляем рёбра при вершинах со степенью 1,
+  // пока такие вершины ещё есть. Это срезает все хвосты целиком, не
+  // трогая замкнутые циклы.
+  const cleanEdges = pruneDanglingTails(vertices, edges);
+
+  if (cleanEdges.length < 3) {
+    EventBus.emit('rooms:computed');
+    return;
+  }
+
+  // 2. Находим все грани в очищенном графе
+  const faces = findFaces(vertices, cleanEdges);
 
   // Дедупликация фейсов: одинаковые полигоны (по центроиду + знаку площади)
   const dedupedFaces = [];

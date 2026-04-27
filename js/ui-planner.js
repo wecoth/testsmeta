@@ -29,6 +29,10 @@ let voiceKeyPressed = false;
 // ── DOM refs ──────────────────────────────────────────────────────
 let dom = {};
 
+function escHtml(s) {
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 export function initPlanner(domRefs) {
   dom = domRefs;
   canvas = domRefs.canvas;
@@ -334,7 +338,7 @@ function updateEditPanel() {
         doRedraw();
       });
     }
-  } else if (it.type === 'opening') {
+    } else if (it.type === 'opening') {
     const op = appState.openings.find(o => o.id === it.id);
     if (!op) return;
     const tl = op.type === 'window' ? 'Окно' : 'Дверь';
@@ -348,10 +352,18 @@ function updateEditPanel() {
         <div class="choice-grid"><button class="choice-btn compact" type="button" data-edit-door-swing="-1">На себя</button><button class="choice-btn compact" type="button" data-edit-door-swing="1">От себя</button></div></div>`;
     }
     dom.editContent.innerHTML = html;
+  } else if (it.type === 'room') {
+    const room = appState.rooms.find(r => r.key === it.id);
+    if (!room) return;
+    dom.editContent.innerHTML = `
+      <div class="edit-row"><label>Название</label><b>${escHtml(room.name)}</b></div>
+      <div class="edit-row"><label>Площадь</label><b>${room.area.toFixed(2)} м²</b></div>
+      <div class="edit-row"><label>Стены (нетто)</label><b>${(room.metrics?.wallAreaNetM2 ?? room.wallArea).toFixed(2)} м²</b></div>
+      <div class="edit-row"><label>Периметр</label><b>${(room.metrics?.perimeterFloorM ?? room.perimeter).toFixed(2)} м.п.</b></div>
+    `;
   }
   syncDoorButtons();
-}
-
+  
 function updateHistoryBtns() {
   if (dom.btnUndo) dom.btnUndo.disabled = !canUndo();
   if (dom.btnRedo) dom.btnRedo.disabled = !canRedo();

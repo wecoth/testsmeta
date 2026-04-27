@@ -520,8 +520,6 @@ export function computeRooms(wallHeightFallback = 2700) {
     if (i === exteriorIndex) continue;
     const poly = dedupedFaces[i].poly;
     const area = polygonArea(poly);
-    const stats = faceClassifications[i];
-    console.log(`Face ${i}: area=${(area/1e6).toFixed(2)} m², inner=${stats.inner}, outer+ends=${stats.outer+stats.endStart+stats.endEnd}, isExterior=${i === exteriorIndex}`);
     if (area < 50000) continue; // < 0.05 м² — мусорные фейсы
 
     const stats = faceClassifications[i];

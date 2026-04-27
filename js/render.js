@@ -1305,26 +1305,34 @@ function drawInteriorWallDimensions(room) {
     const x1 = wall.cx1 ?? wall.x1, y1 = wall.cy1 ?? wall.y1;
     const x2 = wall.cx2 ?? wall.x2, y2 = wall.cy2 ?? wall.y2;
 
-    // Для каждого конца определяем — упирается ли он в другую стену простенка
-    // и с какой стороны от cx/cy эта стена находится.
-    // Это нужно чтобы рассчитать удлинение каждой грани.
+    // Все стены помещения (граничные + простенки) — в них ищем соседнюю,
+    // которая упирается в наш конец. Простенок может стыковаться с
+    // граничной стеной (как часть угла комнаты), не только с другой
+    // простеночной стеной.
+    const allWallsInRoom = [
+      ...(room.boundarySegments?.map(bs => bs.wall).filter(Boolean) ?? []),
+      ...interiorWallList,
+    ];
+
     function findNeighborSide(endX, endY) {
       // Возвращает { thickness, sideSign } если соседняя стена найдена,
       // иначе null. sideSign = +1 если соседняя стена с +нормали, -1 если с -.
       const k = endKey(endX, endY);
-      for (const w of interiorWallList) {
+      for (const w of allWallsInRoom) {
         if (w === wall) continue;
         const wk1 = endKey(w.cx1 ?? w.x1, w.cy1 ?? w.y1);
         const wk2 = endKey(w.cx2 ?? w.x2, w.cy2 ?? w.y2);
         if (wk1 !== k && wk2 !== k) continue;
-        // Соседняя стена найдена. Определяем с какой стороны от cx/cy она
-        // (по нормали к нашей стене).
-        // Берём середину соседней стены — это точка внутри её тела.
+        // Соседняя найдена. Определяем с какой стороны от нашей cx/cy
+        // лежит её тело — берём середину её отрезка.
         const wmx = ((w.cx1 ?? w.x1) + (w.cx2 ?? w.x2)) / 2;
         const wmy = ((w.cy1 ?? w.y1) + (w.cy2 ?? w.y2)) / 2;
-        // Проекция вектора (wmid - end) на нормаль нашей стены
         const dx = wmx - endX, dy = wmy - endY;
         const proj = dx * nx + dy * ny;
+        // Если соседняя стена коллинеарна нашей (продолжение по той же
+        // линии), proj может быть очень близко к 0 — её тело не сбоку,
+        // а вдоль. Такие соседи не удлиняют грань нашей стены.
+        if (Math.abs(proj) < 5) continue;
         return {
           thickness: w.thickness || 0,
           sideSign: proj >= 0 ? +1 : -1,

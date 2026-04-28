@@ -66,16 +66,19 @@ export function computeCandidatePolygons() {
     const candidates = [];
     // отфильтровываем внешний контур (самый большой) и слишком маленькие
     const faceAreas = faces.map(f => polygonArea(f.map(v => ({ x: v.x, y: v.y }))));
-    const maxArea = Math.max(...faceAreas);
 
-    for (let i = 0; i < faces.length; i++) {
-      const poly = faces[i].map(v => ({ x: v.x, y: v.y }));
-      const area = faceAreas[i];
-      if (area < 200000) continue;          // менее 0.2 м² — мусор
-      if (area >= maxArea * 0.98) continue; // внешний контур
-      candidates.push(poly);
-    }
+// Внешний контур в планарном графе — это грань с МАКСИМАЛЬНОЙ площадью
+// среди тех, что заведомо больше любой реальной комнаты.
+// Но если граней только одна — это и есть комната, не внешний контур.
+const maxArea = faces.length > 1 ? Math.max(...faceAreas) : Infinity;
 
+for (let i = 0; i < faces.length; i++) {
+  const poly = faces[i].map(v => ({ x: v.x, y: v.y }));
+  const area = faceAreas[i];
+  if (area < 200000) continue;
+  if (area >= maxArea * 0.98) continue;
+  candidates.push(poly);
+}
     return candidates;
   } catch (e) {
     console.warn('Ошибка вычисления кандидатов:', e);

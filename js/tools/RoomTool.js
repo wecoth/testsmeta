@@ -20,6 +20,31 @@ export class RoomTool extends BaseTool {
     this.labelScreenPos = { x: 0, y: 0 };
   }
 
+onMouseMove(pos, world, e) {
+  // ВРЕМЕННЫЙ ОТЛАДЧИК — удалить после диагностики
+  if (!this._debugThrottle || Date.now() - this._debugThrottle > 500) {
+    this._debugThrottle = Date.now();
+    const walls = appState.walls;
+    console.group('RoomTool debug');
+    console.log('walls count:', walls.length);
+    console.log('walls sample:', walls.slice(0,2).map(w => ({
+      id: w.id,
+      cx1: w.cx1, cy1: w.cy1, cx2: w.cx2, cy2: w.cy2,
+      x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2
+    })));
+    console.log('world pos:', world);
+
+    import('../room.js').then(({ computeCandidatePolygons }) => {
+      const candidates = computeCandidatePolygons();
+      console.log('candidates.length:', candidates.length);
+      if (candidates.length > 0) {
+        console.log('candidate[0] vertices:', candidates[0].length, candidates[0]);
+      }
+    });
+    console.groupEnd();
+  }
+  // ... остальной код
+  
   activate() {
     this.ui.canvas.style.cursor = 'crosshair';
     this.hoveredCandidate = null;

@@ -6,6 +6,7 @@ import { executeCommand } from '../commands/CommandHistory.js';
 import { AddRoomCommand } from '../commands/AddRoomCommand.js';
 import {
   getCandidateAtPoint,
+  computeCandidatePolygons,
   createRoomFromCandidate
 } from '../room.js';
 import { polygonArea } from '../geometry.js';
@@ -15,36 +16,12 @@ export class RoomTool extends BaseTool {
   constructor(ui) {
     super(ui);
     this.name = 'room';
-    this.hoveredCandidate = null;   // полигон под курсором (мировые координаты)
-    this.hoverLabel = '';           // текст подсказки
+    this.hoveredCandidate = null;
+    this.hoverLabel = '';
     this.labelScreenPos = { x: 0, y: 0 };
+    this._debugThrottle = 0;
   }
 
-onMouseMove(pos, world, e) {
-  // ВРЕМЕННЫЙ ОТЛАДЧИК — удалить после диагностики
-  if (!this._debugThrottle || Date.now() - this._debugThrottle > 500) {
-    this._debugThrottle = Date.now();
-    const walls = appState.walls;
-    console.group('RoomTool debug');
-    console.log('walls count:', walls.length);
-    console.log('walls sample:', walls.slice(0,2).map(w => ({
-      id: w.id,
-      cx1: w.cx1, cy1: w.cy1, cx2: w.cx2, cy2: w.cy2,
-      x1: w.x1, y1: w.y1, x2: w.x2, y2: w.y2
-    })));
-    console.log('world pos:', world);
-
-    import('../room.js').then(({ computeCandidatePolygons }) => {
-      const candidates = computeCandidatePolygons();
-      console.log('candidates.length:', candidates.length);
-      if (candidates.length > 0) {
-        console.log('candidate[0] vertices:', candidates[0].length, candidates[0]);
-      }
-    });
-    console.groupEnd();
-  }
-  // ... остальной код
-  
   activate() {
     this.ui.canvas.style.cursor = 'crosshair';
     this.hoveredCandidate = null;
@@ -56,12 +33,32 @@ onMouseMove(pos, world, e) {
     this.ui.doRedraw();
   }
 
-  onMouseMove(pos, world) {
+  onMouseMove(pos, world, e) {
+    // ── ОТЛАДЧИК (удалить после диагностики) ──────────────────────
+    if (Date.now() - this._debugThrottle > 500) {
+      this._debugThrottle = Date.now();
+      const walls = appState.walls;
+      console.group('RoomTool debug');
+      console.log('walls count:', walls.length);
+      console.log('walls sample:', walls.slice(0, 2).map(w => ({
+        id: w.id,
+        cx1: w.cx1, cy1: w.cy1, cx2: w.cx2, cy2: w.cy2,
+        x1: w.x1,  y1: w.y1,  x2: w.x2,  y2: w.y2,
+      })));
+      console.log('world pos:', world);
+      const candidates = computeCandidatePolygons();
+      console.log('candidates.length:', candidates.length);
+      if (candidates.length > 0) {
+        console.log('candidate[0] verts:', candidates[0].length, candidates[0]);
+      }
+      console.groupEnd();
+    }
+    // ──────────────────────────────────────────────────────────────
+
     const old = this.hoveredCandidate;
-    // ищем кандидата под курсором
     const poly = getCandidateAtPoint(world);
+
     if (poly) {
-      // убедимся, что комнаты с таким ключём ещё нет (чтобы не предлагать создать дубликат)
       const key = candidateKey(poly);
       if (appState.rooms.some(r => r.key === key)) {
         this.hoveredCandidate = null;
@@ -71,7 +68,6 @@ onMouseMove(pos, world, e) {
         const area = (polygonArea(poly) / 1e6).toFixed(2);
         const nextIndex = appState.rooms.length + 1;
         this.hoverLabel = `Комната ${nextIndex}\n${area} м²`;
-        // экранные координаты для подсказки (покажем справа-снизу от курсора)
         const sp = toScreen(polygonCentroidSimple(poly).x, polygonCentroidSimple(poly).y);
         this.labelScreenPos = { x: sp.x + 15, y: sp.y + 15 };
       }
@@ -81,7 +77,7 @@ onMouseMove(pos, world, e) {
     }
 
     if (old !== this.hoveredCandidate) {
-      this.ui.doRedraw(); // перерисуем, чтобы показать/скрыть подсказку
+      this.ui.doRedraw();
     }
   }
 
@@ -91,7 +87,6 @@ onMouseMove(pos, world, e) {
       return false;
     }
 
-    // Проверим, не существует ли уже комната с таким ключом
     const key = candidateKey(this.hoveredCandidate);
     if (appState.rooms.some(r => r.key === key)) {
       alert('Комната уже существует');
@@ -101,7 +96,6 @@ onMouseMove(pos, world, e) {
       return false;
     }
 
-    // Только выполняем команду – она сама вызовет createRoomFromCandidate
     executeCommand(new AddRoomCommand(this.hoveredCandidate));
     this.hoveredCandidate = null;
     this.hoverLabel = '';
@@ -109,22 +103,16 @@ onMouseMove(pos, world, e) {
     return true;
   }
 
-  // Рендер дополнительной информации (вызывается из ui.redraw после основной отрисовки)
   renderOverlay(ctx) {
     if (!this.hoveredCandidate || !this.hoverLabel) return;
 
     const sp = this.labelScreenPos;
-    
-    // простой белый фон для читаемости
-    const metrics = ctx.measureText(this.hoverLabel.split('\n')[0]); // грубо
     const lines = this.hoverLabel.split('\n');
     const fontSize = 14;
     ctx.save();
     ctx.font = `500 ${fontSize}px Merriweather, Onest, Inter, sans-serif`;
-    ctx.fillStyle = '#333';
     ctx.textBaseline = 'top';
-    
-    // рисуем полупрозрачную плашку
+
     const lineHeight = fontSize * 1.4;
     const boxWidth = Math.max(...lines.map(l => ctx.measureText(l).width)) + 12;
     const boxHeight = lines.length * lineHeight + 8;
@@ -132,23 +120,20 @@ onMouseMove(pos, world, e) {
     ctx.fillRect(sp.x, sp.y, boxWidth, boxHeight);
     ctx.strokeStyle = '#aaa';
     ctx.strokeRect(sp.x, sp.y, boxWidth, boxHeight);
-    
+
     ctx.fillStyle = '#111';
     lines.forEach((line, idx) => {
       ctx.fillText(line, sp.x + 6, sp.y + 4 + idx * lineHeight);
     });
-    
     ctx.restore();
   }
 }
 
-// Вспомогательная функция (копия из room.js, чтобы не дублировать)
 function candidateKey(poly) {
   const c = polygonCentroidSimple(poly);
-  return `${Math.round(c.x/50)*50},${Math.round(c.y/50)*50}`;
+  return `${Math.round(c.x / 50) * 50},${Math.round(c.y / 50) * 50}`;
 }
 
-// Простой центроид для вычислений на лету
 function polygonCentroidSimple(poly) {
   if (poly.length === 0) return { x: 0, y: 0 };
   let cx = 0, cy = 0, area = 0;
@@ -162,9 +147,10 @@ function polygonCentroidSimple(poly) {
   }
   area /= 2;
   if (Math.abs(area) < 0.0001) {
-    cx = poly.reduce((s, p) => s + p.x, 0) / poly.length;
-    cy = poly.reduce((s, p) => s + p.y, 0) / poly.length;
-    return { x: cx, y: cy };
+    return {
+      x: poly.reduce((s, p) => s + p.x, 0) / poly.length,
+      y: poly.reduce((s, p) => s + p.y, 0) / poly.length,
+    };
   }
   return { x: cx / (6 * area), y: cy / (6 * area) };
 }

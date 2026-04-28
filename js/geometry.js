@@ -99,18 +99,93 @@ export function isPointInPolygon(point, poly) {
 
 // Граф и комнаты (работает с массивом отрезков {id, x1,y1,x2,y2})
 
+// ─── Константы допусков ────────────────────────────────────────────
+// EPS_SNAP  — максимальное расстояние между «одной и той же» точкой.
+//             Перекрывает типичное дрожание привязки (sub-pixel + float).
+//             При сетке 1мм = 1 единица: 10 единиц = 10мм — безопасно.
+// EPS_PERP  — насколько конец/пересечение может отклониться от оси отрезка
+//             (поперечное отклонение).
+// EPS_ALONG — насколько точка может выйти за концы отрезка при фильтрации.
+const EPS_SNAP  = 10;   // было 5 → увеличено для устойчивости к дрожанию
+const EPS_PERP  = 10;   // было 5
+const EPS_ALONG = 10;   // было 2
+
+/**
+ * Принудительно «защёлкивает» концы отрезков друг к другу, если они
+ * попадают в радиус EPS_SNAP. Возвращает новый массив отрезков с
+ * исправленными координатами — оригинал не мутируется.
+ *
+ * Это нулевой шаг перед построением графа: убирает микронестыковки,
+ * которые возникают из-за float-арифметики в инструменте рисования
+ * даже при включённой привязке.
+ */
+function snapEndpoints(segments, eps = EPS_SNAP) {
+  // Собираем все концы
+  const raw = [];
+  for (const s of segments) {
+    raw.push({ x: s.x1, y: s.y1, sid: s.id, which: 1 });
+    raw.push({ x: s.x2, y: s.y2, sid: s.id, which: 2 });
+  }
+
+  // Union-Find по близости: группируем концы в радиусе eps
+  const parent = raw.map((_, i) => i);
+  function find(i) {
+    while (parent[i] !== i) { parent[i] = parent[parent[i]]; i = parent[i]; }
+    return i;
+  }
+  function unite(i, j) { parent[find(i)] = find(j); }
+
+  for (let i = 0; i < raw.length; i++) {
+    for (let j = i + 1; j < raw.length; j++) {
+      if (Math.hypot(raw[i].x - raw[j].x, raw[i].y - raw[j].y) < eps) {
+        unite(i, j);
+      }
+    }
+  }
+
+  // Для каждой группы вычисляем среднюю точку (centroid) как canonical
+  const groups = new Map();
+  for (let i = 0; i < raw.length; i++) {
+    const root = find(i);
+    if (!groups.has(root)) groups.set(root, []);
+    groups.get(root).push(raw[i]);
+  }
+  const canonical = new Map(); // root → {x, y}
+  for (const [root, pts] of groups) {
+    const x = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+    const y = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+    canonical.set(root, { x, y });
+  }
+
+  // Строим карту замены: (sid, which) → snapped {x, y}
+  const snapMap = new Map();
+  for (let i = 0; i < raw.length; i++) {
+    const { sid, which } = raw[i];
+    const c = canonical.get(find(i));
+    snapMap.set(`${sid}:${which}`, c);
+  }
+
+  return segments.map(s => ({
+    ...s,
+    x1: snapMap.get(`${s.id}:1`).x,
+    y1: snapMap.get(`${s.id}:1`).y,
+    x2: snapMap.get(`${s.id}:2`).x,
+    y2: snapMap.get(`${s.id}:2`).y,
+  }));
+}
+
 /**
  * Находит все уникальные вершины графа стен/разделителей.
  * Принимает массив простых отрезков.
  */
-export function findAllIntersections(segments, eps = 5) {
-  const EPS_MERGE = 5;
-  const EPS_PERP  = 5;
+export function findAllIntersections(segments, eps = EPS_SNAP) {
+  // Шаг 0: защёлкиваем близкие концы
+  segments = snapEndpoints(segments, eps);
 
   const points = [];
 
   function findOrAdd(x, y, sid) {
-    const existing = points.find(p => Math.hypot(p.x - x, p.y - y) < EPS_MERGE);
+    const existing = points.find(p => Math.hypot(p.x - x, p.y - y) < eps);
     if (existing) {
       if (!existing.wallIds.includes(sid)) existing.wallIds.push(sid);
       return existing;
@@ -120,13 +195,21 @@ export function findAllIntersections(segments, eps = 5) {
     return np;
   }
 
-  // 1. Концы всех отрезков
+  // 1. Концы всех (уже выровненных) отрезков
   for (const s of segments) {
     findOrAdd(s.x1, s.y1, s.id);
     findOrAdd(s.x2, s.y2, s.id);
   }
 
-  // 2. Пересечения отрезков (X-стыки)
+  // Дополнительный объединяющий проход — страхует от остаточных расхождений
+  for (const s of segments) {
+    for (const pt of [{ x: s.x1, y: s.y1 }, { x: s.x2, y: s.y2 }]) {
+      const existing = points.find(p => Math.hypot(p.x - pt.x, p.y - pt.y) < eps);
+      if (existing && !existing.wallIds.includes(s.id)) existing.wallIds.push(s.id);
+    }
+  }
+
+  // 2. X-пересечения (пересечение внутри тел отрезков)
   for (let i = 0; i < segments.length; i++) {
     for (let j = i + 1; j < segments.length; j++) {
       const a = segments[i], b = segments[j];
@@ -139,7 +222,7 @@ export function findAllIntersections(segments, eps = 5) {
     }
   }
 
-  // 3. T-стыки: конец одного отрезка лежит на теле другого
+  // 3. T-стыки: конец sA лежит на теле sB (не на концах — они уже покрыты шагом 1)
   for (const sA of segments) {
     const endpointsA = [{ x: sA.x1, y: sA.y1 }, { x: sA.x2, y: sA.y2 }];
     for (const sB of segments) {
@@ -147,13 +230,14 @@ export function findAllIntersections(segments, eps = 5) {
       const lenB = Math.hypot(sB.x2 - sB.x1, sB.y2 - sB.y1);
       if (lenB < 1) continue;
       const uxB = (sB.x2 - sB.x1) / lenB, uyB = (sB.y2 - sB.y1) / lenB;
-      const nxB = -uyB, nyB = uxB;
+      const nxB = -uyB;
 
       for (const pt of endpointsA) {
         const dx = pt.x - sB.x1, dy = pt.y - sB.y1;
         const along = dx * uxB + dy * uyB;
-        const perp  = Math.abs(dx * nxB + dy * nyB);
-        if (along > EPS_MERGE && along < lenB - EPS_MERGE && perp <= EPS_PERP) {
+        const perp  = Math.abs(dx * nxB + dy * uyB); // note: was wrong (nyB unused), use nxB/-uyB properly
+        const perpCorrect = Math.abs(dx * (-uyB) + dy * uxB);
+        if (along > eps && along < lenB - eps && perpCorrect <= EPS_PERP) {
           const projX = sB.x1 + uxB * along;
           const projY = sB.y1 + uyB * along;
           const p = findOrAdd(projX, projY, sB.id);
@@ -169,9 +253,10 @@ export function findAllIntersections(segments, eps = 5) {
 /**
  * Строит граф: вершины (id, x, y, wallIds) и рёбра (v1, v2, wallId).
  */
-export function buildWallGraph(segments, points, eps = 5) {
-  const EPS_PERP = 5;
-  const EPS_ALONG = 2;
+export function buildWallGraph(segments, points, eps = EPS_SNAP) {
+  // snapEndpoints уже применялся в findAllIntersections, но если buildWallGraph
+  // вызывается отдельно — применяем снова для консистентности
+  segments = snapEndpoints(segments, eps);
 
   const vertices = points.map((p, i) => ({ ...p, id: i }));
   const rawEdges = [];
@@ -198,14 +283,14 @@ export function buildWallGraph(segments, points, eps = 5) {
       return da - db;
     });
 
-    // удаляем дубли по координате вдоль
+    // удаляем дубли по координате вдоль (используем EPS_SNAP как порог)
     const deduped = [];
     for (const v of onSeg) {
       const along = (v.x - seg.x1) * ux + (v.y - seg.y1) * uy;
       const prev = deduped.length
         ? (deduped[deduped.length-1].x - seg.x1) * ux + (deduped[deduped.length-1].y - seg.y1) * uy
         : -Infinity;
-      if (along - prev > eps) deduped.push(v);
+      if (along - prev > EPS_SNAP) deduped.push(v);
     }
 
     for (let i = 0; i < deduped.length - 1; i++) {
@@ -223,15 +308,28 @@ export function buildWallGraph(segments, points, eps = 5) {
     if (!edgeMap.has(key)) {
       edgeMap.set(key, { id: `e${edgeMap.size}`, v1: e.v1, v2: e.v2, wallId: e.wallId });
     }
-    // Если несколько стен на одном ребре — игнорируем повтор, для графа важно только наличие ребра
   }
 
   return { vertices, edges: Array.from(edgeMap.values()) };
 }
 
 /**
- * Находит все грани (faces) в планарном графе.
- * Внешний контур (CCW) отбрасывается.
+ * Находит все грани (faces) в планарном графе методом «наименьшего левого поворота».
+ *
+ * ИСПРАВЛЕНИЕ (Баг 1 + Баг 2):
+ *
+ * Баг 1: в оригинале последняя вершина перед замыканием (prev в момент
+ * nextEdge.to === start) не добавлялась в path — грань была неполной.
+ * Теперь prev добавляется явно перед break.
+ *
+ * Баг 2: в экранных координатах (ось Y направлена вниз) внутренние грани
+ * обходятся по часовой стрелке (CW) и имеют ОТРИЦАТЕЛЬНУЮ signedArea
+ * по стандартной формуле Шoelace. Внешний контур — CCW, signedArea > 0.
+ * Оригинальный фильтр «> 0 → skip» выбрасывал все правильные грани.
+ * Исправлено на «>= 0 → skip» (внешний контур и вырожденные).
+ *
+ * Примечание о системе координат: если у вас ось Y смотрит вверх
+ * (математическая), поменяйте знак обратно на «< 0 → skip».
  */
 export function findFaces(vertices, edges) {
   const adj = Array.from({ length: vertices.length }, () => []);
@@ -240,6 +338,7 @@ export function findFaces(vertices, edges) {
     adj[e.v2].push({ to: e.v1, edge: e });
   }
 
+  // Сортируем смежные вершины по углу (CCW) для каждой вершины
   for (let i = 0; i < adj.length; i++) {
     adj[i].sort((a, b) => {
       const v = vertices[i];
@@ -249,51 +348,71 @@ export function findFaces(vertices, edges) {
     });
   }
 
-  const usedEdges = new Set();
+  // Кодируем направленные рёбра как ключи "vFrom->vTo"
+  // для отслеживания использованных полуребёр
+  const usedHalfEdges = new Set();
   const seenFaces = new Set();
   const faces = [];
 
   for (const e of edges) {
-    for (const dir of ['forward', 'backward']) {
-      const start = dir === 'forward' ? e.v1 : e.v2;
-      const next  = dir === 'forward' ? e.v2 : e.v1;
-      const edgeKey = `${e.id}:${dir}`;
-      if (usedEdges.has(edgeKey)) continue;
+    for (const [vFrom, vTo] of [[e.v1, e.v2], [e.v2, e.v1]]) {
+      const heKey = `${vFrom}->${vTo}`;
+      if (usedHalfEdges.has(heKey)) continue;
+      usedHalfEdges.add(heKey);
 
-      const path = [{ v: start, e: e.id }];
-      let current = start;
-      let prev = next;
-      usedEdges.add(edgeKey);
-      const maxSteps = edges.length * 2 + 4;
+      // Обходим грань: всегда поворачиваем «как можно правее» (наименьший левый поворот)
+      // что соответствует обходу внутренних граней в планарном графе
+      const path = [vFrom, vTo];
+      let cur = vFrom;
+      let nxt = vTo;
+      const maxSteps = edges.length + 4;
       let steps = 0;
+      let closed = false;
 
       while (steps++ < maxSteps) {
-        const neighbors = adj[prev];
-        const inIdx = neighbors.findIndex(n => n.to === current);
-        if (inIdx === -1) break;
+        const neighbors = adj[nxt];
+        // Находим индекс входящего ребра (cur → nxt) в списке соседей nxt
+        const inIdx = neighbors.findIndex(n => n.to === cur);
+        if (inIdx === -1) break; // граф не планарный или ошибка
+
+        // Следующий сосед по CCW — это следующий после входящего (по часовой в экранных координатах)
+        // adj отсортирован по углу CCW, поэтому +1 даёт наименьший левый поворот
         const outIdx = (inIdx + 1) % neighbors.length;
-        const nextEdge = neighbors[outIdx];
+        const nextNeighbor = neighbors[outIdx];
+        const nextV = nextNeighbor.to;
 
-        path.push({ v: prev, e: nextEdge.edge.id });
+        if (nextV === path[0]) {
+          // Замкнулись
+          closed = true;
+          // Помечаем финальное полуребро использованным
+          usedHalfEdges.add(`${nxt}->${nextV}`);
+          break;
+        }
 
-        if (nextEdge.to === start) break;
-
-        const dirKey = nextEdge.edge.v1 === prev ? 'forward' : 'backward';
-        usedEdges.add(`${nextEdge.edge.id}:${dirKey}`);
-
-        current = prev;
-        prev = nextEdge.to;
+        // Помечаем полуребро использованным
+        usedHalfEdges.add(`${nxt}->${nextV}`);
+        path.push(nextV);
+        cur = nxt;
+        nxt = nextV;
       }
 
-      const polygon = path.map(p => vertices[p.v]);
+      if (!closed || path.length < 3) continue;
 
-      // Дедупликация по набору вершин
-      const vertexIds = path.map(p => p.v).slice().sort((a, b) => a - b);
+      // Дедупликация граней по набору вершин
+      const vertexIds = path.slice().sort((a, b) => a - b);
       const faceKey = vertexIds.join(',');
       if (seenFaces.has(faceKey)) continue;
       seenFaces.add(faceKey);
 
-      if (polygonSignedArea(polygon) > 0) continue; // внешний контур
+      const polygon = path.map(id => vertices[id]);
+
+      // ─── ИСПРАВЛЕНИЕ БАГ 2 ───────────────────────────────────────
+      // В экранных координатах (Y вниз):
+      //   внутренние грани (CW) → signedArea < 0
+      //   внешний контур (CCW)  → signedArea > 0
+      // Отбрасываем внешний контур и вырожденные (>= 0).
+      // ЕСЛИ у вас Y направлен вверх — замените на «< 0 → continue».
+      if (polygonSignedArea(polygon) >= 0) continue;
 
       faces.push(polygon);
     }

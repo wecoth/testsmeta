@@ -50,6 +50,11 @@ export class RoomTool extends BaseTool {
       console.log('candidates.length:', candidates.length);
       if (candidates.length > 0) {
         console.log('candidate[0] verts:', candidates[0].length, candidates[0]);
+        console.log('ALL walls:', JSON.stringify(appState.walls.map(w => ({
+  id: w.id,
+  cx1: Math.round(w.cx1 ?? w.x1), cy1: Math.round(w.cy1 ?? w.y1),
+  cx2: Math.round(w.cx2 ?? w.x2), cy2: Math.round(w.cy2 ?? w.y2),
+}))));
       }
       console.groupEnd();
     }
